@@ -139,7 +139,7 @@ class RaceCog(commands.Cog):
 
         # Check if user already has an ongoing game
         if author.id in self.ongoing_games:
-            return await ctx.reply("You already have a game i# Parse bet amount
+            return await ctx.reply("You already have a game ongoing")
         try:
             if "all" in bet_amount.lower() or "max" in bet_amount.lower():
                 db = Users()
