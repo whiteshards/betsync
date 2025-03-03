@@ -55,9 +55,20 @@ async def on_command(ctx):
     embed.set_footer(text="BetSync Casino", icon_url=bot.user.avatar.url)
     await ctx.reply("By using BetSync, agree to our TOS. Type `!tos` to know more.", embed=embed)
 
-# Handle user registration on command
+# Handle user registration on command and check for blacklisted users
 @bot.event
 async def on_command(ctx):
+    # Check if user is blacklisted
+    admin_cog = bot.get_cog("AdminCommands")
+    if admin_cog and hasattr(admin_cog, 'blacklisted_ids') and ctx.author.id in admin_cog.blacklisted_ids:
+        embed = discord.Embed(
+            title="🚫 Access Denied",
+            description="You have been blacklisted from using this bot.",
+            color=0xFF0000
+        )
+        await ctx.reply(embed=embed)
+        return
+    
     # Continue with user registration check
     db = Users()
     if db.fetch_user(ctx.author.id) != False:

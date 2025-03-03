@@ -9,6 +9,7 @@ class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.admin_ids = self.load_admin_ids()
+        self.blacklisted_ids = self.load_blacklisted_ids()
     
     def load_admin_ids(self):
         """Load admin IDs from admins.txt file"""
@@ -22,6 +23,30 @@ class AdminCommands(commands.Cog):
         except Exception as e:
             print(f"Error loading admin IDs: {e}")
         return admin_ids
+        
+    def load_blacklisted_ids(self):
+        """Load blacklisted IDs from blacklist.txt file"""
+        blacklisted_ids = []
+        try:
+            with open("blacklist.txt", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and line.isdigit():
+                        blacklisted_ids.append(int(line))
+        except Exception as e:
+            print(f"Error loading blacklisted IDs: {e}")
+        return blacklisted_ids
+        
+    def save_blacklisted_ids(self):
+        """Save blacklisted IDs to blacklist.txt file"""
+        try:
+            with open("blacklist.txt", "w") as f:
+                for user_id in self.blacklisted_ids:
+                    f.write(f"{user_id}\n")
+            return True
+        except Exception as e:
+            print(f"Error saving blacklisted IDs: {e}")
+            return False
     
     def is_admin(self, user_id):
         """Check if a user ID is in the admin list"""
@@ -576,6 +601,192 @@ class AdminCommands(commands.Cog):
                 await ctx.reply(embed=error_embed)
             except Exception as reply_error:
                 print(f"[ERROR] Could not send error message: {str(reply_error)}")
+                
+    @commands.command(name="blacklist")
+    async def blacklist(self, ctx, user: discord.User = None):
+        """Blacklist a user from using the bot (Bot Admin only)
+        
+        Usage: !blacklist @user
+               !blacklist user_id
+        """
+        # Check if command user is in admins.txt
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check if user is provided
+        if user is None:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Usage",
+                description="Please mention a user or provide a user ID to blacklist.",
+                color=0xFF0000
+            )
+            embed.add_field(
+                name="Correct Usage",
+                value="`!blacklist @user`\n`!blacklist user_id`",
+                inline=False
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check if user is already blacklisted
+        if user.id in self.blacklisted_ids:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Already Blacklisted",
+                description=f"{user.mention} is already blacklisted.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check if user is an admin (prevent blacklisting admins)
+        if self.is_admin(user.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Cannot Blacklist Admin",
+                description=f"You cannot blacklist an administrator.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Add user to blacklisted_ids
+        self.blacklisted_ids.append(user.id)
+        
+        # Save to blacklist.txt
+        success = self.save_blacklisted_ids()
+        
+        if not success:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"Failed to save the blacklist. Please check the logs.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Send confirmation message
+        embed = discord.Embed(
+            title="🚫 | User Blacklisted",
+            description=f"{user.mention} has been blacklisted from using the bot.",
+            color=0x00FFAE
+        )
+        embed.set_footer(text=f"Admin: {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+        
+        await ctx.reply(embed=embed)
+        
+    @commands.command(name="unblacklist")
+    async def unblacklist(self, ctx, user: discord.User = None):
+        """Remove a user from the blacklist (Bot Admin only)
+        
+        Usage: !unblacklist @user
+               !unblacklist user_id
+        """
+        # Check if command user is in admins.txt
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check if user is provided
+        if user is None:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Usage",
+                description="Please mention a user or provide a user ID to remove from the blacklist.",
+                color=0xFF0000
+            )
+            embed.add_field(
+                name="Correct Usage",
+                value="`!unblacklist @user`\n`!unblacklist user_id`",
+                inline=False
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check if user is blacklisted
+        if user.id not in self.blacklisted_ids:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Not Blacklisted",
+                description=f"{user.mention} is not in the blacklist.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Remove user from blacklisted_ids
+        self.blacklisted_ids.remove(user.id)
+        
+        # Save to blacklist.txt
+        success = self.save_blacklisted_ids()
+        
+        if not success:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"Failed to save the blacklist. Please check the logs.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Send confirmation message
+        embed = discord.Embed(
+            title="✅ | User Unblacklisted",
+            description=f"{user.mention} has been removed from the blacklist.",
+            color=0x00FFAE
+        )
+        embed.set_footer(text=f"Admin: {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+        
+        await ctx.reply(embed=embed)
+        
+    @commands.command(name="viewblacklist")
+    async def viewblacklist(self, ctx):
+        """View all blacklisted users (Bot Admin only)
+        
+        Usage: !viewblacklist
+        """
+        # Check if command user is in admins.txt
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Create embed
+        embed = discord.Embed(
+            title="🚫 Blacklisted Users",
+            description="Users who are blacklisted from using the bot",
+            color=0x00FFAE
+        )
+        
+        if not self.blacklisted_ids:
+            embed.add_field(
+                name="No Blacklisted Users",
+                value="There are currently no blacklisted users.",
+                inline=False
+            )
+        else:
+            blacklist_entries = []
+            for user_id in self.blacklisted_ids:
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                    blacklist_entries.append(f"{user.mention} (`{user.id}`)")
+                except:
+                    blacklist_entries.append(f"Unknown User (`{user_id}`)")
+            
+            # Split into chunks if there are many entries
+            chunks = [blacklist_entries[i:i+15] for i in range(0, len(blacklist_entries), 15)]
+            
+            for i, chunk in enumerate(chunks):
+                embed.add_field(
+                    name=f"Blacklisted Users {i+1}" if len(chunks) > 1 else "Blacklisted Users",
+                    value="\n".join(chunk),
+                    inline=False
+                )
+        
+        embed.set_footer(text=f"Requested by: {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+        
+        await ctx.reply(embed=embed)
 
 def setup(bot):
     bot.add_cog(AdminCommands(bot))
