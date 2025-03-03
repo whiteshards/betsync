@@ -1,4 +1,3 @@
-
 import discord
 import random
 import asyncio
@@ -45,7 +44,7 @@ class CasesCog(commands.Cog):
             {"value": 0.4, "chance": 0.35, "emoji": "💢", "name": "BAD LUCK"},
             {"value": 0.1, "chance": 0.41, "emoji": "💀", "name": "TERRIBLE"}
         ]
-        
+
         # Validate that probabilities sum to 1
         total_prob = sum(item["chance"] for item in self.multipliers)
         if abs(total_prob - 1.0) > 0.001:  # Allow small floating-point error
@@ -124,97 +123,68 @@ class CasesCog(commands.Cog):
                 else:
                     # Default to tokens if no currency specified
                     currency_used = "tokens"
-                    
+
             # Validate user has enough balance
             if currency_used == "tokens" and tokens_balance < bet_amount:
                 return await ctx.reply(f"You don't have enough tokens! Your balance: {tokens_balance:.2f} tokens")
             elif currency_used == "credits" and credits_balance < bet_amount:
                 return await ctx.reply(f"You don't have enough credits! Your balance: {credits_balance:.2f} credits")
-                
+
             # Deduct the bet amount
             db.update_balance(author.id, -bet_amount, currency_used, "$inc")
-            
+
         except Exception as e:
             return await ctx.reply(f"An error occurred: {str(e)}")
 
-        # Send loading message
+        # Send initial message
         loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
-            title=f"{loading_emoji} | Opening Case...",
-            description="Preparing your case... Get ready for a surprise!",
+            title=f"{loading_emoji} Opening Case...",
+            description=f"Bet: **{bet_amount:.2f} {currency_used}**",
             color=0x00FFAE
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        # Simulate case animation with better visuals
+        # Create a clean spinning animation
         animation_embed = discord.Embed(
-            title="📦 Case Opening...",
-            description=f"Opening a case for **{bet_amount:.2f} {currency_used}**",
+            title="📦 Case Opening",
+            description=f"Bet: **{bet_amount:.2f} {currency_used}**",
             color=0x00FFAE
         )
-        
-        # Improved animation with scrolling effect
-        stages = [
-            "🔒 | □□□□□□□□□□ | 0%",
-            "🔓 | ■□□□□□□□□□ | 10%",
-            "📦 | ■■□□□□□□□□ | 20%",
-            "📦 | ■■■□□□□□□□ | 30%",
-            "📦 | ■■■■□□□□□□ | 40%",
-            "📦 | ■■■■■□□□□□ | 50%",
-            "📦 | ■■■■■■□□□□ | 60%",
-            "📦 | ■■■■■■■□□□ | 70%",
-            "📦 | ■■■■■■■■□□ | 80%",
-            "📦 | ■■■■■■■■■□ | 90%",
-            "📦 | ■■■■■■■■■■ | 100%"
-        ]
-        
-        for stage in stages:
-            animation_embed.add_field(name="Opening Progress", value=stage, inline=False)
-            await loading_message.edit(embed=animation_embed)
-            await asyncio.sleep(0.3)
-            
-        # Show scrolling rewards for suspense
-        animation_embed.clear_fields()
-        animation_embed.add_field(name="Case Contents Revealed", value="Shuffling rewards...", inline=False)
-        await loading_message.edit(embed=animation_embed)
-        
-        # Spinning reel animation
-        all_items = []
-        for _ in range(3):  # Show 3 rounds of spinning
+
+        # Spinning reel animation - cleaner version
+        for i in range(10):  # 10 quick spins for better effect
+            # Create a clean display of spinning items
             shuffled_items = self.multipliers.copy()
             random.shuffle(shuffled_items)
-            
-            for i in range(5):  # Show 5 spins in each round
-                reel = ""
-                for j in range(3):
-                    item = shuffled_items[(i+j) % len(shuffled_items)]
-                    if j == 1:
-                        # Highlight middle item
-                        reel += f"➡️ {item['emoji']} **{item['name']}** ({item['value']}x) ⬅️\n"
-                    else:
-                        reel += f"   {item['emoji']} {item['name']} ({item['value']}x)\n"
-                
-                animation_embed.set_field_at(0, name="🎰 Spinning...", value=reel, inline=False)
-                await loading_message.edit(embed=animation_embed)
-                await asyncio.sleep(0.2 if _ < 2 else 0.4)  # Slow down on final reel
-            
-            # Add suspense delay between rounds
-            await asyncio.sleep(0.3)
+
+            reel = ""
+            for j in range(3):
+                item = shuffled_items[j]
+                if j == 1:
+                    # Center item highlighted
+                    reel += f"▶️ {item['emoji']} **{item['name']}** ({item['value']}x) ◀️\n"
+                else:
+                    reel += f"   {item['emoji']} {item['name']} ({item['value']}x)\n"
+
+            animation_embed.description = f"Bet: **{bet_amount:.2f} {currency_used}**\n\n{reel}"
+            await loading_message.edit(embed=animation_embed)
+            await asyncio.sleep(0.2 if i < 8 else 0.3)  # Slow down at the end
 
         # Determine result using weighted probabilities
         random_value = random.random()
         cumulative_prob = 0
         selected_multiplier = None
-        
+
         for multiplier in self.multipliers:
             cumulative_prob += multiplier["chance"]
             if random_value <= cumulative_prob:
                 selected_multiplier = multiplier
                 break
-        
+
         if not selected_multiplier:  # Fallback in case of floating-point issues
             selected_multiplier = self.multipliers[-1]
-        
+
         # Calculate winnings
         win_amount = bet_amount * selected_multiplier["value"]
         user_won = selected_multiplier["value"] > 1.0
@@ -267,111 +237,45 @@ class CasesCog(commands.Cog):
         }
         db.update_history(author.id, history_entry)
 
-        # Create enhanced final result embed
-        # Customize colors and visuals based on reward tier
-        if selected_multiplier["value"] >= 10:  # Legendary/Epic (high tier)
+        # Set color based on result tier
+        if selected_multiplier["value"] >= 10:  # Legendary/Epic
             color = 0xFFD700  # Gold
-            banner = "🌟 🎊 🌟 🎊 🌟 🎊 🌟 🎊 🌟"
-            title_emoji = "💎 🏆"
-        elif selected_multiplier["value"] >= 2:  # Rare/Uncommon (medium tier)
+        elif selected_multiplier["value"] >= 2:  # Rare/Uncommon
             color = 0x00FF00  # Green
-            banner = "✨ 🎁 ✨ 🎁 ✨ 🎁 ✨"
-            title_emoji = "🎁"
-        elif selected_multiplier["value"] >= 1:  # Common (low win tier)
+        elif selected_multiplier["value"] >= 1:  # Common
             color = 0x00AAFF  # Blue
-            banner = "🔹 🔸 🔹 🔸 🔹 🔸 🔹"
-            title_emoji = "📦"
-        else:  # Bad luck / Terrible (loss tier)
-            color = 0xFF0000  # Red 
-            banner = "💢 ⚠️ 💢 ⚠️ 💢 ⚠️ 💢"
-            title_emoji = "📦"
-        
-        # Create result showcase
-        if selected_multiplier["value"] >= 10:  # Big win
-            result_embed = discord.Embed(
-                title=f"{title_emoji} INCREDIBLE REWARD! {title_emoji}",
-                description=(
-                    f"{banner}\n\n"
-                    f"{selected_multiplier['emoji']} **{selected_multiplier['name']}** {selected_multiplier['emoji']}\n\n"
-                    f"**WOW!** You've unlocked one of the rarest rewards!\n"
-                    f"Your **{bet_amount:.2f} {currency_used}** bet just turned into an amazing **{win_amount:.2f} credits**!\n\n"
-                    f"**MULTIPLIER: {selected_multiplier['value']}x** 🚀\n\n"
-                    f"{banner}"
-                ),
-                color=color
-            )
-            # Add celebration GIF or special formatting for big wins
-            result_embed.set_thumbnail(url="https://i.imgur.com/MNEm1b1.gif")  # Celebration GIF
-        elif user_won:  # Regular win
-            result_embed = discord.Embed(
-                title=f"{title_emoji} Case Opened: {selected_multiplier['name']}! {title_emoji}",
-                description=(
-                    f"{banner}\n\n"
-                    f"{selected_multiplier['emoji']} **REWARD UNLOCKED!** {selected_multiplier['emoji']}\n\n"
-                    f"You bet **{bet_amount:.2f} {currency_used}** and received a **{selected_multiplier['value']}x** multiplier.\n\n"
-                    f"**WINNINGS: {win_amount:.2f} credits** 💰\n"
-                    f"**NET PROFIT: {win_amount - bet_amount:.2f} credits**\n\n"
-                    f"{banner}"
-                ),
-                color=color
-            )
-        else:  # Loss
-            result_embed = discord.Embed(
-                title=f"{title_emoji} Case Opened: {selected_multiplier['name']} {title_emoji}",
-                description=(
-                    f"{banner}\n\n"
-                    f"{selected_multiplier['emoji']} **REWARD REVEALED** {selected_multiplier['emoji']}\n\n"
-                    f"You bet **{bet_amount:.2f} {currency_used}** and received a **{selected_multiplier['value']}x** multiplier.\n\n"
-                    f"**RETURNS: {win_amount:.2f} credits** 💸\n"
-                    f"**NET LOSS: {bet_amount - win_amount:.2f} credits**\n\n"
-                    f"{banner}"
-                ),
-                color=color
-            )
-            
-        # Create a visual bar for multiplier
-        multiplier_bar = ""
-        for m in sorted(self.multipliers, key=lambda x: x["value"]):
-            if m["value"] == selected_multiplier["value"]:
-                multiplier_bar += f"**[{m['emoji']}]** "  # Highlight selected multiplier
-            else:
-                multiplier_bar += f"{m['emoji']} "
-                
-        result_embed.add_field(
-            name="📊 Reward Scale",
-            value=multiplier_bar,
-            inline=False
+        else:  # Bad luck / Terrible
+            color = 0xFF0000  # Red
+
+        # Create a simplified and clean result embed
+        result_embed = discord.Embed(
+            title=f"📦 {selected_multiplier['emoji']} {selected_multiplier['name']} {selected_multiplier['emoji']}",
+            description=(
+                f"**Multiplier: {selected_multiplier['value']}x**\n"
+                f"**Bet:** {bet_amount:.2f} {currency_used}\n"
+                f"**Payout:** {win_amount:.2f} credits\n"
+                f"**Profit:** {win_amount - bet_amount:.2f} credits"
+            ),
+            color=color
         )
-        
-        # Add case information with improved formatting
+
+        # Add multiplier info in a clean format
         case_info = ""
         for m in sorted(self.multipliers, key=lambda x: x["value"], reverse=True):
             # Highlight the result
             if m["value"] == selected_multiplier["value"]:
-                case_info += f"➡️ {m['emoji']} **{m['name']}** ({m['value']}x) - {m['chance']*100:.2f}% ⬅️\n"
+                case_info += f"➡️ {m['emoji']} **{m['name']}** ({m['value']}x) - {m['chance']*100:.1f}% ⬅️\n"
             else:
-                case_info += f"{m['emoji']} {m['name']} ({m['value']}x) - {m['chance']*100:.2f}%\n"
-                
+                case_info += f"{m['emoji']} {m['name']} ({m['value']}x) - {m['chance']*100:.1f}%\n"
+
         result_embed.add_field(
             name="📋 Case Contents",
             value=case_info,
             inline=False
         )
-        
-        # Add user stats field
-        result_embed.add_field(
-            name="🧮 Summary",
-            value=(
-                f"**Bet:** {bet_amount:.2f} {currency_used}\n"
-                f"**Multiplier:** {selected_multiplier['value']}x\n"
-                f"**Payout:** {win_amount:.2f} credits\n"
-                f"**Result:** {'🎯 WIN' if user_won else '❌ LOSS'}"
-            ),
-            inline=True
-        )
-        
+
         result_embed.set_footer(text=f"BetSync Casino • {currency_used.capitalize()} bet: {bet_amount:.2f}", icon_url=self.bot.user.avatar.url)
-        
+
         # Add play again button
         play_again_view = CasesPlayAgainView(self, ctx, bet_amount, currency_used)
         play_again_message = await loading_message.edit(embed=result_embed, view=play_again_view)
