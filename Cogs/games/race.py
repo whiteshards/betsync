@@ -29,8 +29,6 @@ class RacePlayAgainView(discord.ui.View):
         # Start a new game with same bet amount
         await self.cog.race(interaction.channel, str(self.bet_amount), self.currency_used)
 
-    al=True)
-
 
 class RaceCog(commands.Cog):
     def __init__(self, bot):
@@ -57,7 +55,7 @@ class RaceCog(commands.Cog):
             )
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
-            
+
         # Get user's balance
         author = ctx.author
         db = Users()
@@ -70,7 +68,7 @@ class RaceCog(commands.Cog):
         # Check if user already has an ongoing game
         if author.id in self.ongoing_games:
             return await ctx.reply("You already have a game in progress!")
-            
+
         # Process bet amount and currency
         try:
             if bet_amount.lower() in ["all", "max"]:
@@ -98,7 +96,7 @@ class RaceCog(commands.Cog):
                         return await ctx.reply("Bet amount must be positive!")
                 except ValueError:
                     return await ctx.reply("Invalid bet amount! Please enter a valid number.")
-                
+
                 # Handle currency selection
                 if currency_type:
                     if currency_type.lower() in ["tokens", "t"]:
@@ -123,23 +121,25 @@ class RaceCog(commands.Cog):
                             # Use tokens first, then credits
                             tokens_to_use = min(tokens_balance, bet_amount)
                             credits_to_use = bet_amount - tokens_to_use
-                            
+
                             # Update balances
                             db.update_balance(author.id, -tokens_to_use, "tokens", "$inc")
                             db.update_balance(author.id, -credits_to_use, "credits", "$inc")
-                            
+
                             await ctx.send(f"Using {tokens_to_use:.2f} tokens and {credits_to_use:.2f} credits for your bet.")
                             currency_used = "mixed"  # Special case for mixed currency
                         else:
                             return await ctx.reply(f"You don't have enough funds! Tokens: {tokens_balance:.2f}, Credits: {credits_balance:.2f}")
         except Exception as e:
             return await ctx.reply(f"An error occurred: {str(e)}")
-        
+
         # Deduct the bet amount if not using mixed currency (mixed was already deducted)
         if currency_used != "mixed":
-            db.update_balance(author.id, -bet_amount, currency_used, "$inc")n progress!")
+            db.update_balance(author.id, -bet_amount, currency_used, "$inc")
 
-        # Parse bet amount
+        # Check if user already has an ongoing game
+        if author.id in self.ongoing_games:
+            return await ctx.reply("You already have a game i# Parse bet amount
         try:
             if "all" in bet_amount.lower() or "max" in bet_amount.lower():
                 db = Users()
@@ -208,7 +208,7 @@ class RaceCog(commands.Cog):
             async def callback(interaction):
                 await self.car_selected(interaction, car_num, bet_amount, currency_used)
             return callback
-            
+
         for i in range(1, 5):
             car_button = discord.ui.Button(label=f"Car {i}", style=discord.ButtonStyle.secondary, row=0)
             car_button.callback = await make_callback(i)
@@ -258,7 +258,7 @@ class RaceCog(commands.Cog):
             await interaction.response.defer()
         except Exception as e:
             print(f"Error deferring interaction: {e}")
-            
+
         try:
             # Disable all buttons
             message = self.ongoing_games[author.id]["message"]
@@ -267,7 +267,7 @@ class RaceCog(commands.Cog):
                 btn = discord.ui.Button(label=f"Car {i}", style=discord.ButtonStyle.secondary, disabled=True)
                 view.add_item(btn)
 
-        # Update selection message
+            # Update selection message
             selection_embed = discord.Embed(
                 title="🏎️ Race Starting",
                 description=(
