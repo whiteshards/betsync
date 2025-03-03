@@ -152,27 +152,7 @@ class CasesCog(commands.Cog):
             color=0x00FFAE
         )
 
-        # Spinning reel animation - faster and better aligned
-        for i in range(8):  # Reduced to 8 spins for faster animation
-            # Create a clean display of spinning items
-            shuffled_items = self.multipliers.copy()
-            random.shuffle(shuffled_items)
-
-            reel = ""
-            for j in range(3):
-                item = shuffled_items[j]
-                if j == 1:
-                    # Center item highlighted with proper alignment
-                    reel += f"▶️ {item['emoji']} **{item['name']}** ({item['value']}x) ◀️\n"
-                else:
-                    # Ensure consistent spacing for non-selected items
-                    reel += f"   {item['emoji']} {item['name']} ({item['value']}x)\n"
-
-            animation_embed.description = f"Bet: **{bet_amount:.2f} {currency_used}**\n\n{reel}"
-            await loading_message.edit(embed=animation_embed)
-            await asyncio.sleep(0.1 if i < 6 else 0.15)  # Much faster spinning with slight slowdown at end
-
-        # Determine result using weighted probabilities
+        # Determine result first to avoid sticking issues
         random_value = random.random()
         cumulative_prob = 0
         selected_multiplier = None
@@ -185,6 +165,47 @@ class CasesCog(commands.Cog):
 
         if not selected_multiplier:  # Fallback in case of floating-point issues
             selected_multiplier = self.multipliers[-1]
+            
+        # Spinning reel animation - properly aligned and fixed
+        for i in range(8):  # 8 spins for animation
+            # Create a clean display of spinning items
+            shuffled_items = self.multipliers.copy()
+            random.shuffle(shuffled_items)
+            
+            # Make sure the animation shows the actual result at the end
+            if i == 7:  # On last spin, make sure middle item is the result
+                center_idx = -1
+                for idx, item in enumerate(shuffled_items):
+                    if item["value"] == selected_multiplier["value"] and item["name"] == selected_multiplier["name"]:
+                        center_idx = idx
+                        break
+                
+                # If found, swap to make it the middle item
+                if center_idx != -1 and center_idx != 1:
+                    shuffled_items[center_idx], shuffled_items[1] = shuffled_items[1], shuffled_items[center_idx]
+                # If not found (unlikely), replace middle item directly
+                elif center_idx == -1:
+                    shuffled_items[1] = selected_multiplier
+
+            reel = ""
+            for j in range(3):
+                item = shuffled_items[j]
+                if j == 1:
+                    # Center item highlighted with consistent alignment
+                    reel += f"▶️ {item['emoji']} **{item['name']}** ({item['value']}x) ◀️\n"
+                else:
+                    # Consistent padding for non-selected items for better alignment
+                    reel += f"   {item['emoji']} {item['name']} ({item['value']}x)\n"
+
+            animation_embed.description = f"Bet: **{bet_amount:.2f} {currency_used}**\n\n{reel}"
+            
+            try:
+                await loading_message.edit(embed=animation_embed)
+                await asyncio.sleep(0.08 if i < 6 else 0.12)  # Even faster animation with slight slowdown at end
+            except Exception as e:
+                print(f"Error in animation: {e}")
+                # If edit fails, continue to next frame
+                continue
 
         # Calculate winnings
         win_amount = bet_amount * selected_multiplier["value"]
