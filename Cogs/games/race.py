@@ -14,11 +14,12 @@ class RacePlayAgainView(discord.ui.View):
         self.bet_amount = bet_amount
         self.currency_used = currency_used
         self.message = None
+        self.original_author = ctx.author  # Store the original author explicitly
 
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
     async def play_again(self, button, interaction):
         # Check if the person clicking is the original player
-        if interaction.user.id != self.ctx.author.id:
+        if interaction.user.id != self.original_author.id:
             return await interaction.response.send_message("Only the original player can use this button!", ephemeral=True)
 
         # Disable the button after click
@@ -27,7 +28,8 @@ class RacePlayAgainView(discord.ui.View):
         await self.message.edit(view=self)
 
         # Start a new game with same bet amount
-        await self.cog.race(interaction.channel, str(self.bet_amount), self.currency_used)
+        # Pass the interaction.channel instead of self.ctx
+        await self.cog.race(self.ctx, str(self.bet_amount), self.currency_used)
 
 
 class RaceCog(commands.Cog):
@@ -270,14 +272,19 @@ class RaceCog(commands.Cog):
 
         while winner is None:
             # Add random progress to each car
+            winners = []
             for i in range(4):
                 # Faster racing with more varied speeds
                 move = random.randint(1, 3)
                 car_positions[i] = min(car_positions[i] + move, self.track_length)
 
-                # Check if this car reached the finish line
+                # Track cars that reach the finish line
                 if car_positions[i] >= self.track_length:
-                    winner = i + 1
+                    winners.append(i + 1)
+            
+            # Only set winner if this is the first time any car reached the finish line
+            if winners and winner is None:
+                winner = winners[0]  # Take the first car that crossed the finish line
 
             # Update the race display
             updated_embed = discord.Embed(
