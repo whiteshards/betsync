@@ -152,8 +152,8 @@ class CasesCog(commands.Cog):
             color=0x00FFAE
         )
 
-        # Spinning reel animation - cleaner version
-        for i in range(10):  # 10 quick spins for better effect
+        # Spinning reel animation - faster and better aligned
+        for i in range(8):  # Reduced to 8 spins for faster animation
             # Create a clean display of spinning items
             shuffled_items = self.multipliers.copy()
             random.shuffle(shuffled_items)
@@ -162,14 +162,15 @@ class CasesCog(commands.Cog):
             for j in range(3):
                 item = shuffled_items[j]
                 if j == 1:
-                    # Center item highlighted
+                    # Center item highlighted with proper alignment
                     reel += f"▶️ {item['emoji']} **{item['name']}** ({item['value']}x) ◀️\n"
                 else:
+                    # Ensure consistent spacing for non-selected items
                     reel += f"   {item['emoji']} {item['name']} ({item['value']}x)\n"
 
             animation_embed.description = f"Bet: **{bet_amount:.2f} {currency_used}**\n\n{reel}"
             await loading_message.edit(embed=animation_embed)
-            await asyncio.sleep(0.2 if i < 8 else 0.3)  # Slow down at the end
+            await asyncio.sleep(0.1 if i < 6 else 0.15)  # Much faster spinning with slight slowdown at end
 
         # Determine result using weighted probabilities
         random_value = random.random()
