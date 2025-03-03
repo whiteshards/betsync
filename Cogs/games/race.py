@@ -26,35 +26,10 @@ class RacePlayAgainView(discord.ui.View):
             child.disabled = True
         await self.message.edit(view=self)
 
-        # Create a new context with the channel from the interaction
-        # This fixes the "TextChannel has no attribute author" error
-        new_ctx = self.ctx
-        new_ctx.channel = interaction.channel
-
         # Start a new game with same bet amount
-        await self.cog.race(new_ctx, str(self.bet_amount), self.currency_used)
+        await self.cog.race(interaction.channel, str(self.bet_amount), self.currency_used)
 
-    @discord.ui.button(label="💫 View Usage", style=discord.ButtonStyle.secondary)
-    async def view_usage(self, button, interaction):
-        embed = discord.Embed(
-            title="🏎️ Car Race Game",
-            description=(
-                "**How to Play:**\n"
-                "- Bet on which car will win the race\n"
-                "- If your car crosses the finish line first, you win 3x your bet!\n"
-                "- If your car doesn't win, you lose your bet\n\n"
-                "**Usage:**\n"
-                "`!race <amount> [currency]`\n\n"
-                "**Examples:**\n"
-                "`!race 100` - Bet 100 credits\n"
-                "`!race 50 tokens` - Bet 50 tokens\n"
-                "`!race all` - Bet all your credits\n"
-                "`!race max tokens` - Bet all your tokens"
-            ),
-            color=0x00FFAE
-        )
-        embed.set_footer(text="BetSync Casino", icon_url=self.cog.bot.user.avatar.url)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    al=True)
 
 
 class RaceCog(commands.Cog):
@@ -82,12 +57,87 @@ class RaceCog(commands.Cog):
             )
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
+            
+        # Get user's balance
+        author = ctx.author
+        db = Users()
+        user_data = db.fetch_user(author.id)
+        tokens_balance = user_data.get('tokens', 0)
+        credits_balance = user_data.get('credits', 0)
 
         author = ctx.author
 
         # Check if user already has an ongoing game
         if author.id in self.ongoing_games:
             return await ctx.reply("You already have a game in progress!")
+            
+        # Process bet amount and currency
+        try:
+            if bet_amount.lower() in ["all", "max"]:
+                if currency_type:
+                    if currency_type.lower() in ["tokens", "t"]:
+                        bet_amount = tokens_balance
+                        currency_used = "tokens"
+                    elif currency_type.lower() in ["credits", "c"]:
+                        bet_amount = credits_balance
+                        currency_used = "credits"
+                    else:
+                        return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
+                else:
+                    # If no currency specified with all/max, use the currency with higher balance
+                    if tokens_balance >= credits_balance:
+                        bet_amount = tokens_balance
+                        currency_used = "tokens"
+                    else:
+                        bet_amount = credits_balance
+                        currency_used = "credits"
+            else:
+                try:
+                    bet_amount = float(bet_amount)
+                    if bet_amount <= 0:
+                        return await ctx.reply("Bet amount must be positive!")
+                except ValueError:
+                    return await ctx.reply("Invalid bet amount! Please enter a valid number.")
+                
+                # Handle currency selection
+                if currency_type:
+                    if currency_type.lower() in ["tokens", "t"]:
+                        currency_used = "tokens"
+                        if tokens_balance < bet_amount:
+                            return await ctx.reply(f"You don't have enough tokens! Your balance: {tokens_balance:.2f} tokens")
+                    elif currency_type.lower() in ["credits", "c"]:
+                        currency_used = "credits"
+                        if credits_balance < bet_amount:
+                            return await ctx.reply(f"You don't have enough credits! Your balance: {credits_balance:.2f} credits")
+                    else:
+                        return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
+                else:
+                    # If no currency specified, use what the user has
+                    if tokens_balance >= bet_amount:
+                        currency_used = "tokens"
+                    elif credits_balance >= bet_amount:
+                        currency_used = "credits"
+                    else:
+                        # Try to use a combination of both currencies if the total is enough
+                        if tokens_balance + credits_balance >= bet_amount:
+                            # Use tokens first, then credits
+                            tokens_to_use = min(tokens_balance, bet_amount)
+                            credits_to_use = bet_amount - tokens_to_use
+                            
+                            # Update balances
+                            db.update_balance(author.id, -tokens_to_use, "tokens", "$inc")
+                            db.update_balance(author.id, -credits_to_use, "credits", "$inc")
+                            
+                            await ctx.send(f"Using {tokens_to_use:.2f} tokens and {credits_to_use:.2f} credits for your bet.")
+                            currency_used = "mixed"  # Special case for mixed currency
+                        else:
+                            return await ctx.reply(f"You don't have enough funds! Tokens: {tokens_balance:.2f}, Credits: {credits_balance:.2f}")
+        except Exception as e:
+            return await ctx.reply(f"An error occurred: {str(e)}")
+        
+        # Deduct the bet amount if not using mixed currency (mixed was already deducted)
+        if currency_used != "mixed":
+            db.update_balance(author.id, -bet_amount, currency_used, "$inc")n progress!")
 
         # Parse bet amount
         try:
