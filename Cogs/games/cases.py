@@ -1,0 +1,289 @@
+
+import discord
+import random
+import asyncio
+from discord.ext import commands
+from Cogs.utils.mongo import Users, Servers
+from Cogs.utils.emojis import emoji
+
+class CasesPlayAgainView(discord.ui.View):
+    """View with a Play Again button that shows after a game ends"""
+    def __init__(self, cog, ctx, bet_amount, currency_used, timeout=60):
+        super().__init__(timeout=timeout)
+        self.cog = cog
+        self.ctx = ctx
+        self.bet_amount = bet_amount
+        self.currency_used = currency_used
+        self.message = None
+        self.original_author = ctx.author  # Store the original author explicitly
+
+    @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
+    async def play_again(self, button, interaction):
+        # Check if the person clicking is the original player
+        if interaction.user.id != self.original_author.id:
+            return await interaction.response.send_message("Only the original player can use this button!", ephemeral=True)
+
+        # Disable the button after click
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+
+        # Start a new game with same bet amount
+        await self.cog.cases(self.ctx, str(self.bet_amount), self.currency_used)
+
+
+class CasesCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        # Define case multipliers and their chances based on provided image
+        self.multipliers = [
+            {"value": 23.0, "chance": 0.01, "emoji": "💎", "name": "LEGENDARY"},
+            {"value": 10.0, "chance": 0.02, "emoji": "🌟", "name": "EPIC"},
+            {"value": 3.0, "chance": 0.04, "emoji": "✨", "name": "RARE"},
+            {"value": 2.0, "chance": 0.07, "emoji": "🔷", "name": "UNCOMMON"},
+            {"value": 1.09, "chance": 0.10, "emoji": "🔹", "name": "COMMON"},
+            {"value": 0.4, "chance": 0.35, "emoji": "💢", "name": "BAD LUCK"},
+            {"value": 0.1, "chance": 0.41, "emoji": "💀", "name": "TERRIBLE"}
+        ]
+        
+        # Validate that probabilities sum to 1
+        total_prob = sum(item["chance"] for item in self.multipliers)
+        if abs(total_prob - 1.0) > 0.001:  # Allow small floating-point error
+            print(f"Warning: Case probabilities sum to {total_prob}, not 1.0")
+
+    @commands.command(aliases=["case", "crate"])
+    async def cases(self, ctx, bet_amount: str = None, currency_type: str = None):
+        """Open a case and test your luck with different multipliers!"""
+        if not bet_amount:
+            embed = discord.Embed(
+                title="📦 How to Play Cases",
+                description=(
+                    "**Cases** is a game where you open a case to win credits based on multipliers!\n\n"
+                    "**Usage:** `!cases <amount> [currency_type]`\n"
+                    "**Example:** `!cases 100` or `!cases 100 tokens`\n\n"
+                    "**Possible Rewards:**\n"
+                    f"💎 **LEGENDARY** (23x) - 1% chance\n"
+                    f"🌟 **EPIC** (10x) - 2% chance\n"
+                    f"✨ **RARE** (3x) - 4% chance\n"
+                    f"🔷 **UNCOMMON** (2x) - 7% chance\n"
+                    f"🔹 **COMMON** (1.09x) - 10% chance\n"
+                    f"💢 **BAD LUCK** (0.4x) - 35% chance\n"
+                    f"💀 **TERRIBLE** (0.1x) - 41% chance\n\n"
+                    "**Payouts are made in credits!**"
+                ),
+                color=0x00FFAE
+            )
+            embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
+            return await ctx.reply(embed=embed)
+
+        # Get user's balance
+        author = ctx.author
+        db = Users()
+        user_data = db.fetch_user(author.id)
+        tokens_balance = user_data.get('tokens', 0)
+        credits_balance = user_data.get('credits', 0)
+
+        # Process bet amount and currency
+        try:
+            # Handle all/max bet amount
+            if isinstance(bet_amount, str) and bet_amount.lower() in ["all", "max"]:
+                if currency_type:
+                    if currency_type.lower() in ["tokens", "t"]:
+                        bet_amount = tokens_balance
+                        currency_used = "tokens"
+                    elif currency_type.lower() in ["credits", "c"]:
+                        bet_amount = credits_balance
+                        currency_used = "credits"
+                    else:
+                        return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
+                else:
+                    # If no currency specified with all/max, use the currency with higher balance
+                    if tokens_balance >= credits_balance:
+                        bet_amount = tokens_balance
+                        currency_used = "tokens"
+                    else:
+                        bet_amount = credits_balance
+                        currency_used = "credits"
+            else:
+                # Handle numeric bet amount
+                try:
+                    bet_amount = float(bet_amount)
+                    if bet_amount <= 0:
+                        return await ctx.reply("Bet amount must be positive!")
+                except ValueError:
+                    return await ctx.reply("Invalid bet amount! Please enter a valid number.")
+
+                # Handle currency selection
+                if currency_type:
+                    if currency_type.lower() in ["tokens", "t"]:
+                        currency_used = "tokens"
+                    elif currency_type.lower() in ["credits", "c"]:
+                        currency_used = "credits"
+                    else:
+                        return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
+                else:
+                    # Default to tokens if no currency specified
+                    currency_used = "tokens"
+                    
+            # Validate user has enough balance
+            if currency_used == "tokens" and tokens_balance < bet_amount:
+                return await ctx.reply(f"You don't have enough tokens! Your balance: {tokens_balance:.2f} tokens")
+            elif currency_used == "credits" and credits_balance < bet_amount:
+                return await ctx.reply(f"You don't have enough credits! Your balance: {credits_balance:.2f} credits")
+                
+            # Deduct the bet amount
+            db.update_balance(author.id, -bet_amount, currency_used, "$inc")
+            
+        except Exception as e:
+            return await ctx.reply(f"An error occurred: {str(e)}")
+
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Opening Case...",
+            description="Preparing your case... Get ready for a surprise!",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
+
+        # Simulate case animation
+        animation_embed = discord.Embed(
+            title="📦 Case Opening...",
+            description=f"Opening a case for **{bet_amount:.2f} {currency_used}**\n\nShuffling rewards...",
+            color=0x00FFAE
+        )
+        await loading_message.edit(embed=animation_embed)
+        
+        # Simple animation
+        for i in range(3):
+            shuffled_multipliers = self.multipliers.copy()
+            random.shuffle(shuffled_multipliers)
+            animation_text = "```\n"
+            for m in shuffled_multipliers[:4]:  # Show only a few rewards during animation
+                animation_text += f"{m['emoji']} {m['name']} ({m['value']}x)\n"
+            animation_text += "```"
+            
+            animation_embed.description = f"Opening a case for **{bet_amount:.2f} {currency_used}**\n\n{animation_text}"
+            await loading_message.edit(embed=animation_embed)
+            await asyncio.sleep(0.7)  # Short delay between animation frames
+
+        # Determine result using weighted probabilities
+        random_value = random.random()
+        cumulative_prob = 0
+        selected_multiplier = None
+        
+        for multiplier in self.multipliers:
+            cumulative_prob += multiplier["chance"]
+            if random_value <= cumulative_prob:
+                selected_multiplier = multiplier
+                break
+        
+        if not selected_multiplier:  # Fallback in case of floating-point issues
+            selected_multiplier = self.multipliers[-1]
+        
+        # Calculate winnings
+        win_amount = bet_amount * selected_multiplier["value"]
+        user_won = selected_multiplier["value"] > 1.0
+
+        # Update MongoDB
+        # Update gameplay statistics
+        db.collection.update_one(
+            {"discord_id": author.id},
+            {"$inc": {
+                "total_played": 1,
+                "total_won": 1 if user_won else 0,
+                "total_lost": 0 if user_won else 1,
+                "total_spent": bet_amount,
+                "total_earned": win_amount if user_won else 0
+            }}
+        )
+
+        # Add to user's credits - always payout in credits
+        db.update_balance(author.id, win_amount, "credits", "$inc")
+
+        # Update server profit statistics if in a server
+        if hasattr(ctx, 'guild') and ctx.guild:
+            server_db = Servers()
+            server_profit = bet_amount - win_amount
+            server_db.update_server_profit(ctx.guild.id, server_profit)
+
+            # Add game to server history
+            history_entry = {
+                "game": "cases",
+                "user_id": author.id,
+                "username": author.name,
+                "bet_amount": bet_amount,
+                "currency": currency_used,
+                "result": "win" if user_won else "loss",
+                "multiplier": selected_multiplier["value"],
+                "profit": server_profit,
+                "timestamp": int(discord.utils.utcnow().timestamp())
+            }
+            server_db.update_history(ctx.guild.id, history_entry)
+
+        # Add game to user history
+        history_entry = {
+            "game": "cases",
+            "bet_amount": bet_amount,
+            "currency": currency_used,
+            "result": "win" if user_won else "loss",
+            "multiplier": selected_multiplier["value"],
+            "win_amount": win_amount,
+            "timestamp": int(discord.utils.utcnow().timestamp())
+        }
+        db.update_history(author.id, history_entry)
+
+        # Create final result embed
+        if user_won:
+            # Special celebration for high multipliers
+            if selected_multiplier["value"] >= 10:
+                result_embed = discord.Embed(
+                    title=f"🎉 AMAZING REWARD! {selected_multiplier['emoji']}",
+                    description=(
+                        f"**WOW! You got a {selected_multiplier['name']}!**\n\n"
+                        f"You bet **{bet_amount:.2f} {currency_used}** and received a **{selected_multiplier['value']}x** multiplier!\n\n"
+                        f"**Winnings: {win_amount:.2f} credits** 💰\n\n"
+                        f"Multiplier: **{selected_multiplier['value']}x** {selected_multiplier['emoji']}"
+                    ),
+                    color=0xFFD700  # Gold color for big wins
+                )
+            else:
+                result_embed = discord.Embed(
+                    title=f"🎁 Case Opened! {selected_multiplier['emoji']}",
+                    description=(
+                        f"You got a **{selected_multiplier['name']}**!\n\n"
+                        f"You bet **{bet_amount:.2f} {currency_used}** and received a **{selected_multiplier['value']}x** multiplier.\n\n"
+                        f"**Winnings: {win_amount:.2f} credits** 💰\n\n"
+                        f"Multiplier: **{selected_multiplier['value']}x** {selected_multiplier['emoji']}"
+                    ),
+                    color=0x00FF00  # Green for regular wins
+                )
+        else:
+            result_embed = discord.Embed(
+                title=f"📦 Case Opened {selected_multiplier['emoji']}",
+                description=(
+                    f"You got a **{selected_multiplier['name']}**.\n\n"
+                    f"You bet **{bet_amount:.2f} {currency_used}** and received a **{selected_multiplier['value']}x** multiplier.\n\n"
+                    f"**Winnings: {win_amount:.2f} credits** 💸\n\n"
+                    f"Multiplier: **{selected_multiplier['value']}x** {selected_multiplier['emoji']}"
+                ),
+                color=0xFF0000  # Red for loss
+            )
+
+        # Add case info field
+        all_multipliers = "\n".join([f"{m['emoji']} **{m['value']}x** - {m['chance']*100:.4f}%" for m in self.multipliers])
+        result_embed.add_field(
+            name="📊 Case Information",
+            value=f"Possible rewards:\n{all_multipliers}",
+            inline=False
+        )
+        
+        result_embed.set_footer(text=f"BetSync Casino • {currency_used.capitalize()} bet: {bet_amount:.2f}", icon_url=self.bot.user.avatar.url)
+        
+        # Add play again button
+        play_again_view = CasesPlayAgainView(self, ctx, bet_amount, currency_used)
+        play_again_message = await loading_message.edit(embed=result_embed, view=play_again_view)
+        play_again_view.message = play_again_message
+
+def setup(bot):
+    bot.add_cog(CasesCog(bot))
