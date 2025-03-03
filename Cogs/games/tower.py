@@ -1,0 +1,709 @@
+import discord
+import random
+import asyncio
+import time
+from discord.ext import commands
+from Cogs.utils.mongo import Users, Servers
+from colorama import Fore
+from Cogs.utils.emojis import emoji
+
+class PlayAgainView(discord.ui.View):
+    def __init__(self, cog, ctx, bet_amount, difficulty, currency_type="tokens", timeout=15):
+        super().__init__(timeout=timeout)
+        self.cog = cog
+        self.ctx = ctx
+        self.bet_amount = bet_amount
+        self.difficulty = difficulty
+        self.currency_type = currency_type
+        self.message = None
+
+    async def on_timeout(self):
+        # Disable all buttons when the view times out
+        for child in self.children:
+            child.disabled = True
+        # Update the message with disabled buttons
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except:
+                pass
+
+    @discord.ui.button(label="Play Again", style=discord.ButtonStyle.green, emoji="🏰")
+    async def play_again_button(self, button, interaction):
+        # Only the original player can use this button
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+
+        # Disable the view to prevent double clicks
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self)
+
+        # Start a new game with the same parameters
+        await self.cog.tower(self.ctx, str(self.bet_amount), self.difficulty, self.currency_type)
+
+class TowerGameView(discord.ui.View):
+    def __init__(self, cog, ctx, bet_amount, difficulty, tokens_used=0, credits_used=0, timeout=60):
+        super().__init__(timeout=timeout)
+        self.cog = cog
+        self.ctx = ctx
+        self.bet_amount = bet_amount
+        self.difficulty = difficulty.lower()
+        self.tokens_used = tokens_used
+        self.credits_used = credits_used
+        self.currency_type = "credits"  # Always pay out in credits
+        self.message = None
+        self.current_level = 0
+        self.max_levels = 9
+        self.game_over = False
+        self.cashout_clicked = False
+        self.last_diamonds = [] # Added to store diamond positions
+
+        # Set difficulty-specific parameters
+        if self.difficulty == "easy":
+            self.tiles_per_row = 4
+            self.diamonds_per_row = 3
+            self.multipliers = [1.31, 1.74, 2.32, 3.10, 4.13, 5.51, 7.34, 9.79, 13.05]
+        elif self.difficulty == "medium":
+            self.tiles_per_row = 3
+            self.diamonds_per_row = 2
+            self.multipliers = [1.47, 2.21, 3.31, 4.96, 7.44, 11.16, 16.74, 25.11, 37.67]
+        elif self.difficulty == "hard":
+            self.tiles_per_row = 2
+            self.diamonds_per_row = 1
+            self.multipliers = [1.96, 3.92, 7.84, 15.68, 31.36, 62.72, 125.44, 250.44, 501.76]
+        elif self.difficulty == "expert":
+            self.tiles_per_row = 2
+            self.diamonds_per_row = 1
+            self.multipliers = [2.94, 8.82, 26.46, 79.38, 238.14, 714.42, 2143.26, 6429.78, 19289.34]
+        elif self.difficulty == "master":
+            self.tiles_per_row = 4
+            self.diamonds_per_row = 1
+            self.multipliers = [3.92, 15.68, 62.72, 250.88, 1003.52, 4014.08, 16056.32, 64225.28, 256901.12]
+
+        # Current multiplier (starts at the first level multiplier)
+        self.current_multiplier = self.multipliers[0]
+
+        # Generate the tower layout
+        self.tower_layout = self.generate_tower_layout()
+
+        # Add the buttons with appropriate labels
+        self.update_buttons()
+
+    def generate_tower_layout(self):
+        """Generate the tower layout with diamonds placed randomly"""
+        tower_layout = []
+
+        # For each level of the tower
+        for level in range(self.max_levels):
+            # For each level, create a list of tiles (all bombs initially)
+            level_tiles = [False] * self.tiles_per_row
+
+            # Randomly place diamonds using shuffle for better randomness
+            level_tiles = [False] * self.tiles_per_row
+            diamond_indices = random.sample(range(self.tiles_per_row), self.diamonds_per_row)
+            for i in diamond_indices:
+                level_tiles[i] = True
+            random.shuffle(level_tiles) #shuffle the list to make it more random
+
+
+
+            tower_layout.append(level_tiles)
+
+        return tower_layout
+
+    def update_buttons(self):
+        """Update the buttons based on the current level"""
+        # Clear existing buttons
+        self.clear_items()
+
+        # If game is over, don't add any buttons
+        if self.game_over:
+            return
+
+        # Add tile buttons for the current level
+        for i in range(self.tiles_per_row):
+            button = discord.ui.Button(
+                label=f"Tile {i+1}", 
+                style=discord.ButtonStyle.primary,
+                custom_id=f"tile_{i}"
+            )
+            button.callback = self.tile_callback
+            self.add_item(button)
+
+        # Add cash out button if not on the first level
+        if self.current_level > 0:
+            cash_out_button = discord.ui.Button(
+                label="Cash Out", 
+                style=discord.ButtonStyle.success, 
+                emoji="💰",
+                custom_id="cash_out"
+            )
+            cash_out_button.callback = self.cash_out_callback
+            self.add_item(cash_out_button)
+
+    def calculate_payout(self):
+        """Calculate the payout based on current multiplier"""
+        return round(self.bet_amount * self.current_multiplier, 2)
+
+    def create_tower_display(self, selected_tile=None, game_over=False):
+        """Create a visual representation of the tower"""
+        tower = ""
+
+        # Display the tower levels from top to bottom
+        for level in range(self.max_levels - 1, -1, -1):
+            level_str = ""
+
+            if game_over:
+                # In game over screen, reveal all levels
+                for i in range(self.tiles_per_row):
+                    level_str += "💎" if self.tower_layout[level][i] else "💣"
+            elif level < self.current_level:
+                # Level already passed - show diamonds and bombs
+                for i in range(self.tiles_per_row):
+                    level_str += "💎" if self.tower_layout[level][i] else "💣"
+            elif level == self.current_level:
+                # Current level - show available tiles
+                for i in range(self.tiles_per_row):
+                    if i == selected_tile:
+                        # Only reveal the selected tile
+                        if self.tower_layout[level][i]:
+                            level_str += "<a:credit:1339694793277702204>"  # Animated credit for selected diamond
+                        else:
+                            level_str += "💣"  # Bomb for selected non-diamond
+                    else:
+                        level_str += "🟦"  # Blue square for unselected tiles
+            else:
+                # Future level - show locked tiles
+                level_str += "⬜" * self.tiles_per_row
+
+            tower += level_str + "\n"
+
+        return tower
+
+    def create_embed(self, status="playing", selected_tile=None, bet_currency="credits"):
+        """Create game embed with current state"""
+        # Format bet description
+        if self.tokens_used > 0 and self.credits_used > 0:
+            bet_description = f"**{self.tokens_used} tokens** + **{self.credits_used} credits**"
+        elif self.tokens_used > 0:
+            bet_description = f"**{self.tokens_used} tokens**"
+        else:
+            bet_description = f"**{self.credits_used} credits**"
+
+        if status == "playing":
+            embed = discord.Embed(
+                title="🏰 Tower Climb",
+                description=f"**Climb the tower by finding diamonds hidden in the tiles!**",
+                color=0x00FFAE
+            )
+            embed.add_field(
+                name="🎮 Game Stats",
+                value=f"**Difficulty:** {self.difficulty.capitalize()}\n**Level:** {self.current_level+1}/{self.max_levels}\n**Current Multiplier:** {self.current_multiplier:.2f}x",
+                inline=True
+            )
+            embed.add_field(
+                name="💰 Bet & Winnings",
+                value=f"**Bet:** {bet_description}\n**Potential Win:** {self.calculate_payout()} credits\n\n",
+                inline=True
+            )
+            embed.add_field(
+                name="🏰 Tower",
+                value=self.create_tower_display(),
+                inline=False
+            )
+            if self.current_level > 0:
+                embed.set_footer(text=f"BetSync Casino • Climb higher for bigger rewards or cash out now!")
+            else:
+                embed.set_footer(text=f"BetSync Casino • Select a tile to start climbing!")
+
+        elif status == "win_level":
+            diamond_emoji = "💎"
+            embed = discord.Embed(
+                title="🏰 Tower Climb - Diamond Found!",
+                description=f"**You selected Tile {selected_tile+1} and found a {diamond_emoji}!**\n\nYou've advanced to level {self.current_level+1}!",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="🎮 Game Stats",
+                value=f"**Difficulty:** {self.difficulty.capitalize()}\n**Level:** {self.current_level+1}/{self.max_levels}\n**Current Multiplier:** {self.current_multiplier:.2f}x",
+                inline=True
+            )
+            embed.add_field(
+                name="💰 Bet & Winnings",
+                value=f"**Bet:** {bet_description}\n**Potential Win:** {self.calculate_payout()} credits\n\n",
+                inline=True
+            )
+            embed.add_field(
+                name="🏰 Tower",
+                value=self.create_tower_display(),
+                inline=False
+            )
+            if self.current_level == self.max_levels:
+                embed.set_footer(text=f"BetSync Casino • You've reached the top of the tower!")
+            else:
+                embed.set_footer(text=f"BetSync Casino • Continue climbing or cash out with your winnings!")
+
+        elif status == "lose":
+            embed = discord.Embed(
+                title="🏰 Tower Climb - Game Over!",
+                description=f"**You selected Tile {selected_tile+1} but there was no diamond!**\n\nYou've fallen from the tower!",
+                color=0xFF0000
+            )
+            embed.add_field(
+                name="💰 Game Results",
+                value=f"**Initial Bet:** {bet_description}\n**Levels Climbed:** {self.current_level}\n**Lost Amount:** {self.bet_amount}",
+                inline=False
+            )
+            embed.add_field(
+                name="🏰 Tower",
+                value=self.create_tower_display(selected_tile, game_over=True),
+                inline=False
+            )
+            embed.set_footer(text=f"BetSync Casino • Better luck next time!")
+
+        elif status == "cash_out":
+            payout = self.calculate_payout()
+            profit = payout - self.bet_amount
+            embed = discord.Embed(
+                title="💰 Tower Climb - Cashed Out!",
+                description=f"**Congratulations!** You've successfully climbed **{self.current_level}/{self.max_levels}** levels and decided to cash out!",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="💰 Game Results",
+                value=f"**Initial Bet:** {self.bet_amount} {bet_currency}\n**Final Multiplier:** {self.current_multiplier:.2f}x\n**Winnings:** {payout} credits\n**Profit:** {profit} credits",
+                inline=False
+            )
+            embed.add_field(
+                name="🏰 Tower",
+                value=self.create_tower_display(game_over=True),
+                inline=False
+            )
+            embed.set_footer(text=f"BetSync Casino • You've secured your winnings!")
+
+        embed.set_author(name=f"Player: {self.ctx.author.name}", icon_url=self.ctx.author.avatar.url)
+        return embed
+
+    async def tile_callback(self, interaction):
+        """Handle clicks on tile buttons"""
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+
+        # Extract the tile index from the button's custom_id
+        tile_index = int(interaction.custom_id.split('_')[1])
+
+        # Check if the tile has a diamond
+        if self.tower_layout[self.current_level][tile_index]:
+            # Player found a diamond - track it
+            if not hasattr(self, 'last_diamonds'):
+                self.last_diamonds = []
+
+            self.last_diamonds.append(tile_index)
+
+            # Move to next level
+            self.current_level += 1
+
+            # If player reached the top of the tower, they win
+            if self.current_level == self.max_levels:
+                self.game_over = True
+                return await self.process_cashout(interaction) #Changed to process_cashout
+
+            # Update the current multiplier
+            self.current_multiplier = self.multipliers[self.current_level]
+
+            # Update buttons for the next level
+            self.update_buttons()
+
+            # Send updated embed
+            await interaction.response.edit_message(
+                embed=self.create_embed(status="win_level", selected_tile=tile_index), #Changed status to win_level
+                view=self
+            )
+        else:
+            # Player hit a bomb - game over
+            self.game_over = True
+            self.clear_items()  # Remove all buttons
+
+            # Send the game over message
+            await interaction.response.edit_message(
+                embed=self.create_embed(status="lose", selected_tile=tile_index),
+                view=self
+            )
+
+            await self.process_loss() #call process loss function
+
+    async def cash_out_callback(self, interaction: discord.Interaction):
+        """Process player's decision to cash out"""
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+
+        self.game_over = True
+        self.cashout_clicked = True
+
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+
+        # Acknowledge the interaction first
+        await interaction.response.defer()
+
+        # Process the cashout (using message.edit instead of interaction.followup)
+        success = await self.process_cashout(interaction)
+
+        if not success:
+            # Only use followup for error messages
+            await interaction.followup.send("There was an error processing your cashout. Please contact support.", ephemeral=True)
+
+
+    async def on_timeout(self):
+        """Handle timeout"""
+        if not self.game_over and self.current_level > 0:
+            await self.process_cashout(self.ctx) #Changed to pass context
+
+        for child in self.children:
+            child.disabled = True
+
+        try:
+            await self.message.edit(view=self)
+        except:
+            pass
+
+    async def process_cashout(self, interaction):
+        """Process cashout - update database and end game"""
+        payout = self.calculate_payout()
+        bet_currency = self.currency_type
+
+        db = Users()
+        try:
+            # Update user's balance
+            db.update_balance(self.ctx.author.id, payout, "credits", "$inc")
+
+            # Create win history entry
+            win_entry = {
+                "type": "win",
+                "game": "tower",
+                "bet": self.bet_amount,
+                "amount": payout,
+                "multiplier": self.current_multiplier,
+                "level": self.current_level,
+                "timestamp": int(time.time())
+            }
+
+            # Update user history and stats directly in one operation
+            db.collection.update_one(
+                {"discord_id": self.ctx.author.id},
+                {
+                    "$push": {"history": {"$each": [win_entry], "$slice": -100}},
+                    "$inc": {
+                        "total_played": 1,
+                        "total_won": 1,
+                        "total_earned": payout
+                    }
+                }
+            )
+
+            # Update server stats if in a guild
+            if isinstance(self.ctx.channel, discord.TextChannel):
+                server_db = Servers()
+                server_profit = self.bet_amount - payout
+
+                # Update server profit directly
+                server_db.collection.update_one(
+                    {"server_id": self.ctx.guild.id},
+                    {"$inc": {"profit": server_profit}}
+                )
+
+                # Add to server history
+                server_bet_entry = win_entry.copy()
+                server_bet_entry.update({
+                    "user_id": self.ctx.author.id,
+                    "user_name": self.ctx.author.name
+                })
+
+                # Update server history directly
+                server_db.collection.update_one(
+                    {"server_id": self.ctx.guild.id},
+                    {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
+                )
+        except Exception as e:
+            print(f"Error processing cashout: {e}")
+            return False
+
+        # Create play again view
+        play_again_view = PlayAgainView(
+            self.cog, 
+            self.ctx, 
+            self.bet_amount, 
+            self.difficulty,
+            self.currency_type
+        )
+
+        # Fix for the cashout button - replace with direct message edit since we have the message
+        cashout_embed = self.create_embed(status="cash_out", bet_currency=bet_currency)
+        await self.message.edit(embed=cashout_embed, view=play_again_view)
+        play_again_view.message = self.message
+
+        if self.ctx.author.id in self.cog.ongoing_games:
+            del self.cog.ongoing_games[self.ctx.author.id]
+
+        return True
+
+    async def process_loss(self):
+        """Process loss - update database and end game"""
+        db = Users()
+
+        # Create loss history entry
+        loss_entry = {
+            "type": "loss",
+            "game": "tower",
+            "bet": self.bet_amount,
+            "amount": self.bet_amount,
+            "multiplier": 0,
+            "level": self.current_level,
+            "timestamp": int(time.time())
+        }
+
+        # Update user history and stats directly in one operation
+        db.collection.update_one(
+            {"discord_id": self.ctx.author.id},
+            {
+                "$push": {"history": {"$each": [loss_entry], "$slice": -100}},
+                "$inc": {
+                    "total_played": 1,
+                    "total_lost": 1,
+                    "total_spent": self.bet_amount
+                }
+            }
+        )
+
+        # Update server stats if in a guild
+        if isinstance(self.ctx.channel, discord.TextChannel):
+            server_db = Servers()
+
+            # Update server profit directly
+            server_db.collection.update_one(
+                {"server_id": self.ctx.guild.id},
+                {"$inc": {"profit": self.bet_amount}}
+            )
+
+            # Add to server history
+            server_bet_entry = loss_entry.copy()
+            server_bet_entry.update({
+                "user_id": self.ctx.author.id,
+                "user_name": self.ctx.author.name
+            })
+
+            # Update server history directly
+            server_db.collection.update_one(
+                {"server_id": self.ctx.guild.id},
+                {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
+            )
+
+        play_again_view = PlayAgainView(
+            self.cog, 
+            self.ctx, 
+            self.bet_amount, 
+            self.difficulty, 
+            self.currency_type,
+            timeout=15
+        )
+        await self.message.edit(view=play_again_view)
+        play_again_view.message = self.message
+
+        if self.ctx.author.id in self.cog.ongoing_games:
+            del self.cog.ongoing_games[self.ctx.author.id]
+
+        return True
+
+
+class TowerCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.ongoing_games = {}
+
+    @commands.command(aliases=["twr", "climb"])
+    async def tower(self, ctx, bet_amount: str = None, difficulty: str = None, currency_type: str = None):
+        """Play Tower - climb the tower by finding diamonds to multiply your winnings!"""
+        if not bet_amount:
+            embed = discord.Embed(
+                title="🏰 How to Play Tower",
+                description=(
+                    "**Tower** is a game where you climb a tower by finding diamonds hidden under tiles!\n\n"
+                    "**Usage:** `!tower <amount> <difficulty> [currency_type]`\n"
+                    "**Example:** `!tower 100 easy` or `!tower 50 hard credits`\n\n"
+                    "**Difficulty Levels:**\n"
+                    "- **Easy:** 4 tiles per row, 3 diamonds per row\n"
+                    "- **Medium:** 3 tiles per row, 2 diamonds per row\n"
+                    "- **Hard:** 2 tiles per row, 1 diamond per row\n"
+                    "- **Expert:** 2 tiles per row, 1 diamond per row\n"
+                    "- **Master:** 4 tiles per row, 1 diamond per row\n\n"
+                    "Each time you find a diamond, you advance to the next level with a higher multiplier. You can cash out anytime or continue for higher rewards! If you select a tile without a diamond, you lose your bet."
+                ),
+                color=0x00FFAE
+            )
+            embed.set_footer(text="BetSync Casino • Aliases: !twr, !climb")
+            return await ctx.reply(embed=embed)
+
+        if ctx.author.id in self.ongoing_games:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Game In Progress",
+                description="You already have an ongoing game. Please finish it first.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Preparing Tower Game...",
+            description="Please wait while we set up your game.",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
+
+        db = Users()
+        user_data = db.fetch_user(ctx.author.id)
+
+        if user_data == False:
+            await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | User Not Found",
+                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+
+        if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "expert", "master"]:
+            await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Difficulty",
+                description="Please choose a valid difficulty: `easy`, `medium`, `hard`, `expert`, or `master`.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+
+        if not currency_type:
+            currency_type = "tokens"
+        elif currency_type.lower() in ["t", "tokens"]:
+            currency_type = "tokens"
+        elif currency_type.lower() in ["c", "credits"]:
+            currency_type = "credits"
+        else:
+            await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Currency",
+                description="Please specify a valid currency: `tokens` or `credits`.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+
+        try:
+            if isinstance(bet_amount, str) and bet_amount.lower() in ['all', 'max']:
+                bet_amount_value = user_data[currency_type]
+            else:
+                if isinstance(bet_amount, str) and bet_amount.lower().endswith('k'):
+                    bet_amount_value = float(bet_amount[:-1]) * 1000
+                elif isinstance(bet_amount, str) and bet_amount.lower().endswith('m'):
+                    bet_amount_value = float(bet_amount[:-1]) * 1000000
+                else:
+                    bet_amount_value = float(bet_amount)
+
+            bet_amount_value = float(bet_amount_value)
+
+            if bet_amount_value <= 0:
+                await loading_message.delete()
+                embed = discord.Embed(
+                    title="<:no:1344252518305234987> | Invalid Amount",
+                    description="Bet amount must be greater than 0.",
+                    color=0xFF0000
+                )
+                return await ctx.reply(embed=embed)
+
+        except ValueError:
+            await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Amount",
+                description="Please enter a valid number or 'all'.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+
+        tokens_balance = user_data.get('tokens', 0)
+        credits_balance = user_data.get('credits', 0)
+
+        tokens_used = 0
+        credits_used = 0
+
+        if currency_type == "tokens":
+            if bet_amount_value <= tokens_balance:
+                tokens_used = bet_amount_value
+            elif bet_amount_value <= tokens_balance + credits_balance:
+                tokens_used = tokens_balance
+                credits_used = bet_amount_value - tokens_balance
+            else:
+                await loading_message.delete()
+                embed = discord.Embed(
+                    title="<:no:1344252518305234987> | Insufficient Funds",
+                    description=f"You don't have enough funds. Your balance: **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
+                    color=0xFF0000
+                )
+                return await ctx.reply(embed=embed)
+        else:
+            if bet_amount_value <= credits_balance:
+                credits_used = bet_amount_value
+            else:
+                await loading_message.delete()
+                embed = discord.Embed(
+                    title="<:no:1344252518305234987> | Insufficient Funds",
+                    description=f"You don't have enough credits. Your balance: **{credits_balance:.2f} credits**",
+                    color=0xFF0000
+                )
+                return await ctx.reply(embed=embed)
+
+        if tokens_used > 0:
+            db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
+
+        if credits_used > 0:
+            db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
+
+        total_bet = tokens_used + credits_used
+
+        game_view = TowerGameView(
+            self, 
+            ctx, 
+            total_bet, 
+            difficulty, 
+            tokens_used=tokens_used,
+            credits_used=credits_used,
+            timeout=120  # 2 minute timeout
+        )
+
+        await loading_message.delete()
+
+        game_message = await ctx.reply(embed=game_view.create_embed(status="playing"), view=game_view)
+        game_view.message = game_message
+
+        self.ongoing_games[ctx.author.id] = {
+            "game_type": "tower",
+            "game_view": game_view,
+            "start_time": time.time()
+        }
+
+    async def update_server_history(self, server_id, game, bet_amount, profit, user_id, user_name):
+        try:
+            server_db = Servers()
+            server_history = {
+                "game": game,
+                "bet_amount": bet_amount,
+                "profit": profit,
+                "user_id": user_id,
+                "user_name": user_name,
+                "timestamp": time.time()
+            }
+            server_db.update_history(server_id, server_history)
+        except Exception as e:
+            print(f"Error updating server history: {e}")
+
+
+def setup(bot):
+    bot.add_cog(TowerCog(bot))
