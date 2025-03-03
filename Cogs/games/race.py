@@ -71,7 +71,12 @@ class RaceCog(commands.Cog):
 
         # Process bet amount and currency
         try:
-            if bet_amount.lower() in ["all", "max"]:
+            # Check if user already has an ongoing game
+            if author.id in self.ongoing_games:
+                return await ctx.reply("You already have a game in progress!")
+                
+            # Handle all/max bet amount
+            if isinstance(bet_amount, str) and bet_amount.lower() in ["all", "max"]:
                 if currency_type:
                     if currency_type.lower() in ["tokens", "t"]:
                         bet_amount = tokens_balance
@@ -90,6 +95,7 @@ class RaceCog(commands.Cog):
                         bet_amount = credits_balance
                         currency_used = "credits"
             else:
+                # Handle numeric bet amount
                 try:
                     bet_amount = float(bet_amount)
                     if bet_amount <= 0:
@@ -101,80 +107,25 @@ class RaceCog(commands.Cog):
                 if currency_type:
                     if currency_type.lower() in ["tokens", "t"]:
                         currency_used = "tokens"
-                        if tokens_balance < bet_amount:
-                            return await ctx.reply(f"You don't have enough tokens! Your balance: {tokens_balance:.2f} tokens")
                     elif currency_type.lower() in ["credits", "c"]:
                         currency_used = "credits"
-                        if credits_balance < bet_amount:
-                            return await ctx.reply(f"You don't have enough credits! Your balance: {credits_balance:.2f} credits")
                     else:
                         return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
                 else:
-                    # If no currency specified, use what the user has
-                    if tokens_balance >= bet_amount:
-                        currency_used = "tokens"
-                    elif credits_balance >= bet_amount:
-                        currency_used = "credits"
-                    else:
-                        # Try to use a combination of both currencies if the total is enough
-                        if tokens_balance + credits_balance >= bet_amount:
-                            # Use tokens first, then credits
-                            tokens_to_use = min(tokens_balance, bet_amount)
-                            credits_to_use = bet_amount - tokens_to_use
-
-                            # Update balances
-                            db.update_balance(author.id, -tokens_to_use, "tokens", "$inc")
-                            db.update_balance(author.id, -credits_to_use, "credits", "$inc")
-
-                            await ctx.send(f"Using {tokens_to_use:.2f} tokens and {credits_to_use:.2f} credits for your bet.")
-                            currency_used = "mixed"  # Special case for mixed currency
-                        else:
-                            return await ctx.reply(f"You don't have enough funds! Tokens: {tokens_balance:.2f}, Credits: {credits_balance:.2f}")
+                    # Default to credits if no currency specified
+                    currency_used = "credits"
+                    
+            # Validate user has enough balance
+            if currency_used == "tokens" and tokens_balance < bet_amount:
+                return await ctx.reply(f"You don't have enough tokens! Your balance: {tokens_balance:.2f} tokens")
+            elif currency_used == "credits" and credits_balance < bet_amount:
+                return await ctx.reply(f"You don't have enough credits! Your balance: {credits_balance:.2f} credits")
+                
+            # Deduct the bet amount
+            db.update_balance(author.id, -bet_amount, currency_used, "$inc")
+            
         except Exception as e:
             return await ctx.reply(f"An error occurred: {str(e)}")
-
-        # Deduct the bet amount if not using mixed currency (mixed was already deducted)
-        if currency_used != "mixed":
-            db.update_balance(author.id, -bet_amount, currency_used, "$inc")
-
-        # Check if user already has an ongoing game
-        if author.id in self.ongoing_games:
-            return await ctx.reply("You already have a game ongoing")
-        try:
-            if "all" in bet_amount.lower() or "max" in bet_amount.lower():
-                db = Users()
-                user_data = db.fetch_user(author.id)
-                if currency_type and currency_type.lower() in ["credits", "tokens"]:
-                    currency_used = currency_type.lower()
-                    bet_amount = user_data[currency_used]
-                else:
-                    # Default to credits
-                    currency_used = "credits"
-                    bet_amount = user_data["credits"]
-            else:
-                bet_amount = float(bet_amount)
-
-                # Default to credits if no currency specified
-                if not currency_type or currency_type.lower() not in ["credits", "tokens"]:
-                    currency_used = "credits"
-                else:
-                    currency_used = currency_type.lower()
-        except ValueError:
-            return await ctx.reply("Please enter a valid bet amount!")
-
-        # Validate bet amount
-        if bet_amount <= 0:
-            return await ctx.reply("Bet amount must be greater than 0!")
-
-        # Check if user has enough balance
-        db = Users()
-        user_data = db.fetch_user(author.id)
-
-        if bet_amount > user_data[currency_used]:
-            return await ctx.reply(f"You don't have enough {currency_used} for this bet!")
-
-        # Deduct bet amount from user's balance
-        db.update_balance(author.id, -bet_amount, currency_used, "$inc")
 
         # Create a game instance
         game_data = {
