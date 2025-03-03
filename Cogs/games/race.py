@@ -113,7 +113,7 @@ class RaceCog(commands.Cog):
                         return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
                 else:
                     # Default to credits if no currency specified
-                    currency_used = "credits"
+                    currency_used = "tokens"
                     
             # Validate user has enough balance
             if currency_used == "tokens" and tokens_balance < bet_amount:
