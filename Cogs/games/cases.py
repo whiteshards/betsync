@@ -104,7 +104,7 @@ class CasesCog(commands.Cog):
         
         # Add user pull header if username is provided
         if user_name:
-            header_text = f"{user_name} pulled {selected_multiplier['name']}"
+            header_text = f"{user_name} Pulled {selected_multiplier['name']}"
             header_size = draw.textbbox((0, 0), header_text, font=header_font)
             header_width = header_size[2] - header_size[0]
             header_x = (width - header_width) // 2
