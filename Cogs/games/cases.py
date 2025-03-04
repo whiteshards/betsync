@@ -162,54 +162,56 @@ class CasesCog(commands.Cog):
             is_selected = (i == 3)
             box_color = box_colors[i]
             
-            # Add slight randomization to box designs
+            # Add slight randomization to box designs - but don't use more than one pattern
             design_variant = random.randint(1, 3)
+            
+            # Draw white outline first (3px thick)
+            outline_width = 3
+            draw.rounded_rectangle(
+                [x-outline_width, y+10-outline_width, x+box_width+outline_width, y+box_height+outline_width], 
+                radius=14, 
+                fill=None, 
+                outline=(255, 255, 255), 
+                width=outline_width
+            )
             
             # Draw the box with a slight 3D effect
             # Main case body
             draw.rounded_rectangle([x, y + 10, x + box_width, y + box_height], radius=14, fill=box_color)
             
-            # Add different top designs based on variant
+            # Add only ONE top design based on variant (to prevent multiple lines)
             if design_variant == 1:
-                # Top gem design
-                upper_height = box_height // 3
-                draw.rounded_rectangle([x, y + 10, x + box_width, y + upper_height + 10], radius=14, fill=box_color)
-                
-                # Add gem light reflection
+                # Top gem design - SIMPLIFIED to just one reflection
+                # Add gem light reflection - just one simple highlight
                 light_color = tuple(min(c + 40, 255) for c in box_color)
                 reflection_points = [
-                    (x + box_width * 0.25, y + 15),
-                    (x + box_width * 0.35, y + 25),
-                    (x + box_width * 0.45, y + 15)
+                    (x + box_width * 0.25, y + 18),
+                    (x + box_width * 0.35, y + 28),
+                    (x + box_width * 0.45, y + 18)
                 ]
                 draw.polygon(reflection_points, fill=light_color)
                 
             elif design_variant == 2:
-                # Horizontal stripe design
-                stripe_height = 10
-                for j in range(3):
-                    stripe_y = y + 20 + j * stripe_height * 2
-                    # Alternate stripe colors
-                    stripe_color = tuple(min(c + 30, 255) for c in box_color)
-                    draw.rectangle([x + 10, stripe_y, x + box_width - 10, stripe_y + stripe_height], fill=stripe_color)
+                # Horizontal stripe design - JUST ONE STRIPE
+                stripe_height = 12
+                stripe_y = y + 25
+                stripe_color = tuple(min(c + 30, 255) for c in box_color)
+                draw.rectangle([x + 10, stripe_y, x + box_width - 10, stripe_y + stripe_height], fill=stripe_color)
                 
             else:
-                # Diamond pattern on top
-                diamond_size = 14
-                diamond_spacing = 22
+                # Diamond pattern on top - JUST ONE DIAMOND
+                diamond_size = 20
                 diamond_color = tuple(min(c + 50, 255) for c in box_color)
+                diamond_x = x + box_width // 2
+                diamond_y = y + 30
                 
-                for j in range(3):
-                    diamond_x = x + 20 + j * diamond_spacing
-                    diamond_y = y + 25
-                    
-                    diamond_points = [
-                        (diamond_x, diamond_y - diamond_size//2),
-                        (diamond_x + diamond_size//2, diamond_y),
-                        (diamond_x, diamond_y + diamond_size//2),
-                        (diamond_x - diamond_size//2, diamond_y),
-                    ]
-                    draw.polygon(diamond_points, fill=diamond_color)
+                diamond_points = [
+                    (diamond_x, diamond_y - diamond_size//2),
+                    (diamond_x + diamond_size//2, diamond_y),
+                    (diamond_x, diamond_y + diamond_size//2),
+                    (diamond_x - diamond_size//2, diamond_y),
+                ]
+                draw.polygon(diamond_points, fill=diamond_color)
             
             # Draw black notch at bottom
             notch_width = box_width // 3
@@ -314,17 +316,7 @@ class CasesCog(commands.Cog):
                 ]
                 draw.polygon(triangle_points, fill=selected_case_color)
                 
-                # Add the emoji symbol from the multiplier near the case
-                emoji_text = selected_multiplier["emoji"]
-                emoji_font_size = 32
-                try:
-                    emoji_font = ImageFont.truetype(self.font_path, emoji_font_size)
-                    emoji_width = draw.textlength(emoji_text, font=emoji_font)
-                    emoji_x = x + (box_width - emoji_width) // 2
-                    emoji_y = y - 30
-                    draw.text((emoji_x, emoji_y), emoji_text, font=emoji_font)
-                except:
-                    pass  # Skip emoji if font doesn't support it
+                # Removed the emoji above the case as requested
         
         # Add BetSync watermark at the bottom
         watermark_text = "BetSync Casino"
