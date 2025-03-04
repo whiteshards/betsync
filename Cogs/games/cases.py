@@ -111,13 +111,19 @@ class CasesCog(commands.Cog):
             header_y = 30  # Position at top
             draw.text((header_x, header_y), header_text, font=header_font, fill=(255, 255, 255))
             
-            # Add multiplier value text right below the header
+            # Add larger multiplier value text right below the header
+            multiplier_font_size = 32  # Bigger font for multiplier
+            try:
+                multiplier_font = ImageFont.truetype(self.font_path, multiplier_font_size) if self.font_path else ImageFont.load_default()
+            except Exception:
+                multiplier_font = ImageFont.load_default()
+                
             value_text = f"{selected_multiplier['value']}x"
-            value_size = draw.textbbox((0, 0), value_text, font=value_font)
+            value_size = draw.textbbox((0, 0), value_text, font=multiplier_font)
             value_width = value_size[2] - value_size[0]
             value_x = (width - value_width) // 2
             value_y = header_y + 30  # Position below header
-            draw.text((value_x, value_y), value_text, font=value_font, fill=(255, 255, 255))
+            draw.text((value_x, value_y), value_text, font=multiplier_font, fill=(255, 255, 255))
         
         # Draw the boxes
         for i in range(7):
@@ -212,6 +218,15 @@ class CasesCog(commands.Cog):
             )
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
+            
+        # Send loading message immediately
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} Opening Case...",
+            description="Processing your bet...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
 
         # Get user's balance
         author = ctx.author
@@ -270,18 +285,14 @@ class CasesCog(commands.Cog):
 
             # Deduct the bet amount
             db.update_balance(author.id, -bet_amount, currency_used, "$inc")
+            
+            # Update loading message with bet information
+            loading_embed.description = f"Bet: **{bet_amount:.2f} {currency_used}**"
+            await loading_message.edit(embed=loading_embed)
 
         except Exception as e:
+            await loading_message.delete()
             return await ctx.reply(f"An error occurred: {str(e)}")
-
-        # Send initial message
-        loading_emoji = emoji()["loading"]
-        loading_embed = discord.Embed(
-            title=f"{loading_emoji} Opening Case...",
-            description=f"Bet: **{bet_amount:.2f} {currency_used}**",
-            color=0x00FFAE
-        )
-        loading_message = await ctx.reply(embed=loading_embed)
 
         # Create a clean spinning animation
         animation_embed = discord.Embed(
@@ -413,7 +424,7 @@ class CasesCog(commands.Cog):
         
         # Create a simplified and clean result embed
         result_embed = discord.Embed(
-            title=f"📦 {selected_multiplier['emoji']} {selected_multiplier['name']} {selected_multiplier['emoji']}",
+            title=f"{selected_multiplier['emoji']} {selected_multiplier['name']} {selected_multiplier['emoji']}",
             description=(
                 f"**Multiplier: {selected_multiplier['value']}x**\n"
                 f"**Bet:** {bet_amount:.2f} {currency_used}\n"
