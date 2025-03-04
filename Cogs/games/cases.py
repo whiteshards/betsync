@@ -61,41 +61,66 @@ class CasesCog(commands.Cog):
             
     def generate_result_image(self, selected_multiplier, user_name=None):
         """Generate an image showing the case opening result in a modern style"""
-        # Set up the image dimensions
-        width = 1024
-        height = 400
+        # Set up the image dimensions - wider, less height
+        width = 1200
+        height = 350
         bg_color = (14, 23, 35)  # Darker blue background
         
         # Create the base image
         img = Image.new('RGB', (width, height), bg_color)
         draw = ImageDraw.Draw(img)
         
-        # Box dimensions - sleeker and modern
-        box_width = 108
-        box_height = 180
-        box_spacing = 16
+        # Box dimensions - wider and shorter to match reference image
+        box_width = 120
+        box_height = 160
+        box_spacing = 20
         total_box_area = 7 * box_width + 6 * box_spacing
         start_x = (width - total_box_area) // 2
-        start_y = (height - box_height) // 2
+        start_y = (height - box_height) // 2 + 15  # Move cases down slightly
         
-        # Modern box colors based on the provided image
-        box_colors = [
+        # Get multiplier color based on the value
+        def get_color_for_multiplier(mult_value):
+            if mult_value >= 10:  # Epic/Legendary
+                return (255, 0, 68)  # Red
+            elif mult_value >= 3:  # Rare
+                return (255, 69, 0)  # Orange
+            elif mult_value >= 2:  # Uncommon
+                return (30, 144, 255)  # Blue
+            elif mult_value >= 1:  # Common
+                return (0, 191, 255)  # Light Blue
+            elif mult_value >= 0.4:  # Bad Luck
+                return (92, 105, 121)  # Gray
+            else:  # Terrible
+                return (80, 80, 80)  # Dark Gray
+        
+        # Modern box colors with variety
+        base_colors = [
             (232, 32, 68),  # Red
             (0, 122, 255),  # Blue
-            (0, 122, 255),  # Blue
-            (232, 32, 68),  # Selected case (Red)
-            (92, 105, 121),  # Gray
             (20, 210, 230),  # Cyan
-            (0, 122, 255)   # Blue
+            (92, 105, 121),  # Gray
+            (255, 69, 0),   # Orange
+            (30, 144, 255),  # Light Blue
+            (0, 191, 255)   # Aqua
         ]
+        
+        # Randomly shuffle the colors except for the selected case
+        random.shuffle(base_colors)
+        
+        # Set the selected case color based on the multiplier pulled
+        selected_case_color = get_color_for_multiplier(selected_multiplier["value"])
+        
+        # Replace the middle (selected) case color with the multiplier-based color
+        box_colors = base_colors.copy()
+        box_colors[3] = selected_case_color
         
         # Load fonts
         try:
             # Fonts for different elements
             value_font = ImageFont.truetype(self.font_path, 22) if self.font_path else ImageFont.load_default()
             tier_font = ImageFont.truetype(self.font_path, 18) if self.font_path else ImageFont.load_default()
-            header_font = ImageFont.truetype(self.font_path, 26) if self.font_path else ImageFont.load_default()
-            multiplier_font = ImageFont.truetype(self.font_path, 28) if self.font_path else ImageFont.load_default()
+            header_font = ImageFont.truetype(self.font_path, 28) if self.font_path else ImageFont.load_default()
+            multiplier_font = ImageFont.truetype(self.font_path, 34) if self.font_path else ImageFont.load_default()
             watermark_font = ImageFont.truetype(self.font_path, 18) if self.font_path else ImageFont.load_default()
         except Exception:
             value_font = ImageFont.load_default()
@@ -110,7 +135,7 @@ class CasesCog(commands.Cog):
             header_size = draw.textbbox((0, 0), header_text, font=header_font)
             header_width = header_size[2] - header_size[0]
             header_x = (width - header_width) // 2
-            header_y = 30  # Position at top
+            header_y = 20  # Position at top
             draw.text((header_x, header_y), header_text, font=header_font, fill=(255, 255, 255))
             
             # Add larger multiplier value text right below the header
@@ -118,24 +143,73 @@ class CasesCog(commands.Cog):
             value_size = draw.textbbox((0, 0), value_text, font=multiplier_font)
             value_width = value_size[2] - value_size[0]
             value_x = (width - value_width) // 2
-            value_y = header_y + 35  # Position below header
-            draw.text((value_x, value_y), value_text, font=multiplier_font, fill=(255, 255, 255))
+            value_y = header_y + 40  # Position below header
+            
+            # Add glow effect around the multiplier text
+            for offset_x, offset_y in [(1,1), (-1,-1), (1,-1), (-1,1), (0,1), (1,0), (-1,0), (0,-1)]:
+                draw.text((value_x+offset_x, value_y+offset_y), value_text, font=multiplier_font, fill=(0, 0, 0, 150))
+            
+            # Add the multiplier text with the color matching the selected case
+            multiplier_color = selected_case_color if selected_multiplier["value"] >= 1 else (255, 255, 255)
+            draw.text((value_x, value_y), value_text, font=multiplier_font, fill=multiplier_color)
         
-        # Draw the boxes in modern style
+        # Draw the boxes in modern style - variety of designs
         for i in range(7):
             x = start_x + i * (box_width + box_spacing)
             y = start_y
             
             # Modern case style with rounded corners
             is_selected = (i == 3)
+            box_color = box_colors[i]
+            
+            # Add slight randomization to box designs
+            design_variant = random.randint(1, 3)
             
             # Draw the box with a slight 3D effect
             # Main case body
-            draw.rounded_rectangle([x, y + 10, x + box_width, y + box_height], radius=12, fill=box_colors[i])
+            draw.rounded_rectangle([x, y + 10, x + box_width, y + box_height], radius=14, fill=box_color)
             
-            # Upper section - slightly different shade
-            upper_height = box_height // 3
-            draw.rounded_rectangle([x, y + 10, x + box_width, y + upper_height + 10], radius=12, fill=box_colors[i])
+            # Add different top designs based on variant
+            if design_variant == 1:
+                # Top gem design
+                upper_height = box_height // 3
+                draw.rounded_rectangle([x, y + 10, x + box_width, y + upper_height + 10], radius=14, fill=box_color)
+                
+                # Add gem light reflection
+                light_color = tuple(min(c + 40, 255) for c in box_color)
+                reflection_points = [
+                    (x + box_width * 0.25, y + 15),
+                    (x + box_width * 0.35, y + 25),
+                    (x + box_width * 0.45, y + 15)
+                ]
+                draw.polygon(reflection_points, fill=light_color)
+                
+            elif design_variant == 2:
+                # Horizontal stripe design
+                stripe_height = 10
+                for j in range(3):
+                    stripe_y = y + 20 + j * stripe_height * 2
+                    # Alternate stripe colors
+                    stripe_color = tuple(min(c + 30, 255) for c in box_color)
+                    draw.rectangle([x + 10, stripe_y, x + box_width - 10, stripe_y + stripe_height], fill=stripe_color)
+                
+            else:
+                # Diamond pattern on top
+                diamond_size = 14
+                diamond_spacing = 22
+                diamond_color = tuple(min(c + 50, 255) for c in box_color)
+                
+                for j in range(3):
+                    diamond_x = x + 20 + j * diamond_spacing
+                    diamond_y = y + 25
+                    
+                    diamond_points = [
+                        (diamond_x, diamond_y - diamond_size//2),
+                        (diamond_x + diamond_size//2, diamond_y),
+                        (diamond_x, diamond_y + diamond_size//2),
+                        (diamond_x - diamond_size//2, diamond_y),
+                    ]
+                    draw.polygon(diamond_points, fill=diamond_color)
             
             # Draw black notch at bottom
             notch_width = box_width // 3
@@ -143,13 +217,23 @@ class CasesCog(commands.Cog):
             notch_height = 15
             draw.rectangle([notch_x, y + box_height - 5, notch_x + notch_width, y + box_height + 5], fill=(20, 20, 20))
             
-            # If this is the selected box, add a special design
+            # For all cases, add a glossy effect
+            highlight_color = tuple(min(c + 80, 255) for c in box_color)
+            highlight_opacity = 100  # Semi-transparent
+            highlight_rect = [x + 5, y + 15, x + box_width - 5, y + 30]
+            draw.rounded_rectangle(highlight_rect, radius=10, fill=(highlight_color[0], highlight_color[1], highlight_color[2], highlight_opacity))
+            
+            # If this is the selected box, add the special gem design
             if is_selected:
-                # Draw gem/crystal icon in the center box
-                # Simplified gem design using polygons
+                # Draw gem/crystal icon in the center box to match the multiplier theme
                 center_x = x + box_width // 2
                 center_y = y + box_height // 3
                 gem_size = 40
+                
+                # Select gem color based on multiplier value
+                gem_outline_color = (220, 220, 220)
+                gem_inner_color = selected_case_color
+                gem_highlight_color = tuple(min(c + 70, 255) for c in selected_case_color)
                 
                 # Draw a stylized gem/crystal
                 gem_points = [
@@ -163,9 +247,9 @@ class CasesCog(commands.Cog):
                     (center_x - gem_size//3, center_y - gem_size//4),  # Top left
                 ]
                 # Gem outline
-                draw.polygon(gem_points, fill=(150, 150, 150))
+                draw.polygon(gem_points, fill=gem_outline_color)
                 
-                # Inner gem - lighter color
+                # Inner gem
                 inner_gem_points = [
                     (center_x, center_y - gem_size//3),
                     (center_x + gem_size//4, center_y - gem_size//6),
@@ -176,10 +260,26 @@ class CasesCog(commands.Cog):
                     (center_x - gem_size//3, center_y),
                     (center_x - gem_size//4, center_y - gem_size//6),
                 ]
-                draw.polygon(inner_gem_points, fill=(220, 220, 220))
+                draw.polygon(inner_gem_points, fill=gem_inner_color)
                 
-                # Add dot in center of gem
-                draw.ellipse([center_x-4, center_y-4, center_x+4, center_y+4], fill=(255, 0, 0))
+                # Gem highlight
+                highlight_points = [
+                    (center_x - gem_size//6, center_y - gem_size//4),
+                    (center_x, center_y - gem_size//6),
+                    (center_x + gem_size//6, center_y - gem_size//4),
+                ]
+                draw.polygon(highlight_points, fill=gem_highlight_color)
+                
+                # Add dot in center of gem matching the emoji color
+                center_dot_color = selected_case_color
+                if selected_multiplier["emoji"] == "💎":
+                    center_dot_color = (30, 144, 255)  # Blue for diamond
+                elif selected_multiplier["emoji"] == "🌟":
+                    center_dot_color = (255, 215, 0)  # Gold for star
+                elif selected_multiplier["emoji"] == "💀":
+                    center_dot_color = (255, 0, 0)  # Red for skull
+                
+                draw.ellipse([center_x-4, center_y-4, center_x+4, center_y+4], fill=center_dot_color)
                 
                 # Draw multiplier in a pill shape
                 multiplier_text = f"{selected_multiplier['value']}x"
@@ -187,7 +287,7 @@ class CasesCog(commands.Cog):
                 pill_width = multiplier_width + 20
                 pill_height = 32
                 pill_x = x + (box_width - pill_width) // 2
-                pill_y = y + box_height - 60
+                pill_y = y + box_height - 50
                 
                 # Draw pill background with rounded corners
                 draw.rounded_rectangle(
@@ -201,25 +301,37 @@ class CasesCog(commands.Cog):
                 text_y = pill_y + (pill_height - 22) // 2  # Center vertically in pill
                 draw.text((text_x, text_y), multiplier_text, font=value_font, fill=(255, 255, 255))
                 
-                # Draw pointer triangle below the selected box - white triangle pointing to selected box
+                # Draw pointer triangle below the selected box
                 triangle_size = 20
                 triangle_top_x = x + box_width // 2
                 triangle_top_y = y + box_height + 20
                 
-                # Draw filled triangle
+                # Draw filled triangle in the same color as the case
                 triangle_points = [
                     (triangle_top_x, triangle_top_y - triangle_size),
                     (triangle_top_x - triangle_size//2, triangle_top_y),
                     (triangle_top_x + triangle_size//2, triangle_top_y)
                 ]
-                draw.polygon(triangle_points, fill=(66, 133, 244))  # Blue triangle
+                draw.polygon(triangle_points, fill=selected_case_color)
+                
+                # Add the emoji symbol from the multiplier near the case
+                emoji_text = selected_multiplier["emoji"]
+                emoji_font_size = 32
+                try:
+                    emoji_font = ImageFont.truetype(self.font_path, emoji_font_size)
+                    emoji_width = draw.textlength(emoji_text, font=emoji_font)
+                    emoji_x = x + (box_width - emoji_width) // 2
+                    emoji_y = y - 30
+                    draw.text((emoji_x, emoji_y), emoji_text, font=emoji_font)
+                except:
+                    pass  # Skip emoji if font doesn't support it
         
         # Add BetSync watermark at the bottom
         watermark_text = "BetSync Casino"
         watermark_size = draw.textbbox((0, 0), watermark_text, font=watermark_font)
         watermark_width = watermark_size[2] - watermark_size[0]
         watermark_x = (width - watermark_width) // 2
-        watermark_y = height - 30
+        watermark_y = height - 25
         draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(100, 100, 100, 80))
         
         # Convert the image to bytes
