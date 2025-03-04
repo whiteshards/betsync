@@ -110,6 +110,14 @@ class CasesCog(commands.Cog):
             header_x = (width - header_width) // 2
             header_y = 30  # Position at top
             draw.text((header_x, header_y), header_text, font=header_font, fill=(255, 255, 255))
+            
+            # Add multiplier value text right below the header
+            value_text = f"{selected_multiplier['value']}x"
+            value_size = draw.textbbox((0, 0), value_text, font=value_font)
+            value_width = value_size[2] - value_size[0]
+            value_x = (width - value_width) // 2
+            value_y = header_y + 30  # Position below header
+            draw.text((value_x, value_y), value_text, font=value_font, fill=(255, 255, 255))
         
         # Draw the boxes
         for i in range(7):
@@ -136,27 +144,15 @@ class CasesCog(commands.Cog):
                 tier_y = y + upper_height + (box_height - upper_height - tier_height) // 2 - 30
                 draw.text((tier_x, tier_y), tier_text, font=tier_font, fill=(255, 255, 255))
                 
-                # Draw multiplier value in a pill shape
+                # Draw multiplier value directly without a pill shape
                 value_text = f"{selected_multiplier['value']}x"
                 value_size = draw.textbbox((0, 0), value_text, font=value_font)
-                value_width = value_size[2] - value_size[0] + 20  # Add padding
-                value_height = value_size[3] - value_size[1] + 10
                 
-                # Center the pill properly - moved upward to center of box
-                value_x = x + (box_width - value_width) // 2
-                value_y = y + (box_height - value_height) // 2  # Center in the box
+                # Center text in the box
+                text_x = x + (box_width - (value_size[2] - value_size[0])) // 2
+                text_y = y + (box_height - (value_size[3] - value_size[1])) // 2
                 
-                # Draw pill shape background
-                pill_radius = value_height // 2
-                draw.rounded_rectangle(
-                    [value_x, value_y, value_x + value_width, value_y + value_height],
-                    radius=pill_radius,
-                    fill=(40, 40, 45)
-                )
-                
-                # Calculate text position to center it within the pill
-                text_x = value_x + (value_width - (value_size[2] - value_size[0])) // 2
-                text_y = value_y + (value_height - (value_size[3] - value_size[1])) // 2
+                # Draw text directly without background
                 draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
                 
                 # Draw pointer triangle below the selected box
@@ -170,13 +166,20 @@ class CasesCog(commands.Cog):
                 ]
                 draw.polygon(triangle_points, fill=(255, 255, 255))
         
-        # Add BetSync watermark at the bottom
+        # Add BetSync watermark at the bottom - bigger and more transparent
         watermark_text = "BetSync Casino"
+        # Use a larger font for watermark
+        watermark_font_size = 24  # Increased from default
+        try:
+            watermark_font = ImageFont.truetype(self.font_path, watermark_font_size) if self.font_path else ImageFont.load_default()
+        except Exception:
+            watermark_font = ImageFont.load_default()
+            
         watermark_size = draw.textbbox((0, 0), watermark_text, font=watermark_font)
         watermark_width = watermark_size[2] - watermark_size[0]
         watermark_x = (width - watermark_width) // 2
-        watermark_y = height - 25  # Position at bottom
-        draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(200, 200, 200, 180))
+        watermark_y = height - 40  # Position at bottom, slightly higher for larger font
+        draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(200, 200, 200, 120))  # More transparent (120 instead of 180)
         
         # Convert the image to bytes
         buffer = io.BytesIO()
