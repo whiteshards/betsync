@@ -1,4 +1,3 @@
-
 import discord
 from Cogs.utils.mongo import Users
 
