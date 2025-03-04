@@ -189,7 +189,7 @@ class CasesCog(commands.Cog):
                     (x + box_width * 0.35, y + 28),
                     (x + box_width * 0.45, y + 18)
                 ]
-                draw.polygon(reflection_points, fill=light_color)
+                #draw.polygon(reflection_points, fill=light_color)
                 
             elif design_variant == 2:
                 # Horizontal stripe design - JUST ONE STRIPE
@@ -211,7 +211,7 @@ class CasesCog(commands.Cog):
                     (diamond_x, diamond_y + diamond_size//2),
                     (diamond_x - diamond_size//2, diamond_y),
                 ]
-                draw.polygon(diamond_points, fill=diamond_color)
+                #draw.polygon(diamond_points, fill=diamond_color)
             
             # Draw black notch at bottom
             notch_width = box_width // 3
@@ -249,7 +249,7 @@ class CasesCog(commands.Cog):
                     (center_x - gem_size//3, center_y - gem_size//4),  # Top left
                 ]
                 # Gem outline
-                draw.polygon(gem_points, fill=gem_outline_color)
+                #draw.polygon(gem_points, fill=gem_outline_color)
                 
                 # Inner gem
                 inner_gem_points = [
@@ -262,7 +262,7 @@ class CasesCog(commands.Cog):
                     (center_x - gem_size//3, center_y),
                     (center_x - gem_size//4, center_y - gem_size//6),
                 ]
-                draw.polygon(inner_gem_points, fill=gem_inner_color)
+                #draw.polygon(inner_gem_points, fill=gem_inner_color)
                 
                 # Gem highlight
                 highlight_points = [
@@ -270,7 +270,7 @@ class CasesCog(commands.Cog):
                     (center_x, center_y - gem_size//6),
                     (center_x + gem_size//6, center_y - gem_size//4),
                 ]
-                draw.polygon(highlight_points, fill=gem_highlight_color)
+                #draw.polygon(highlight_points, fill=gem_highlight_color)
                 
                 # Add dot in center of gem matching the emoji color
                 center_dot_color = selected_case_color
@@ -281,7 +281,7 @@ class CasesCog(commands.Cog):
                 elif selected_multiplier["emoji"] == "💀":
                     center_dot_color = (255, 0, 0)  # Red for skull
                 
-                draw.ellipse([center_x-4, center_y-4, center_x+4, center_y+4], fill=center_dot_color)
+                #draw.ellipse([center_x-4, center_y-4, center_x+4, center_y+4], fill=center_dot_color)
                 
                 # Draw multiplier in a pill shape
                 multiplier_text = f"{selected_multiplier['value']}x"
@@ -480,10 +480,10 @@ class CasesCog(commands.Cog):
                 item = shuffled_items[j]
                 if j == 1:
                     # Center item highlighted with consistent alignment
-                    reel += f"▶️ {item['emoji']} **{item['name']}** ({item['value']}x) ◀️\n"
+                    reel += f"<a:Orange_Arrow_Right:1346393505601425419> {item['emoji']} **{item['name']}** <a:Orange_Arrow_Left:1346393312176902209>\n"
                 else:
                     # Consistent padding for non-selected items for better alignment
-                    reel += f"   {item['emoji']} {item['name']} ({item['value']}x)\n"
+                    reel += f"       {item['emoji']} {item['name']}\n"
 
             animation_embed.description = f"Bet: **{bet_amount:.2f} {currency_used}**\n\n{reel}"
             
