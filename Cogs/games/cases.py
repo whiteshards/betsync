@@ -60,46 +60,48 @@ class CasesCog(commands.Cog):
             self.font_path = None
             
     def generate_result_image(self, selected_multiplier, user_name=None):
-        """Generate an image showing the case opening result"""
+        """Generate an image showing the case opening result in a modern style"""
         # Set up the image dimensions
-        width = 800
+        width = 1024
         height = 400
-        bg_color = (18, 25, 38)  # Dark blue background like in the reference
+        bg_color = (14, 23, 35)  # Darker blue background
         
         # Create the base image
         img = Image.new('RGB', (width, height), bg_color)
         draw = ImageDraw.Draw(img)
         
-        # Box dimensions
-        box_width = 100
-        box_height = 150
-        box_spacing = 20
+        # Box dimensions - sleeker and modern
+        box_width = 108
+        box_height = 180
+        box_spacing = 16
         total_box_area = 7 * box_width + 6 * box_spacing
         start_x = (width - total_box_area) // 2
         start_y = (height - box_height) // 2
         
-        # Colors for the boxes (similar to the reference image)
+        # Modern box colors based on the provided image
         box_colors = [
-            (255, 30, 70),  # Red
-            (30, 144, 255),  # Blue
-            (30, 144, 255),  # Blue
-            selected_multiplier["color"],  # Selected color
-            (128, 128, 128),  # Gray
-            (0, 255, 255),   # Cyan
-            (30, 144, 255)   # Blue
+            (232, 32, 68),  # Red
+            (0, 122, 255),  # Blue
+            (0, 122, 255),  # Blue
+            (232, 32, 68),  # Selected case (Red)
+            (92, 105, 121),  # Gray
+            (20, 210, 230),  # Cyan
+            (0, 122, 255)   # Blue
         ]
         
         # Load fonts
         try:
             # Fonts for different elements
-            value_font = ImageFont.truetype(self.font_path, 20) if self.font_path else ImageFont.load_default()
-            tier_font = ImageFont.truetype(self.font_path, 16) if self.font_path else ImageFont.load_default()
-            header_font = ImageFont.truetype(self.font_path, 24) if self.font_path else ImageFont.load_default()
-            watermark_font = ImageFont.truetype(self.font_path, 14) if self.font_path else ImageFont.load_default()
+            value_font = ImageFont.truetype(self.font_path, 22) if self.font_path else ImageFont.load_default()
+            tier_font = ImageFont.truetype(self.font_path, 18) if self.font_path else ImageFont.load_default()
+            header_font = ImageFont.truetype(self.font_path, 26) if self.font_path else ImageFont.load_default()
+            multiplier_font = ImageFont.truetype(self.font_path, 28) if self.font_path else ImageFont.load_default()
+            watermark_font = ImageFont.truetype(self.font_path, 18) if self.font_path else ImageFont.load_default()
         except Exception:
             value_font = ImageFont.load_default()
             tier_font = ImageFont.load_default()
             header_font = ImageFont.load_default()
+            multiplier_font = ImageFont.load_default()
             watermark_font = ImageFont.load_default()
         
         # Add user pull header if username is provided
@@ -112,80 +114,113 @@ class CasesCog(commands.Cog):
             draw.text((header_x, header_y), header_text, font=header_font, fill=(255, 255, 255))
             
             # Add larger multiplier value text right below the header
-            multiplier_font_size = 32  # Bigger font for multiplier
-            try:
-                multiplier_font = ImageFont.truetype(self.font_path, multiplier_font_size) if self.font_path else ImageFont.load_default()
-            except Exception:
-                multiplier_font = ImageFont.load_default()
-                
             value_text = f"{selected_multiplier['value']}x"
             value_size = draw.textbbox((0, 0), value_text, font=multiplier_font)
             value_width = value_size[2] - value_size[0]
             value_x = (width - value_width) // 2
-            value_y = header_y + 30  # Position below header
+            value_y = header_y + 35  # Position below header
             draw.text((value_x, value_y), value_text, font=multiplier_font, fill=(255, 255, 255))
         
-        # Draw the boxes
+        # Draw the boxes in modern style
         for i in range(7):
             x = start_x + i * (box_width + box_spacing)
             y = start_y
             
-            # Draw the box
-            draw.rectangle([x, y, x + box_width, y + box_height], fill=box_colors[i], outline=(0, 0, 0))
+            # Modern case style with rounded corners
+            is_selected = (i == 3)
             
-            # Add upper lighter section
+            # Draw the box with a slight 3D effect
+            # Main case body
+            draw.rounded_rectangle([x, y + 10, x + box_width, y + box_height], radius=12, fill=box_colors[i])
+            
+            # Upper section - slightly different shade
             upper_height = box_height // 3
-            lighter_color = tuple(min(c + 40, 255) for c in box_colors[i])
-            draw.rectangle([x, y, x + box_width, y + upper_height], fill=lighter_color)
+            draw.rounded_rectangle([x, y + 10, x + box_width, y + upper_height + 10], radius=12, fill=box_colors[i])
             
-            # If this is the selected box (position 3), draw the tier name and multiplier
-            if i == 3:
-                # Draw tier name instead of emoji
-                tier_text = selected_multiplier["name"]
-                tier_size = draw.textbbox((0, 0), tier_text, font=tier_font)
-                tier_width = tier_size[2] - tier_size[0]
-                tier_height = tier_size[3] - tier_size[1]
+            # Draw black notch at bottom
+            notch_width = box_width // 3
+            notch_x = x + (box_width - notch_width) // 2
+            notch_height = 15
+            draw.rectangle([notch_x, y + box_height - 5, notch_x + notch_width, y + box_height + 5], fill=(20, 20, 20))
+            
+            # If this is the selected box, add a special design
+            if is_selected:
+                # Draw gem/crystal icon in the center box
+                # Simplified gem design using polygons
+                center_x = x + box_width // 2
+                center_y = y + box_height // 3
+                gem_size = 40
                 
-                tier_x = x + (box_width - tier_width) // 2
-                tier_y = y + upper_height + (box_height - upper_height - tier_height) // 2 - 30
-                draw.text((tier_x, tier_y), tier_text, font=tier_font, fill=(255, 255, 255))
-                
-                # Draw multiplier value directly without a pill shape
-                #value_text = f"{selected_multiplier['value']}x"
-                #value_size = draw.textbbox((0, 0), value_text, font=value_font)
-                
-                # Center text in the box
-                text_x = x + (box_width - (value_size[2] - value_size[0])) // 2
-                text_y = y + (box_height - (value_size[3] - value_size[1])) // 2
-                
-                # Draw text directly without background
-                #draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
-                
-                # Draw pointer triangle below the selected box
-                triangle_size = 15
-                triangle_top_x = x + box_width // 2
-                triangle_top_y = y + box_height + 10
-                triangle_points = [
-                    (triangle_top_x, triangle_top_y + triangle_size),
-                    (triangle_top_x - triangle_size, triangle_top_y),
-                    (triangle_top_x + triangle_size, triangle_top_y)
+                # Draw a stylized gem/crystal
+                gem_points = [
+                    (center_x, center_y - gem_size//2),  # Top
+                    (center_x + gem_size//3, center_y - gem_size//4),  # Top right
+                    (center_x + gem_size//2, center_y),  # Right
+                    (center_x + gem_size//3, center_y + gem_size//4),  # Bottom right
+                    (center_x, center_y + gem_size//2),  # Bottom
+                    (center_x - gem_size//3, center_y + gem_size//4),  # Bottom left
+                    (center_x - gem_size//2, center_y),  # Left
+                    (center_x - gem_size//3, center_y - gem_size//4),  # Top left
                 ]
-                draw.polygon(triangle_points, fill=(255, 255, 255))
+                # Gem outline
+                draw.polygon(gem_points, fill=(150, 150, 150))
+                
+                # Inner gem - lighter color
+                inner_gem_points = [
+                    (center_x, center_y - gem_size//3),
+                    (center_x + gem_size//4, center_y - gem_size//6),
+                    (center_x + gem_size//3, center_y),
+                    (center_x + gem_size//4, center_y + gem_size//6),
+                    (center_x, center_y + gem_size//3),
+                    (center_x - gem_size//4, center_y + gem_size//6),
+                    (center_x - gem_size//3, center_y),
+                    (center_x - gem_size//4, center_y - gem_size//6),
+                ]
+                draw.polygon(inner_gem_points, fill=(220, 220, 220))
+                
+                # Add dot in center of gem
+                draw.ellipse([center_x-4, center_y-4, center_x+4, center_y+4], fill=(255, 0, 0))
+                
+                # Draw multiplier in a pill shape
+                multiplier_text = f"{selected_multiplier['value']}x"
+                multiplier_width = draw.textlength(multiplier_text, font=value_font)
+                pill_width = multiplier_width + 20
+                pill_height = 32
+                pill_x = x + (box_width - pill_width) // 2
+                pill_y = y + box_height - 60
+                
+                # Draw pill background with rounded corners
+                draw.rounded_rectangle(
+                    [pill_x, pill_y, pill_x + pill_width, pill_y + pill_height],
+                    radius=16,
+                    fill=(40, 40, 40)
+                )
+                
+                # Draw multiplier text
+                text_x = x + (box_width - multiplier_width) // 2
+                text_y = pill_y + (pill_height - 22) // 2  # Center vertically in pill
+                draw.text((text_x, text_y), multiplier_text, font=value_font, fill=(255, 255, 255))
+                
+                # Draw pointer triangle below the selected box - white triangle pointing to selected box
+                triangle_size = 20
+                triangle_top_x = x + box_width // 2
+                triangle_top_y = y + box_height + 20
+                
+                # Draw filled triangle
+                triangle_points = [
+                    (triangle_top_x, triangle_top_y - triangle_size),
+                    (triangle_top_x - triangle_size//2, triangle_top_y),
+                    (triangle_top_x + triangle_size//2, triangle_top_y)
+                ]
+                draw.polygon(triangle_points, fill=(66, 133, 244))  # Blue triangle
         
-        # Add BetSync watermark at the bottom - bigger and more transparent
+        # Add BetSync watermark at the bottom
         watermark_text = "BetSync Casino"
-        # Use a larger font for watermark
-        watermark_font_size = 24  # Increased from default
-        try:
-            watermark_font = ImageFont.truetype(self.font_path, watermark_font_size) if self.font_path else ImageFont.load_default()
-        except Exception:
-            watermark_font = ImageFont.load_default()
-            
         watermark_size = draw.textbbox((0, 0), watermark_text, font=watermark_font)
         watermark_width = watermark_size[2] - watermark_size[0]
         watermark_x = (width - watermark_width) // 2
-        watermark_y = height - 40  # Position at bottom, slightly higher for larger font
-        draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(200, 200, 200, 120))  # More transparent (120 instead of 180)
+        watermark_y = height - 30
+        draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(100, 100, 100, 80))
         
         # Convert the image to bytes
         buffer = io.BytesIO()
