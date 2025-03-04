@@ -1,6 +1,9 @@
 import discord
 import random
 import asyncio
+import io
+from PIL import Image, ImageDraw, ImageFont
+import os
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -36,19 +39,128 @@ class CasesCog(commands.Cog):
         self.bot = bot
         # Define case multipliers and their chances based on provided image
         self.multipliers = [
-            {"value": 23.0, "chance": 0.01, "emoji": "💎", "name": "LEGENDARY"},
-            {"value": 10.0, "chance": 0.02, "emoji": "🌟", "name": "EPIC"},
-            {"value": 3.0, "chance": 0.04, "emoji": "✨", "name": "RARE"},
-            {"value": 2.0, "chance": 0.07, "emoji": "🔷", "name": "UNCOMMON"},
-            {"value": 1.09, "chance": 0.10, "emoji": "🔹", "name": "COMMON"},
-            {"value": 0.4, "chance": 0.35, "emoji": "💢", "name": "BAD LUCK"},
-            {"value": 0.1, "chance": 0.41, "emoji": "💀", "name": "TERRIBLE"}
+            {"value": 23.0, "chance": 0.01, "emoji": "💎", "name": "LEGENDARY", "color": (255, 215, 0)},
+            {"value": 10.0, "chance": 0.02, "emoji": "🌟", "name": "EPIC", "color": (148, 0, 211)},
+            {"value": 3.0, "chance": 0.04, "emoji": "✨", "name": "RARE", "color": (255, 69, 0)},
+            {"value": 2.0, "chance": 0.07, "emoji": "🔷", "name": "UNCOMMON", "color": (30, 144, 255)},
+            {"value": 1.09, "chance": 0.10, "emoji": "🔹", "name": "COMMON", "color": (0, 191, 255)},
+            {"value": 0.4, "chance": 0.35, "emoji": "💢", "name": "BAD LUCK", "color": (128, 128, 128)},
+            {"value": 0.1, "chance": 0.41, "emoji": "💀", "name": "TERRIBLE", "color": (255, 0, 0)}
         ]
 
         # Validate that probabilities sum to 1
         total_prob = sum(item["chance"] for item in self.multipliers)
         if abs(total_prob - 1.0) > 0.001:  # Allow small floating-point error
             print(f"Warning: Case probabilities sum to {total_prob}, not 1.0")
+            
+        # Font path
+        self.font_path = "roboto.ttf"
+        if not os.path.exists(self.font_path):
+            print(f"Warning: Font file {self.font_path} not found, using default font")
+            self.font_path = None
+            
+    def generate_result_image(self, selected_multiplier):
+        """Generate an image showing the case opening result"""
+        # Set up the image dimensions
+        width = 800
+        height = 400
+        bg_color = (18, 25, 38)  # Dark blue background like in the reference
+        
+        # Create the base image
+        img = Image.new('RGB', (width, height), bg_color)
+        draw = ImageDraw.Draw(img)
+        
+        # Box dimensions
+        box_width = 100
+        box_height = 150
+        box_spacing = 20
+        total_box_area = 7 * box_width + 6 * box_spacing
+        start_x = (width - total_box_area) // 2
+        start_y = (height - box_height) // 2
+        
+        # Colors for the boxes (similar to the reference image)
+        box_colors = [
+            (255, 30, 70),  # Red
+            (30, 144, 255),  # Blue
+            (30, 144, 255),  # Blue
+            selected_multiplier["color"],  # Selected color
+            (128, 128, 128),  # Gray
+            (0, 255, 255),   # Cyan
+            (30, 144, 255)   # Blue
+        ]
+        
+        # Load font
+        try:
+            value_font = ImageFont.truetype(self.font_path, 24) if self.font_path else ImageFont.load_default()
+            emoji_font = ImageFont.truetype(self.font_path, 40) if self.font_path else ImageFont.load_default()
+        except Exception:
+            value_font = ImageFont.load_default()
+            emoji_font = ImageFont.load_default()
+        
+        # Draw the boxes
+        for i in range(7):
+            x = start_x + i * (box_width + box_spacing)
+            y = start_y
+            
+            # Draw the box
+            draw.rectangle([x, y, x + box_width, y + box_height], fill=box_colors[i], outline=(0, 0, 0))
+            
+            # Add upper lighter section
+            upper_height = box_height // 3
+            lighter_color = tuple(min(c + 40, 255) for c in box_colors[i])
+            draw.rectangle([x, y, x + box_width, y + upper_height], fill=lighter_color)
+            
+            # If this is the selected box (position 3), draw the multiplier and gemstone
+            if i == 3:
+                # Draw emoji
+                emoji_text = selected_multiplier["emoji"]
+                emoji_size = draw.textbbox((0, 0), emoji_text, font=emoji_font)
+                emoji_width = emoji_size[2] - emoji_size[0]
+                emoji_height = emoji_size[3] - emoji_size[1]
+                
+                emoji_x = x + (box_width - emoji_width) // 2
+                emoji_y = y + upper_height + (box_height - upper_height - emoji_height) // 2 - 30
+                draw.text((emoji_x, emoji_y), emoji_text, font=emoji_font, fill=(255, 255, 255))
+                
+                # Draw multiplier value in a pill shape
+                value_text = f"{selected_multiplier['value']}x"
+                value_size = draw.textbbox((0, 0), value_text, font=value_font)
+                value_width = value_size[2] - value_size[0] + 20  # Add padding
+                value_height = value_size[3] - value_size[1] + 10
+                
+                value_x = x + (box_width - value_width) // 2
+                value_y = y + box_height - value_height - 10
+                
+                # Draw pill shape background
+                pill_radius = value_height // 2
+                draw.rounded_rectangle(
+                    [value_x, value_y, value_x + value_width, value_y + value_height],
+                    radius=pill_radius,
+                    fill=(40, 40, 45)
+                )
+                
+                # Draw text in the center of the pill
+                text_x = x + (box_width - (value_size[2] - value_size[0])) // 2
+                text_y = value_y + (value_height - (value_size[3] - value_size[1])) // 2
+                draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
+                
+                # Draw pointer triangle below the selected box
+                triangle_size = 15
+                triangle_top_x = x + box_width // 2
+                triangle_top_y = y + box_height + 10
+                triangle_points = [
+                    (triangle_top_x, triangle_top_y + triangle_size),
+                    (triangle_top_x - triangle_size, triangle_top_y),
+                    (triangle_top_x + triangle_size, triangle_top_y)
+                ]
+                draw.polygon(triangle_points, fill=(255, 255, 255))
+        
+        # Convert the image to bytes
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        return buffer
 
     @commands.command(aliases=["case", "crate"])
     async def cases(self, ctx, bet_amount: str = None, currency_type: str = None):
@@ -269,6 +381,10 @@ class CasesCog(commands.Cog):
         else:  # Bad luck / Terrible
             color = 0xFF0000  # Red
 
+        # Generate the result image
+        image_buffer = self.generate_result_image(selected_multiplier)
+        image_file = discord.File(image_buffer, filename="case_result.png")
+        
         # Create a simplified and clean result embed
         result_embed = discord.Embed(
             title=f"📦 {selected_multiplier['emoji']} {selected_multiplier['name']} {selected_multiplier['emoji']}",
@@ -280,6 +396,9 @@ class CasesCog(commands.Cog):
             ),
             color=color
         )
+        
+        # Set the image in the embed
+        result_embed.set_image(url="attachment://case_result.png")
 
         # Add multiplier info in a clean format
         case_info = ""
@@ -300,7 +419,7 @@ class CasesCog(commands.Cog):
 
         # Add play again button
         play_again_view = CasesPlayAgainView(self, ctx, bet_amount, currency_used)
-        play_again_message = await loading_message.edit(embed=result_embed, view=play_again_view)
+        play_again_message = await loading_message.edit(embed=result_embed, file=image_file, view=play_again_view)
         play_again_view.message = play_again_message
 
 def setup(bot):

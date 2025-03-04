@@ -8,3 +8,4 @@ python-dotenv
 colorama
 requests
 discord-py
+Pillow
