@@ -151,15 +151,15 @@ class CasesCog(commands.Cog):
                 draw.text((tier_x, tier_y), tier_text, font=tier_font, fill=(255, 255, 255))
                 
                 # Draw multiplier value directly without a pill shape
-                value_text = f"{selected_multiplier['value']}x"
-                value_size = draw.textbbox((0, 0), value_text, font=value_font)
+                #value_text = f"{selected_multiplier['value']}x"
+                #value_size = draw.textbbox((0, 0), value_text, font=value_font)
                 
                 # Center text in the box
                 text_x = x + (box_width - (value_size[2] - value_size[0])) // 2
                 text_y = y + (box_height - (value_size[3] - value_size[1])) // 2
                 
                 # Draw text directly without background
-                draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
+                #draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
                 
                 # Draw pointer triangle below the selected box
                 triangle_size = 15
