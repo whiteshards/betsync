@@ -59,7 +59,7 @@ class CasesCog(commands.Cog):
             print(f"Warning: Font file {self.font_path} not found, using default font")
             self.font_path = None
             
-    def generate_result_image(self, selected_multiplier):
+    def generate_result_image(self, selected_multiplier, user_name=None):
         """Generate an image showing the case opening result"""
         # Set up the image dimensions
         width = 800
@@ -89,14 +89,27 @@ class CasesCog(commands.Cog):
             (30, 144, 255)   # Blue
         ]
         
-        # Load font
+        # Load fonts
         try:
-            # Using smaller font size for the multiplier label
+            # Fonts for different elements
             value_font = ImageFont.truetype(self.font_path, 20) if self.font_path else ImageFont.load_default()
             tier_font = ImageFont.truetype(self.font_path, 16) if self.font_path else ImageFont.load_default()
+            header_font = ImageFont.truetype(self.font_path, 24) if self.font_path else ImageFont.load_default()
+            watermark_font = ImageFont.truetype(self.font_path, 14) if self.font_path else ImageFont.load_default()
         except Exception:
             value_font = ImageFont.load_default()
             tier_font = ImageFont.load_default()
+            header_font = ImageFont.load_default()
+            watermark_font = ImageFont.load_default()
+        
+        # Add user pull header if username is provided
+        if user_name:
+            header_text = f"{user_name} pulled {selected_multiplier['name']}"
+            header_size = draw.textbbox((0, 0), header_text, font=header_font)
+            header_width = header_size[2] - header_size[0]
+            header_x = (width - header_width) // 2
+            header_y = 30  # Position at top
+            draw.text((header_x, header_y), header_text, font=header_font, fill=(255, 255, 255))
         
         # Draw the boxes
         for i in range(7):
@@ -129,9 +142,9 @@ class CasesCog(commands.Cog):
                 value_width = value_size[2] - value_size[0] + 20  # Add padding
                 value_height = value_size[3] - value_size[1] + 10
                 
-                # Center the pill properly
+                # Center the pill properly - moved upward to center of box
                 value_x = x + (box_width - value_width) // 2
-                value_y = y + box_height - value_height - 10
+                value_y = y + (box_height - value_height) // 2  # Center in the box
                 
                 # Draw pill shape background
                 pill_radius = value_height // 2
@@ -142,7 +155,6 @@ class CasesCog(commands.Cog):
                 )
                 
                 # Calculate text position to center it within the pill
-                # With proper centering inside the pill
                 text_x = value_x + (value_width - (value_size[2] - value_size[0])) // 2
                 text_y = value_y + (value_height - (value_size[3] - value_size[1])) // 2
                 draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
@@ -157,6 +169,14 @@ class CasesCog(commands.Cog):
                     (triangle_top_x + triangle_size, triangle_top_y)
                 ]
                 draw.polygon(triangle_points, fill=(255, 255, 255))
+        
+        # Add BetSync watermark at the bottom
+        watermark_text = "BetSync Casino"
+        watermark_size = draw.textbbox((0, 0), watermark_text, font=watermark_font)
+        watermark_width = watermark_size[2] - watermark_size[0]
+        watermark_x = (width - watermark_width) // 2
+        watermark_y = height - 25  # Position at bottom
+        draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(200, 200, 200, 180))
         
         # Convert the image to bytes
         buffer = io.BytesIO()
@@ -384,8 +404,8 @@ class CasesCog(commands.Cog):
         else:  # Bad luck / Terrible
             color = 0xFF0000  # Red
 
-        # Generate the result image
-        image_buffer = self.generate_result_image(selected_multiplier)
+        # Generate the result image with user's name
+        image_buffer = self.generate_result_image(selected_multiplier, author.name)
         image_file = discord.File(image_buffer, filename="case_result.png")
         
         # Create a simplified and clean result embed
