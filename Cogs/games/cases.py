@@ -91,11 +91,12 @@ class CasesCog(commands.Cog):
         
         # Load font
         try:
-            value_font = ImageFont.truetype(self.font_path, 24) if self.font_path else ImageFont.load_default()
-            emoji_font = ImageFont.truetype(self.font_path, 40) if self.font_path else ImageFont.load_default()
+            # Using smaller font size for the multiplier label
+            value_font = ImageFont.truetype(self.font_path, 20) if self.font_path else ImageFont.load_default()
+            tier_font = ImageFont.truetype(self.font_path, 16) if self.font_path else ImageFont.load_default()
         except Exception:
             value_font = ImageFont.load_default()
-            emoji_font = ImageFont.load_default()
+            tier_font = ImageFont.load_default()
         
         # Draw the boxes
         for i in range(7):
@@ -110,17 +111,17 @@ class CasesCog(commands.Cog):
             lighter_color = tuple(min(c + 40, 255) for c in box_colors[i])
             draw.rectangle([x, y, x + box_width, y + upper_height], fill=lighter_color)
             
-            # If this is the selected box (position 3), draw the multiplier and gemstone
+            # If this is the selected box (position 3), draw the tier name and multiplier
             if i == 3:
-                # Draw emoji
-                emoji_text = selected_multiplier["emoji"]
-                emoji_size = draw.textbbox((0, 0), emoji_text, font=emoji_font)
-                emoji_width = emoji_size[2] - emoji_size[0]
-                emoji_height = emoji_size[3] - emoji_size[1]
+                # Draw tier name instead of emoji
+                tier_text = selected_multiplier["name"]
+                tier_size = draw.textbbox((0, 0), tier_text, font=tier_font)
+                tier_width = tier_size[2] - tier_size[0]
+                tier_height = tier_size[3] - tier_size[1]
                 
-                emoji_x = x + (box_width - emoji_width) // 2
-                emoji_y = y + upper_height + (box_height - upper_height - emoji_height) // 2 - 30
-                draw.text((emoji_x, emoji_y), emoji_text, font=emoji_font, fill=(255, 255, 255))
+                tier_x = x + (box_width - tier_width) // 2
+                tier_y = y + upper_height + (box_height - upper_height - tier_height) // 2 - 30
+                draw.text((tier_x, tier_y), tier_text, font=tier_font, fill=(255, 255, 255))
                 
                 # Draw multiplier value in a pill shape
                 value_text = f"{selected_multiplier['value']}x"
@@ -128,6 +129,7 @@ class CasesCog(commands.Cog):
                 value_width = value_size[2] - value_size[0] + 20  # Add padding
                 value_height = value_size[3] - value_size[1] + 10
                 
+                # Center the pill properly
                 value_x = x + (box_width - value_width) // 2
                 value_y = y + box_height - value_height - 10
                 
@@ -139,8 +141,9 @@ class CasesCog(commands.Cog):
                     fill=(40, 40, 45)
                 )
                 
-                # Draw text in the center of the pill
-                text_x = x + (box_width - (value_size[2] - value_size[0])) // 2
+                # Calculate text position to center it within the pill
+                # With proper centering inside the pill
+                text_x = value_x + (value_width - (value_size[2] - value_size[0])) // 2
                 text_y = value_y + (value_height - (value_size[3] - value_size[1])) // 2
                 draw.text((text_x, text_y), value_text, font=value_font, fill=(255, 255, 255))
                 
