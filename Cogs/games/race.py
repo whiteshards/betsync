@@ -108,7 +108,7 @@ class RaceCog(commands.Cog):
 
 
         # Mark this user as having an ongoing game
-        self.ongoing_games[ctx.author.id] = {"bet_amount": bet_amount, "currency_used": currency_used}
+        self.ongoing_games[ctx.author.id] = {"bet_amount": bet_amount, "currency_used": currency_used, "ctx": ctx}
 
         # Create car selection embed
         embed = discord.Embed(
@@ -134,7 +134,7 @@ class RaceCog(commands.Cog):
             car_button.callback = await make_callback(i)
             view.add_item(car_button)
 
-        game_message = await ctx.reply(embed=embed, view=view)
+        game_message = await ctx.send(embed=embed, view=view)
         self.ongoing_games[ctx.author.id]["message"] = game_message
 
         # Auto-cancel the game after 30 seconds if no selection is made
