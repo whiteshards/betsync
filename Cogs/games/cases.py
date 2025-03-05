@@ -382,7 +382,7 @@ class CasesCog(commands.Cog):
         result_embed.set_footer(text=f"BetSync Casino • {currency_used.capitalize()} bet: {bet_amount_value:.2f}", icon_url=self.bot.user.avatar.url)
 
         # Add play again button
-        play_again_view = CasesPlayAgainView(self, ctx, bet_amount_value, currency_used)
+        play_again_view = CasesPlayAgainView(self, ctx, bet_amount_value, currency_used, bot)
         play_again_message = await loading_message.edit(embed=result_embed, file=image_file, view=play_again_view)
         play_again_view.message = play_again_message
 
