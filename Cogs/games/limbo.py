@@ -155,9 +155,6 @@ class LimboGame:
             self.total_bets += 1
             self.current_multiplier = rounded_multiplier
 
-            # Deduct bet amount from remaining funds
-            remaining_funds -= self.bet_amount
-
             # Calculate winnings
             if won:
                 wins += 1
