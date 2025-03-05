@@ -88,23 +88,23 @@ class CrossTheRoadGame(discord.ui.View):
             # Use "⬛" for black road and "⬜" for white road
             road_emoji = "⬛" if i % 2 == 0 else "⬜"
             road_emojis.append(road_emoji)
-        
+
         # Set up sliding window (show 5 lanes at a time)
         visible_lanes = 5
-        
+
         # Calculate the window start position - always try to keep the current lane in the middle
         window_start = max(0, self.lanes_crossed - 2)
-        
+
         # Make sure we don't go past the end
         if window_start + visible_lanes > self.max_lanes:
             window_start = max(0, self.max_lanes - visible_lanes)
-        
+
         # Get the visible section of lanes
         visible_section = road_emojis[window_start:window_start + visible_lanes]
-        
+
         # Calculate position of chicken/crash within visible section
         chicken_pos = self.lanes_crossed - window_start
-        
+
         # Build the progress display
         if self.game_over and chicken_pos >= 0 and chicken_pos < len(visible_section):
             # If game over due to collision within visible area
@@ -119,14 +119,14 @@ class CrossTheRoadGame(discord.ui.View):
         else:
             # Default case (shouldn't happen often)
             progress = "🏁" + "".join(visible_section) + ("🐓" if not self.game_over else "")
-        
+
         # Add indicators for lanes before/after visible section
         progress_info = f"Lane: {self.lanes_crossed+1}/{self.max_lanes}"
         if window_start > 0:
             progress = "◀️ " + progress
         if window_start + visible_lanes < self.max_lanes:
             progress = progress + " ▶️"
-            
+
         return progress
 
     def create_embed(self, status="playing"):
@@ -246,7 +246,7 @@ class CrossTheRoadGame(discord.ui.View):
             "difficulty": self.difficulty,
             "timestamp": int(time.time())
         }
-        
+
         # Update user history and stats in one operation
         db.collection.update_one(
             {"discord_id": self.ctx.author.id},
@@ -312,7 +312,7 @@ class CrossTheRoadGame(discord.ui.View):
             "difficulty": self.difficulty,
             "timestamp": int(time.time())
         }
-        
+
         # Update user history and stats in one operation
         db = Users()
         db.collection.update_one(
@@ -458,18 +458,19 @@ class CrossTheRoadCog(commands.Cog):
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        # Process bet amount
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
+        # Process bet amount using currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
-        if user_data == False:
+        #Handle errors from currency helper
+        if not success:
             await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+            return await ctx.reply(embed=error_embed)
+
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        total_bet = bet_info["total_bet_amount"]
+
 
         # Validate difficulty
         if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "extreme"]:
@@ -480,103 +481,6 @@ class CrossTheRoadCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-
-        # Set default currency type to tokens if not specified
-        if not currency_type:
-            currency_type = "tokens"
-        elif currency_type.lower() in ["t", "tokens"]:
-            currency_type = "tokens"
-        elif currency_type.lower() in ["c", "credits"]:
-            currency_type = "credits"
-        else:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Currency",
-                description="Please specify a valid currency: `tokens` or `credits`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Validate bet amount
-        try:
-            # Handle 'all' or 'max' bet
-            if isinstance(bet_amount, str) and bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data[currency_type]
-            else:
-                # Check if bet has 'k' or 'm' suffix
-                if isinstance(bet_amount, str) and bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif isinstance(bet_amount, str) and bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
-
-            bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
-
-            if bet_amount_value <= 0:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        except ValueError:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Get user balances
-        tokens_balance = user_data.get('tokens', 0)
-        credits_balance = user_data.get('credits', 0)
-
-        # Determine which currency to use 
-        tokens_used = 0
-        credits_used = 0
-
-        if currency_type == "tokens":
-            # Try to use tokens first
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            elif bet_amount_value <= tokens_balance + credits_balance:
-                # Not enough tokens, use all tokens and some credits
-                tokens_used = tokens_balance
-                credits_used = bet_amount_value - tokens_balance
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough funds. Your balance: **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        else:  # currency_type == "credits"
-            # Use credits
-            if bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough credits. Your balance: **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        # Deduct from user balances
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
-
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
-
-        # Get total amount bet
-        total_bet = tokens_used + credits_used
 
         # Create the game
         game_view = CrossTheRoadGame(
