@@ -82,42 +82,33 @@ class LimboGame:
         user_data = db.fetch_user(self.user_id)
         available_funds = user_data['tokens'] + user_data['credits']
 
-        if available_funds < total_funds_needed:
-            max_rolls = int(available_funds / self.bet_amount)
-            if max_rolls <= 0 and available_funds == 0:
-                insufficient_embed = self.create_embed()
-                insufficient_embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
-                insufficient_embed.description = f"You don't have enough funds to place even a single bet of {self.bet_amount}."
-                insufficient_embed.color = 0xFF0000
-                self.message = await self.ctx.reply(embed=insufficient_embed)
-                self.running = False
+        # The currency was already checked and deducted in the limbo command
+        # We should just use whatever rolls were requested
+        # Only adjust rolls if they specifically requested more than they can afford
+        total_funds_needed = self.bet_amount * (self.rolls_remaining -1) #First roll already paid for
 
-                # Clean up the game from ongoing_games
-                if self.user_id in self.cog.ongoing_games:
-                    del self.cog.ongoing_games[self.user_id]
-                return
-                
-            # If funds > 0 but < bet_amount, let them play at least 1 roll
-            if max_rolls <= 0 and available_funds > 0:
-                max_rolls = 1
-
-            self.rolls_remaining = max_rolls
+        if self.rolls_remaining > 1 and available_funds < total_funds_needed:
+            max_additional_rolls = int(available_funds / self.bet_amount)
+            self.rolls_remaining = max_additional_rolls + 1 # +1 for the roll they already paid for
 
             insufficient_embed = discord.Embed(
                 title="⚠️ | Insufficient Funds for All Rolls",
-                description=f"You don't have enough funds for {original_rolls} rolls. Running {max_rolls} rolls instead.",
+                description=f"You don't have enough funds for {original_rolls} rolls. Running {self.rolls_remaining} rolls instead.",
                 color=0xFFA500
             )
             await self.message.edit(embed=insufficient_embed)
             await asyncio.sleep(2)  # Give user time to see the message
-            
+
             # Make sure we have at least 1 roll to process
             if self.rolls_remaining < 1:
                 self.rolls_remaining = 1
 
+
+
         # Calculate how much to deduct from tokens vs credits
         tokens_used = min(user_data['tokens'], self.bet_amount * self.rolls_remaining)
         credits_used = min(user_data['credits'], self.bet_amount * self.rolls_remaining - tokens_used)
+
 
         # Update balances
         if tokens_used > 0:
@@ -369,7 +360,7 @@ class LimboGame:
                 elif self.bet_amount <= tokens_balance + credits_balance:
                     # Use all tokens and some credits
                     tokens_used = tokens_balance
-                    credits_used = self.bet_amount - tokens_balance
+                    credits_used = self.bet_amount - tokens_used
                 else:
                     # Not enough funds to continue for NEXT roll
                     # But current roll was already processed above
