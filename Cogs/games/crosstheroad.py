@@ -448,7 +448,15 @@ class CrossTheRoadCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-
+            
+        if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "expert"]:
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Difficulty",
+                description="Valid difficulties are: easy, medium, hard, expert",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=error_embed)
+            
         # Send loading message
         loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
@@ -459,13 +467,7 @@ class CrossTheRoadCog(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Validate difficulty first before processing any bet
-        if difficulty and difficulty.lower() not in ["easy", "medium", "hard", "expert"]:
-            error_embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Difficulty",
-                description="Valid difficulties are: easy, medium, hard, expert",
-                color=0xFF0000
-            )
-            return await loading_message.edit(embed=error_embed)
+        
 
         # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
@@ -480,17 +482,6 @@ class CrossTheRoadCog(commands.Cog):
         tokens_used = bet_info["tokens_used"]
         credits_used = bet_info["credits_used"]
         total_bet = bet_info["total_bet_amount"]
-
-
-        # Validate difficulty
-        if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "extreme"]:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Difficulty",
-                description="Please choose a valid difficulty: `easy`, `medium`, `hard`, or `extreme`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
 
         # Create the game
         game_view = CrossTheRoadGame(
