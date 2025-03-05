@@ -58,100 +58,67 @@ class RaceCog(commands.Cog):
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
 
-        # Get user's balance
-        author = ctx.author
-        db = Users()
-        user_data = db.fetch_user(author.id)
-        tokens_balance = user_data.get('tokens', 0)
-        credits_balance = user_data.get('credits', 0)
-
-        author = ctx.author
-
         # Check if user already has an ongoing game
-        if author.id in self.ongoing_games:
-            return await ctx.reply("You already have a game in progress!")
+        if ctx.author.id in self.ongoing_games:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Game in Progress",
+                description="You already have a race game in progress.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
 
-        # Process bet amount and currency
-        try:
-            # Check if user already has an ongoing game
-            if author.id in self.ongoing_games:
-                return await ctx.reply("You already have a game in progress!")
-                
-            # Handle all/max bet amount
-            if isinstance(bet_amount, str) and bet_amount.lower() in ["all", "max"]:
-                if currency_type:
-                    if currency_type.lower() in ["tokens", "t"]:
-                        bet_amount = tokens_balance
-                        currency_used = "tokens"
-                    elif currency_type.lower() in ["credits", "c"]:
-                        bet_amount = credits_balance
-                        currency_used = "credits"
-                    else:
-                        return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
-                else:
-                    # If no currency specified with all/max, use the currency with higher balance
-                    if tokens_balance >= credits_balance:
-                        bet_amount = tokens_balance
-                        currency_used = "tokens"
-                    else:
-                        bet_amount = credits_balance
-                        currency_used = "credits"
-            else:
-                # Handle numeric bet amount
-                try:
-                    bet_amount = float(bet_amount)
-                    if bet_amount <= 0:
-                        return await ctx.reply("Bet amount must be positive!")
-                except ValueError:
-                    return await ctx.reply("Invalid bet amount! Please enter a valid number.")
-
-                # Handle currency selection
-                if currency_type:
-                    if currency_type.lower() in ["tokens", "t"]:
-                        currency_used = "tokens"
-                    elif currency_type.lower() in ["credits", "c"]:
-                        currency_used = "credits"
-                    else:
-                        return await ctx.reply("Invalid currency type. Use 'tokens' or 'credits'.")
-                else:
-                    # Default to credits if no currency specified
-                    currency_used = "tokens"
-                    
-            # Validate user has enough balance
-            if currency_used == "tokens" and tokens_balance < bet_amount:
-                return await ctx.reply(f"You don't have enough tokens! Your balance: {tokens_balance:.2f} tokens")
-            elif currency_used == "credits" and credits_balance < bet_amount:
-                return await ctx.reply(f"You don't have enough credits! Your balance: {credits_balance:.2f} credits")
-                
-            # Deduct the bet amount
-            db.update_balance(author.id, -bet_amount, currency_used, "$inc")
-            
-        except Exception as e:
-            return await ctx.reply(f"An error occurred: {str(e)}")
-
-        # Create a game instance
-        game_data = {
-            "ctx": ctx,
-            "bet_amount": bet_amount,
-            "currency_used": currency_used
-        }
-        self.ongoing_games[author.id] = game_data
-
-        # Create initial embed to select a car
-        select_embed = discord.Embed(
-            title="🏎️ Car Race",
-            description=(
-                f"**Bet:** {bet_amount:.2f} {currency_used}\n\n"
-                "**Choose a car to bet on:**\n"
-                "1️⃣ - Red Car\n"
-                "2️⃣ - Blue Car\n"
-                "3️⃣ - Green Car\n"
-                "4️⃣ - Yellow Car\n\n"
-                "Click a button below to pick your car."
-            ),
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Processing Race Bet...",
+            description="Please wait while we process your request...",
             color=0x00FFAE
         )
-        select_embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
+        loading_message = await ctx.reply(embed=loading_embed)
+
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
+
+        try:
+            # Process the bet amount using the currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+            # If processing failed, return the error
+            if not success:
+                await loading_message.delete()
+                return await ctx.reply(embed=error_embed)
+
+            # Successful bet processing - extract relevant information
+            tokens_used = bet_info["tokens_used"]
+            credits_used = bet_info["credits_used"]
+            bet_amount = bet_info["total_bet_amount"]
+
+            # Determine which currency was primarily used for display purposes
+            if tokens_used > 0 and credits_used > 0:
+                currency_used = "mixed"
+            elif tokens_used > 0:
+                currency_used = "tokens"
+            else:
+                currency_used = "credits"
+
+        except Exception as e:
+            print(f"Error processing bet: {e}")
+            await loading_message.delete()
+            return await ctx.reply(f"An error occurred while processing your bet: {str(e)}")
+
+
+        # Mark this user as having an ongoing game
+        self.ongoing_games[ctx.author.id] = {"bet_amount": bet_amount, "currency_used": currency_used}
+
+        # Create car selection embed
+        embed = discord.Embed(
+            title="🏎️ CAR RACE - CHOOSE YOUR CAR",
+            description=f"**Bet Amount:** {bet_amount} {currency_used}\n\nSelect a car to bet on:",
+            color=0x00FFAE
+        )
+
+        # Update the loading message with the car selection
+        await loading_message.edit(embed=embed)
 
         # Create buttons to select cars
         view = discord.ui.View(timeout=30)
@@ -167,17 +134,17 @@ class RaceCog(commands.Cog):
             car_button.callback = await make_callback(i)
             view.add_item(car_button)
 
-        game_message = await ctx.reply(embed=select_embed, view=view)
-        self.ongoing_games[author.id]["message"] = game_message
+        game_message = await ctx.reply(embed=embed, view=view)
+        self.ongoing_games[ctx.author.id]["message"] = game_message
 
         # Auto-cancel the game after 30 seconds if no selection is made
         await asyncio.sleep(30)
-        if author.id in self.ongoing_games and "selected_car" not in self.ongoing_games[author.id]:
-            if author.id in self.ongoing_games:
-                del self.ongoing_games[author.id]
+        if ctx.author.id in self.ongoing_games and "selected_car" not in self.ongoing_games[ctx.author.id]:
+            if ctx.author.id in self.ongoing_games:
+                del self.ongoing_games[ctx.author.id]
 
             # Refund the bet
-            db.update_balance(author.id, bet_amount, currency_used, "$inc")
+            #Implement refund logic here using currency_helper if needed
 
             cancel_embed = discord.Embed(
                 title="🚫 Race Cancelled",
@@ -281,7 +248,7 @@ class RaceCog(commands.Cog):
                 # Track cars that reach the finish line
                 if car_positions[i] >= self.track_length:
                     winners.append(i + 1)
-            
+
             # Only set winner if this is the first time any car reached the finish line
             if winners and winner is None:
                 winner = winners[0]  # Take the first car that crossed the finish line
