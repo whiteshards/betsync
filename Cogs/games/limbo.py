@@ -84,7 +84,7 @@ class LimboGame:
 
         if available_funds < total_funds_needed:
             max_rolls = int(available_funds / self.bet_amount)
-            if max_rolls <= 0:
+            if max_rolls <= 0 and available_funds == 0:
                 insufficient_embed = self.create_embed()
                 insufficient_embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
                 insufficient_embed.description = f"You don't have enough funds to place even a single bet of {self.bet_amount}."
@@ -96,6 +96,10 @@ class LimboGame:
                 if self.user_id in self.cog.ongoing_games:
                     del self.cog.ongoing_games[self.user_id]
                 return
+                
+            # If funds > 0 but < bet_amount, let them play at least 1 roll
+            if max_rolls <= 0 and available_funds > 0:
+                max_rolls = 1
 
             self.rolls_remaining = max_rolls
 
@@ -367,7 +371,7 @@ class LimboGame:
                     # But current roll was already processed above
                     embed = self.create_embed()
                     embed.title = "🎮 | Game Over"
-                    embed.description = f"You don't have enough funds to continue betting {self.bet_amount}.\nGame stopped."
+                    embed.description = f"You've run out of funds to continue betting {self.bet_amount}.\nGame stopped."
                     embed.color = 0xFF5500
                     await self.message.edit(embed=embed, view=None)
                     self.running = False
