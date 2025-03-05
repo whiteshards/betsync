@@ -22,7 +22,7 @@ class CasesPlayAgainView(discord.ui.View):
         self.author_id = ctx.author.id #Added this line
 
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
-    async def play_again(self, interaction: discord.Interaction):
+    async def play_again(self, button, interaction):
         """Handle the play again button click"""
         if interaction.user.id != self.author_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
@@ -101,7 +101,7 @@ class CasesCog(commands.Cog):
 
         # Load the open-box image
         try:
-            case_img = Image.open("assets/open-box.png").convert("RGBA")
+            case_img = Image.open("assests/open-box.png").convert("RGBA")
             # Resize the case image to fit well in our canvas
             case_size = 200
             case_img = case_img.resize((case_size, case_size), Image.Resampling.LANCZOS)
@@ -351,7 +351,7 @@ class CasesCog(commands.Cog):
 
         # Create a simplified and clean result embed
         result_embed = discord.Embed(
-            title=f"{selected_multiplier['emoji']} {selected_multiplier['name']} {selected_multiplier['emoji']}",
+            title=f"Case Opening",
             description=(
                 f"**Multiplier: {selected_multiplier['value']}x**\n"
                 f"**Bet:** {bet_amount_value:.2f} {currency_used}\n"
@@ -369,9 +369,9 @@ class CasesCog(commands.Cog):
         for m in sorted(self.multipliers, key=lambda x: x["value"], reverse=True):
             # Highlight the result
             if m["value"] == selected_multiplier["value"]:
-                case_info += f"➡️ {m['emoji']} **{m['name']}** ({m['value']}x) - {m['chance']*100:.1f}% ⬅️\n"
-            else:
-                case_info += f"{m['emoji']} {m['name']} ({m['value']}x) - {m['chance']*100:.1f}%\n"
+                case_info += f"{m['emoji']} **{m['name']}** ({m['value']}x)\n"
+            #else:
+                #case_info += f"{m['emoji']} {m['name']} ({m['value']}x) - {m['chance']*100:.1f}%\n"
 
         result_embed.add_field(
             name="📋 Case Contents",
