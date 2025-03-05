@@ -110,6 +110,10 @@ class LimboGame:
             )
             await self.message.edit(embed=insufficient_embed)
             await asyncio.sleep(2)  # Give user time to see the message
+            
+            # Make sure we have at least 1 roll to process
+            if self.rolls_remaining < 1:
+                self.rolls_remaining = 1
 
         # Calculate how much to deduct from tokens vs credits
         tokens_used = min(user_data['tokens'], self.bet_amount * self.rolls_remaining)
