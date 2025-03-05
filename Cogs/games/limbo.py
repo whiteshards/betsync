@@ -638,49 +638,14 @@ class LimboCog(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        # Process bet amount
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
-
-        if user_data == False:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Validate bet amount
-        try:
-            # Handle 'all' or 'max' bet
-            if bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data['tokens'] + user_data['credits']
-            else:
-                # Check if bet has 'k' or 'm' suffix
-                if bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
-
-            bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
-
-            if bet_amount_value <= 0:
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        except ValueError:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Processing Limbo Game...",
+            description="Please wait while we process your request...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
 
         # Process target multiplier
         try:
@@ -693,7 +658,8 @@ class LimboCog(commands.Cog):
                     description="Target multiplier must be at least 1.01x.",
                     color=0xFF0000
                 )
-                return await ctx.reply(embed=embed)
+                await loading_message.edit(embed=embed)
+                return
 
             # Round to 2 decimal places
             target_multiplier_value = round(target_multiplier_value, 2)
@@ -704,14 +670,11 @@ class LimboCog(commands.Cog):
                 description="Please enter a valid multiplier (e.g., 1.5, 2.0, etc.).",
                 color=0xFF0000
             )
-            return await ctx.reply(embed=embed)
-
-        # Get user balances
-        tokens_balance = user_data['tokens']
-        credits_balance = user_data['credits']
+            await loading_message.edit(embed=embed)
+            return
 
         # Determine if rolls_or_currency is specifying rolls or currency
-        rolls = None
+        rolls = 1  # Default to one roll if no mode specified
 
         # Check if rolls_or_currency parameter exists
         if rolls_or_currency:
@@ -720,7 +683,6 @@ class LimboCog(commands.Cog):
             elif rolls_or_currency.lower() in ['token', 'tokens', 'credit', 'credits']:
                 # This is actually currency_type
                 currency_type = rolls_or_currency
-                rolls_or_currency = None
             else:
                 # Try to parse as number of rolls
                 try:
@@ -731,71 +693,38 @@ class LimboCog(commands.Cog):
                             description="Number of rolls must be greater than 0.",
                             color=0xFF0000
                         )
-                        return await ctx.reply(embed=embed)
+                        await loading_message.edit(embed=embed)
+                        return
                     elif rolls > 200:
                         embed = discord.Embed(
                             title="<:no:1344252518305234987> | Too Many Rolls",
                             description="Maximum number of rolls is 200.",
                             color=0xFF0000
                         )
-                        return await ctx.reply(embed=embed)
-                    rolls_or_currency = None
+                        await loading_message.edit(embed=embed)
+                        return
                 except ValueError:
                     # Not a valid number, treat as currency type
                     currency_type = rolls_or_currency
-                    rolls_or_currency = None
 
-        # Determine which currency to use 
-        tokens_used = 0
-        credits_used = 0
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
 
-        # If currency type is specified, respect it
-        if currency_type:
-            currency_type = currency_type.lower()
-            if currency_type in ['token', 'tokens']:
-                if bet_amount_value <= tokens_balance:
-                    tokens_used = bet_amount_value
-                else:
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Tokens",
-                        description=f"You don't have enough tokens. Your tokens balance: **{tokens_balance:.2f}**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-            elif currency_type in ['credit', 'credits']:
-                if bet_amount_value <= credits_balance:
-                    credits_used = bet_amount_value
-                else:
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Credits",
-                        description=f"You don't have enough credits. Your credits balance: **{credits_balance:.2f}**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-            else:
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Currency",
-                    description="Please use 'tokens' or 'credits' as currency type.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        else:
-            # Auto determine what to use
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            elif bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            elif bet_amount_value <= tokens_balance + credits_balance:
-                # Use all tokens and some credits
-                tokens_used = tokens_balance
-                credits_used = bet_amount_value - tokens_balance
-            else:
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough funds. Your balance: **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
+        # Process the bet amount using the currency helper
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+        # If processing failed, return the error
+        if not success:
+            await loading_message.edit(embed=error_embed)
+            return
+
+        # Successful bet processing - extract relevant information
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        bet_amount_value = bet_info["total_bet_amount"]
+
+        # Delete the loading message
+        await loading_message.delete()
 
         # Create a new game instance
         game = LimboGame(self, ctx, bet_amount_value, target_multiplier_value, ctx.author.id, rolls)
