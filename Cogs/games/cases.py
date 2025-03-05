@@ -11,11 +11,12 @@ from Cogs.utils.emojis import emoji
 
 class CasesPlayAgainView(discord.ui.View):
     """View with a Play Again button that shows after a game ends"""
-    def __init__(self, cog, ctx, bet_amount, currency_used, timeout=60):
+    def __init__(self, cog, ctx, bet_amount, currency_used, bot, timeout=60):
         super().__init__(timeout=timeout)
         self.cog = cog
         self.ctx = ctx
         self.bet_amount = bet_amount
+        self.bot = bot
         self.currency_used = currency_used
         self.message = None
         self.original_author = ctx.author  # Store the original author explicitly
@@ -49,7 +50,7 @@ class CasesPlayAgainView(discord.ui.View):
         loading_message = await interaction.followup.send(embed=loading_embed)
 
         # Process the bet amount using the currency helper
-        success, bet_info, error_embed = await process_bet_amount(ctx, str(self.bet_amount), self.currency_used, loading_message)
+        success, bet_info, error_embed = await process_bet_amount(self.ctx, str(self.bet_amount), self.currency_used, loading_message)
 
         # If processing failed, return the error
         if not success:
@@ -382,7 +383,7 @@ class CasesCog(commands.Cog):
         result_embed.set_footer(text=f"BetSync Casino • {currency_used.capitalize()} bet: {bet_amount_value:.2f}", icon_url=self.bot.user.avatar.url)
 
         # Add play again button
-        play_again_view = CasesPlayAgainView(self, ctx, bet_amount_value, currency_used, bot)
+        play_again_view = CasesPlayAgainView(self, ctx, bet_amount_value, currency_used, self.bot)
         play_again_message = await loading_message.edit(embed=result_embed, file=image_file, view=play_again_view)
         play_again_view.message = play_again_message
 
