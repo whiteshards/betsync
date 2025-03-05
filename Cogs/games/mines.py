@@ -6,6 +6,38 @@ from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
 
+def process_bet_amount(bet_amount_str, user_data, currency_type):
+    """Processes the bet amount, handling various input formats and currency types."""
+    try:
+        if bet_amount_str.lower() in ['all', 'max']:
+            bet_amount = user_data['tokens'] + user_data['credits']
+            currency_type = 'mixed'  # Indicate mixed tokens and credits
+        elif bet_amount_str.lower().endswith('k'):
+            bet_amount = float(bet_amount_str[:-1]) * 1000
+        elif bet_amount_str.lower().endswith('m'):
+            bet_amount = float(bet_amount_str[:-1]) * 1000000
+        else:
+            bet_amount = float(bet_amount_str)
+
+        if bet_amount <= 0:
+            return {'error': True, 'error_title': 'Invalid Bet', 'error_message': 'Bet amount must be greater than 0.'}
+
+        if currency_type and currency_type.lower() not in ['tokens', 'credits', 'mixed']:
+            return {'error': True, 'error_title': 'Invalid Currency', 'error_message': "Please specify a valid currency: 'tokens', 'credits', or leave blank for auto-determination."}
+
+        #Simplified currency check, a more sophisticated check would be needed in a real application.
+        if currency_type == 'tokens' and user_data['tokens'] < bet_amount:
+            return {'error': True, 'error_title': 'Insufficient Tokens', 'error_message': f"You don't have enough tokens. You have {user_data['tokens']} tokens."}
+        elif currency_type == 'credits' and user_data['credits'] < bet_amount:
+            return {'error': True, 'error_title': 'Insufficient Credits', 'error_message': f"You don't have enough credits. You have {user_data['credits']} credits."}
+        elif currency_type == 'mixed' and user_data['tokens'] + user_data['credits'] < bet_amount:
+            return {'error': True, 'error_title': 'Insufficient Funds', 'error_message': f"You don't have enough funds. You have {user_data['tokens']} tokens and {user_data['credits']} credits."}
+
+
+        return {'error': False, 'amount': bet_amount, 'currency': currency_type if currency_type else 'mixed'}
+    except ValueError:
+        return {'error': True, 'error_title': 'Invalid Amount', 'error_message': 'Please enter a valid number or "all".'}
+
 
 class MineButton(discord.ui.Button):
     def __init__(self, row, col, parent_view):
@@ -678,115 +710,49 @@ class MinesCog(commands.Cog):
             except ValueError:
                 mines_count = 5
 
-        # Validate bet amount
-        try:
-            # Handle 'all' or 'max' bet
-            if bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data['tokens'] + user_data['credits']
-            else:
-                # Check if bet has 'k' or 'm' suffix
-                if bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
+        # Process bet amount using currency helper
+        processed_bet = process_bet_amount(bet_amount, user_data, currency_type)
 
-            bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
-
-            if bet_amount_value <= 0:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        except ValueError:
+        if processed_bet['error']:
             await loading_message.delete()
             embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
+                title="<:no:1344252518305234987> | " + processed_bet['error_title'],
+                description=processed_bet['error_message'],
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
 
-        # Get user balances
-        tokens_balance = user_data['tokens']
-        credits_balance = user_data['credits']
+        # Extract the processed values
+        bet_amount = processed_bet['amount']
+        currency_type = processed_bet['currency']
 
-        # Determine which currency to use
-        tokens_used = 0
-        credits_used = 0
-
-        if currency_type == 'tokens':
-            # User specifically wants to use tokens
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Tokens",
-                    description=f"You don't have enough tokens. Your balance: **{tokens_balance:.2f} tokens**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        elif currency_type == 'credits':
-            # User specifically wants to use credits
-            if bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Credits",
-                    description=f"You don't have enough credits. Your balance: **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        else:
-            # Auto determine what to use
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            elif bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            elif bet_amount_value <= tokens_balance + credits_balance:
-                # Use all tokens and some credits
-                tokens_used = tokens_balance
-                credits_used = bet_amount_value - tokens_balance
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough funds. Your balance: **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
 
         # Deduct from user balances
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, tokens_balance - tokens_used, "tokens")
+        if currency_type == 'tokens':
+            db.update_balance(ctx.author.id, user_data['tokens'] - bet_amount, "tokens")
+        elif currency_type == 'credits':
+            db.update_balance(ctx.author.id, user_data['credits'] - bet_amount, "credits")
+        else:  #mixed
+            tokens_to_use = min(bet_amount, user_data['tokens'])
+            db.update_balance(ctx.author.id, user_data['tokens'] - tokens_to_use, "tokens")
+            credits_to_use = bet_amount - tokens_to_use
+            db.update_balance(ctx.author.id, user_data['credits'] - credits_to_use, "credits")
 
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, credits_balance - credits_used, "credits")
-
-        # Get total amount bet
-        total_bet = tokens_used + credits_used
 
         # Record game stats
         db.collection.update_one(
             {"discord_id": ctx.author.id},
-            {"$inc": {"total_played": 1, "total_spent": total_bet}}
+            {"$inc": {"total_played": 1, "total_spent": bet_amount}}
         )
 
         # Create game view
-        game_view = MinesTileView(self, ctx, total_bet, mines_count)
+        game_view = MinesTileView(self, ctx, bet_amount, mines_count)
 
         # Mark the game as ongoing
         self.ongoing_games[ctx.author.id] = {
-            "tokens_used": tokens_used,
-            "credits_used": credits_used,
-"bet_amount": total_bet,
+            "tokens_used": 0, #These values are not accurately tracked anymore
+            "credits_used": 0,
+            "bet_amount": bet_amount,
             "mines_count": mines_count,
             "view": game_view
         }
