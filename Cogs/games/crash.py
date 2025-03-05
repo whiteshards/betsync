@@ -356,7 +356,12 @@ class CrashCog(commands.Cog):
             while multiplier < crash_point and not crash_game.cashed_out:
                 # Wait a bit between updates (faster at the start, slower as multiplier increases)
                 delay = 1.0 / (1 + multiplier * 0.5)
-                delay = max(0.3, min(delay, 0.8))  # Keep delay between 0.3 and 0.8 seconds
+                delay = max(0.1, min(delay, 0.5))  # Shorter delays for more responsive cash out
+
+                # Check for cash out BEFORE waiting
+                if cash_out_event.is_set():
+                    # Cash out was triggered, exit loop immediately
+                    break
 
                 # Wait for either the delay to pass or cash out event to be triggered
                 try:
@@ -364,6 +369,9 @@ class CrashCog(commands.Cog):
                     # If we get here, the cash out event was triggered
                     break
                 except asyncio.TimeoutError:
+                    # Check once more after timeout just to be sure
+                    if cash_out_event.is_set():
+                        break
                     # Timeout means the delay passed normally, continue with game
                     pass
 
