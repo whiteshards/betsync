@@ -140,11 +140,11 @@ class CrashCog(commands.Cog):
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
 
-        # Check if the user already has an ongoing game
+        # Check if user already has a game in progress
         if ctx.author.id in self.ongoing_games:
             embed = discord.Embed(
-                title="<:no:1344252518305234987> | Game In Progress",
-                description="You already have an ongoing game. Please finish it first.",
+                title="<:no:1344252518305234987> | Game in Progress",
+                description="You already have a crash game in progress.",
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
@@ -152,141 +152,38 @@ class CrashCog(commands.Cog):
         # Send loading message
         loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
-            title=f"{loading_emoji} | Preparing Crash Game...",
-            description="Please wait while we set up your game.",
+            title=f"{loading_emoji} | Processing Crash Bet...",
+            description="Please wait while we process your request...",
             color=0x00FFAE
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        # Process bet amount
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
+
+        # Process the bet amount using the currency helper
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+        # If processing failed, return the error
+        if not success:
+            await loading_message.delete()
+            return await ctx.reply(embed=error_embed)
+
+        # Successful bet processing - extract relevant information
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        total_bet = bet_info["total_bet_amount"]
+
+        # Determine which currency was primarily used for display purposes
+        if tokens_used > 0 and credits_used > 0:
+            currency_used = "mixed"
+        elif tokens_used > 0:
+            currency_used = "tokens"
+        else:
+            currency_used = "credits"
+
+        # Get database instance for game stats update
         db = Users()
-        user_data = db.fetch_user(ctx.author.id)
-
-        if user_data == False:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Format currency type if provided    
-        if currency_type:
-            currency_type = currency_type.lower()
-            # Allow shorthand T for tokens and C for credits
-            if currency_type == 't':
-                currency_type = 'tokens'
-            elif currency_type == 'c':
-                currency_type = 'credits'
-
-        # Validate bet amount
-        try:
-            # Handle 'all' or 'max' bet
-            if bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data['tokens'] + user_data['credits']
-            else:
-                # Check if bet has 'k' or 'm' suffix
-                if bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
-
-            bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
-
-            if bet_amount_value <= 0:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-            # Get user balances
-            tokens_balance = user_data['tokens']
-            credits_balance = user_data['credits']
-
-            # Determine which currency to use based on the logic:
-            # 1. If specific currency requested, try to use that
-            # 2. If has enough tokens, use tokens
-            # 3. If not enough tokens but enough credits, use credits
-            # 4. If neither is enough alone but combined they work, use both
-            tokens_used = 0
-            credits_used = 0
-
-            if currency_type == 'tokens':
-                # User specifically wants to use tokens
-                if bet_amount_value <= tokens_balance:
-                    tokens_used = bet_amount_value
-                else:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Tokens",
-                        description=f"You don't have enough tokens. Your balance: **{tokens_balance} tokens**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-            elif currency_type == 'credits':
-                # User specifically wants to use credits
-                if bet_amount_value <= credits_balance:
-                    credits_used = bet_amount_value
-                else:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Credits",
-                        description=f"You don't have enough credits. Your balance: **{credits_balance} credits**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-            else:
-                # Auto-determine what to use
-                if tokens_balance >= bet_amount_value:
-                    # Use tokens first if available
-                    tokens_used = bet_amount_value
-                elif credits_balance >= bet_amount_value:
-                    # Use credits if not enough tokens
-                    credits_used = bet_amount_value
-                elif tokens_balance + credits_balance >= bet_amount_value:
-                    # Use a combination of both
-                    tokens_used = tokens_balance
-                    credits_used = bet_amount_value - tokens_balance
-                else:
-                    # Not enough funds
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Funds",
-                        description=(
-                            f"You don't have enough funds for this bet.\n"
-                            f"Your balance: **{tokens_balance} tokens** and **{credits_balance} credits**\n"
-                            f"Required: **{bet_amount_value}**"
-                        ),
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-        except ValueError:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Deduct from user balances
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, tokens_balance - tokens_used, "tokens")
-
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, credits_balance - credits_used, "credits")
-
-        # Get total amount bet
-        total_bet = tokens_used + credits_used
 
         # Record game stats
         db.collection.update_one(
@@ -294,25 +191,27 @@ class CrashCog(commands.Cog):
             {"$inc": {"total_played": 1, "total_spent": total_bet}}
         )
 
-        # Create CrashGame object instead of a view
+        # Create CrashGame object
         crash_game = CrashGame(self, ctx, total_bet, ctx.author.id)
+        crash_game.tokens_used = tokens_used
+        crash_game.credits_used = credits_used
 
         # Generate crash point with a more balanced distribution
         # House edge is around 4-5% with this implementation
         try:
             # Adjust the minimum crash point to ensure some minimum payout
             min_crash = 1.0
-            
+
             # Use a better distribution to increase median crash points
             # Lower alpha value (1.7 instead of 2) means higher multipliers are more common
             alpha = 1.7
-            
+
             # Generate base crash point, modified for fairer distribution
             r = random.random()
-            
+
             # House edge factor (0.96 gives ~4% edge to house in the long run)
             house_edge = 0.96
-            
+
             # Calculate crash point using improved formula
             # This gives better distribution with more points between 1.5x-3x
             if r < 0.01:  # 1% chance for instant crash (higher house edge)
@@ -320,16 +219,16 @@ class CrashCog(commands.Cog):
             else:
                 # Main distribution calculation
                 crash_point = min_crash + ((1 / (1 - r)) ** (1 / alpha) - 1) * house_edge
-                
+
                 # Round to 2 decimal places
                 crash_point = math.floor(crash_point * 100) / 100
-            
+
             # We don't want unrealistically high crash points
             crash_point = min(crash_point, 30.0)  # Increased max from 20x to 30x
-            
+
             # Ensure crash point is at least 1.0
             crash_point = max(crash_point, 1.0)
-            
+
         except Exception as e:
             print(f"Error generating crash point: {e}")
             crash_point = random.uniform(1.0, 3.0)  # Fallback
@@ -638,16 +537,20 @@ class CrashCog(commands.Cog):
                     servers_db = Servers()
                     server_profit = -profit  # Server loses money when player wins
                     servers_db.update_server_profit(ctx.guild.id, server_profit)
-                    
+
                     # Add credits to user balance
                     db.update_balance(ctx.author.id, winnings, "credits", "$inc")
 
                     # Add to history
+                    from Cogs.utils.mongo import Servers
+                    dbb = Servers()
+                    currency_used = "mixed" if crash_game.tokens_used > 0 and crash_game.credits_used > 0 else ("tokens" if crash_game.tokens_used > 0 else "credits")
                     history_entry = {
                         "type": "win",
                         "game": "crash",
                         "bet": bet_amount,
                         "amount": winnings,
+                        "currency": currency_used,
                         "multiplier": round(cash_out_multiplier, 2),
                         "winnings": winnings,
                         "timestamp": int(time.time())
@@ -656,19 +559,16 @@ class CrashCog(commands.Cog):
                         {"discord_id": ctx.author.id},
                         {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                     )
-                    
-                    from Cogs.utils.mongo import Servers
-                    dbb = Servers()
                     history_entry["user_id"] = ctx.author.id
                     history_entry["user_name"] = ctx.author.name
                     dbb.update_history(ctx.guild.id, history_entry)
-                    
+
                     # Update stats
                     db.collection.update_one(
                         {"discord_id": ctx.author.id},
                         {"$inc": {"total_won": 1, "total_earned": winnings}}
                     )
-                    
+
                     # Update server profit (negative value because server loses when player wins)
                     from Cogs.utils.mongo import Servers
                     servers_db = Servers()
@@ -754,6 +654,9 @@ class CrashCog(commands.Cog):
                 if hasattr(crash_game, 'credits_used') and crash_game.credits_used > 0:
                     current_credits = db.fetch_user(ctx.author.id)['credits']
                     db.update_balance(ctx.author.id, current_credits + crash_game.credits_used, "credits")
+
+                # Log the refund
+                print(f"Refunded {crash_game.tokens_used} tokens and {crash_game.credits_used} credits to {ctx.author.name}")
             except Exception as refund_error:
                 print(f"Error refunding bet: {refund_error}")
         finally:
