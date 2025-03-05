@@ -243,7 +243,6 @@ class PenaltyCog(commands.Cog):
         credits_used = bet_info["credits_used"]
         bet_amount = bet_info["total_bet_amount"]
         currency_type = bet_info["currency_type"]
-</old_str>
 
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
@@ -259,7 +258,6 @@ class PenaltyCog(commands.Cog):
             db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
         if credits_used > 0:
             db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
-</old_str>
 
         # Create role selection embed
         embed = discord.Embed(
