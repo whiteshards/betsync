@@ -253,10 +253,10 @@ class PenaltyCog(commands.Cog):
                 return await ctx.reply(embed=error_embed)
 
             # Successful bet processing - extract relevant information
-            tokens_used = bet_info["tokens_used"]
-            credits_used = bet_info["credits_used"]
-            bet_amount = bet_info["total_bet_amount"]
-            currency_type = bet_info["currency_type"]
+            tokens_used = bet_info.get("tokens_used", 0)
+            credits_used = bet_info.get("credits_used", 0)
+            bet_amount = bet_info.get("total_bet_amount", 0)
+            currency_used = bet_info.get("currency_type", "credits")  # Default to credits if not specified
         except Exception as e:
             print(f"Error processing bet: {e}")
             await loading_message.delete()
@@ -265,7 +265,7 @@ class PenaltyCog(commands.Cog):
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
             "bet_amount": bet_amount,
-            "currency_type": currency_type,
+            "currency_type": currency_used,
             "tokens_used": tokens_used,
             "credits_used": credits_used
         }
@@ -281,7 +281,7 @@ class PenaltyCog(commands.Cog):
         embed = discord.Embed(
             title="⚽ PENALTY KICK - CHOOSE YOUR ROLE",
             description=(
-                f"**Your bet:** {bet_amount:,.2f} {currency_type}\n\n"
+                f"**Your bet:** {bet_amount:,.2f} {currency_used}\n\n"
                 "**Choose your role:**\n"
                 "**🧤 Goalkeeper:** You dive to save the shot. Win 2.1x if you save!\n"
                 "**⚽ Penalty Taker:** You shoot at goal. Win 1.5x if you score!"
