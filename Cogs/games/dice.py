@@ -1,4 +1,3 @@
-
 import discord
 import random
 import time
@@ -32,7 +31,7 @@ class PlayAgainView(discord.ui.View):
         # Disable button after timeout
         for item in self.children:
             item.disabled = True
-        
+
         # Try to update the message if it exists
         try:
             await self.message.edit(view=self)
@@ -57,7 +56,7 @@ class DiceCog(commands.Cog):
                     "- **You and the dealer each roll a dice (1-6)**\n"
                     "- **If your number is higher, you win!**\n"
                     "- **If there's a tie or dealer wins, you lose your bet**\n"
-                    
+
                 ),
                 color=0x00FFAE
             )
@@ -82,137 +81,23 @@ class DiceCog(commands.Cog):
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        # Process bet amount
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
+        # Process bet amount using currency_helper
+        from Cogs.utils.currency_helper import process_bet_amount
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
-        if user_data == False:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+        # If processing failed, return the error
+        if not success:
+            return await loading_message.edit(embed=error_embed)
 
-        # Format currency type if provided    
-        if currency_type:
-            currency_type = currency_type.lower()
-            # Allow shorthand T for tokens and C for credits
-            if currency_type == 't':
-                currency_type = 'tokens'
-            elif currency_type == 'c':
-                currency_type = 'credits'
+        # Extract needed values from bet_info
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        total_bet = bet_info["total_bet_amount"]
+        bet_amount_value = total_bet #added for consistency
 
-        # Validate bet amount
-        try:
-            # Handle 'all' or 'max' bet
-            if bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data['tokens'] + user_data['credits']
-            else:
-                # Check if bet has 'k' or 'm' suffix
-                if bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
-
-            bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
-
-            if bet_amount_value <= 0:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-            # Get user balances
-            tokens_balance = user_data['tokens']
-            credits_balance = user_data['credits']
-
-            # Determine which currency to use based on the logic:
-            # 1. If specific currency requested, try to use that
-            # 2. If has enough tokens, use tokens
-            # 3. If not enough tokens but enough credits, use credits
-            # 4. If neither is enough alone but combined they work, use both
-            tokens_used = 0
-            credits_used = 0
-
-            if currency_type == 'tokens':
-                # User specifically wants to use tokens
-                if bet_amount_value <= tokens_balance:
-                    tokens_used = bet_amount_value
-                else:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Tokens",
-                        description=f"You don't have enough tokens. Your balance: **{tokens_balance} tokens**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-            elif currency_type == 'credits':
-                # User specifically wants to use credits
-                if bet_amount_value <= credits_balance:
-                    credits_used = bet_amount_value
-                else:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Credits",
-                        description=f"You don't have enough credits. Your balance: **{credits_balance} credits**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-            else:
-                # Auto-determine what to use
-                if tokens_balance >= bet_amount_value:
-                    # Use tokens first if available
-                    tokens_used = bet_amount_value
-                elif credits_balance >= bet_amount_value:
-                    # Use credits if not enough tokens
-                    credits_used = bet_amount_value
-                elif tokens_balance + credits_balance >= bet_amount_value:
-                    # Use a combination of both
-                    tokens_used = tokens_balance
-                    credits_used = bet_amount_value - tokens_balance
-                else:
-                    # Not enough funds
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Funds",
-                        description=(
-                            f"You don't have enough funds for this bet.\n"
-                            f"Your balance: **{tokens_balance} tokens** and **{credits_balance} credits**\n"
-                            f"Required: **{bet_amount_value}**"
-                        ),
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-        except ValueError:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Deduct from user balances
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, tokens_balance - tokens_used, "tokens")
-
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, credits_balance - credits_used, "credits")
-
-        # Get total amount bet
-        total_bet = tokens_used + credits_used
 
         # Record game stats
+        db = Users()
         db.collection.update_one(
             {"discord_id": ctx.author.id},
             {"$inc": {"total_played": 1, "total_spent": total_bet}}
@@ -290,14 +175,14 @@ class DiceCog(commands.Cog):
                     ),
                     color=0xFFD700  # Gold color for draws
                 )
-                
+
                 # Return the bet to the user
                 db = Users()
                 if tokens_used > 0:
                     db.update_balance(ctx.author.id, tokens_used, "tokens", "$inc")
                 if credits_used > 0:
                     db.update_balance(ctx.author.id, credits_used, "credits", "$inc")
-                
+
                 # Add to history as a draw
                 servers_db = Servers()
                 history_entry = {
@@ -312,12 +197,12 @@ class DiceCog(commands.Cog):
                     {"discord_id": ctx.author.id},
                     {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                 )
-                
+
                 # Update server history
                 history_entry["user_id"] = ctx.author.id
                 history_entry["user_name"] = ctx.author.name
                 servers_db.update_history(ctx.guild.id, history_entry)
-                
+
             elif user_won:
                 # Calculate winnings
                 winnings = round(total_bet * multiplier, 2)
@@ -413,13 +298,29 @@ class DiceCog(commands.Cog):
                 # Update server profit
                 servers_db.update_server_profit(ctx.guild.id, total_bet)
 
+            # Determine which currency was used for display
+            currency_used = None
+            if tokens_used > 0 and credits_used > 0:
+                currency_used = "mixed"
+            elif tokens_used > 0:
+                currency_used = "tokens"
+            else:
+                currency_used = "credits"
+
+            # Format result for display
+            if currency_used == "mixed":
+                bet_display = f"{tokens_used} tokens and {credits_used} credits"
+            else:
+                bet_display = f"{total_bet} {currency_used}"
+
+
             # Add play again button that expires after 15 seconds
             play_again_view = PlayAgainView(self, ctx, total_bet)
-            
+
             # Update the message with result
             result_embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             await message.edit(embed=result_embed, view=play_again_view)
-            
+
             # Store message reference in view for timeout handling
             play_again_view.message = message
 
