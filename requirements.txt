@@ -7,5 +7,5 @@ matplotlib
 python-dotenv
 colorama
 requests
-discord-py
 Pillow
+discord-py
