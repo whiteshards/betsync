@@ -107,17 +107,31 @@ class LimboGame:
             await self.message.edit(embed=insufficient_embed)
             await asyncio.sleep(2)  # Give user time to see the message
 
-        # Calculate how much to deduct from tokens vs credits
-        tokens_used = min(user_data['tokens'], self.bet_amount * self.rolls_remaining)
-        credits_used = min(user_data['credits'], self.bet_amount * self.rolls_remaining - tokens_used)
-
-        # Update balances
-        if tokens_used > 0:
-            db.update_balance(self.user_id, user_data['tokens'] - tokens_used, "tokens")
-
-        if credits_used > 0:
-            db.update_balance(self.user_id, user_data['credits'] - credits_used, "credits")
-
+        # For the first bet, use the already deducted amount
+        first_bet_tokens = self.tokens_used
+        first_bet_credits = self.credits_used
+        
+        # For remaining rolls, calculate additional funds needed
+        remaining_rolls = self.rolls_remaining - 1  # Subtract 1 for the already deducted first bet
+        if remaining_rolls > 0:
+            additional_tokens_used = min(user_data['tokens'], self.bet_amount * remaining_rolls)
+            additional_credits_used = min(user_data['credits'], self.bet_amount * remaining_rolls - additional_tokens_used)
+            
+            # Update balances for additional rolls
+            if additional_tokens_used > 0:
+                db.update_balance(self.user_id, user_data['tokens'] - additional_tokens_used, "tokens")
+                
+            if additional_credits_used > 0:
+                db.update_balance(self.user_id, user_data['credits'] - additional_credits_used, "credits")
+                
+            # Add to the already used amounts
+            tokens_used = first_bet_tokens + additional_tokens_used
+            credits_used = first_bet_credits + additional_credits_used
+        else:
+            # Only one roll, so just use the amounts already deducted
+            tokens_used = first_bet_tokens
+            credits_used = first_bet_credits
+            
         # Keep track of the total funds used
         self.tokens_used = tokens_used
         self.credits_used = credits_used
@@ -290,44 +304,53 @@ class LimboGame:
 
             self.message = await self.ctx.reply(embed=embed, file=file, view=LimboControlView(self))
 
-            # Start betting loop
+            # Start betting loop (first bet already deducted)
+            is_first_bet = True
+            
             while self.running:
-                # Deduct bet amount
-                user_data = db.fetch_user(self.user_id)
-                tokens_balance = user_data['tokens']
-                credits_balance = user_data['credits']
+                # Only check balance after the first bet (first bet was handled by currency_helper)
+                if not is_first_bet:
+                    # Deduct bet amount for subsequent bets
+                    user_data = db.fetch_user(self.user_id)
+                    tokens_balance = user_data['tokens']
+                    credits_balance = user_data['credits']
 
-                # Determine which currency to use
-                tokens_used = 0
-                credits_used = 0
+                    # Determine which currency to use
+                    tokens_used = 0
+                    credits_used = 0
 
-                # Auto determine what to use
-                if self.bet_amount <= tokens_balance:
-                    tokens_used = self.bet_amount
-                elif self.bet_amount <= credits_balance:
-                    credits_used = self.bet_amount
-                elif self.bet_amount <= tokens_balance + credits_balance:
-                    # Use all tokens and some credits
-                    tokens_used = tokens_balance
-                    credits_used = self.bet_amount - tokens_balance
+                    # Auto determine what to use
+                    if self.bet_amount <= tokens_balance:
+                        tokens_used = self.bet_amount
+                    elif self.bet_amount <= credits_balance:
+                        credits_used = self.bet_amount
+                    elif self.bet_amount <= tokens_balance + credits_balance:
+                        # Use all tokens and some credits
+                        tokens_used = tokens_balance
+                        credits_used = self.bet_amount - tokens_balance
+                    else:
+                        # Not enough funds to continue
+                        embed = self.create_embed()
+                        embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
+                        embed.description = f"You don't have enough funds to continue betting {self.bet_amount}.\nGame stopped."
+                        embed.color = 0xFF0000
+                        # Keep using the existing rolled multiplier image in the embed
+                        embed.set_image(url="attachment://limbo_result.png")
+                        await self.message.edit(embed=embed, view=None)
+                        self.running = False
+                        break
+
+                    # Update balances
+                    if tokens_used > 0:
+                        db.update_balance(self.user_id, tokens_balance - tokens_used, "tokens")
+
+                    if credits_used > 0:
+                        db.update_balance(self.user_id, credits_balance - credits_used, "credits")
                 else:
-                    # Not enough funds to continue
-                    embed = self.create_embed()
-                    embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
-                    embed.description = f"You don't have enough funds to continue betting {self.bet_amount}.\nGame stopped."
-                    embed.color = 0xFF0000
-                    # Keep using the existing rolled multiplier image in the embed
-                    embed.set_image(url="attachment://limbo_result.png")
-                    await self.message.edit(embed=embed, view=None)
-                    self.running = False
-                    break
-
-                # Update balances
-                if tokens_used > 0:
-                    db.update_balance(self.user_id, tokens_balance - tokens_used, "tokens")
-
-                if credits_used > 0:
-                    db.update_balance(self.user_id, credits_balance - credits_used, "credits")
+                    # Use the tokens/credits that were already deducted
+                    tokens_used = self.tokens_used
+                    credits_used = self.credits_used
+                    is_first_bet = False  # Mark first bet as processed
 
                 # Roll the multiplier (with 4% house edge)
                 # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.96)
@@ -707,13 +730,31 @@ class LimboCog(commands.Cog):
                     # Not a valid number, treat as currency type
                     currency_type = rolls_or_currency
 
-        # Delete the loading message
-        #await loading_message.delete()
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
+
+        try:
+            # Process the bet amount using the currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+            # If processing failed, return the error
+            if not success:
+                await loading_message.delete()
+                return await ctx.reply(embed=error_embed)
+
+            # Successful bet processing - extract relevant information
+            tokens_used = bet_info.get("tokens_used", 0)
+            credits_used = bet_info.get("credits_used", 0)
+            bet_amount_value = bet_info.get("total_bet_amount", 0)
+        except Exception as e:
+            print(f"Error processing bet: {e}")
+            await loading_message.delete()
+            return await ctx.reply(f"An error occurred while processing your bet: {str(e)}")
 
         # Create a new game instance
-        game = LimboGame(self, ctx, int(bet_amount), target_multiplier_value, ctx.author.id, rolls)
-        #game.tokens_used = tokens_used
-        #game.credits_used = credits_used
+        game = LimboGame(self, ctx, bet_amount_value, target_multiplier_value, ctx.author.id, rolls)
+        game.tokens_used = tokens_used
+        game.credits_used = credits_used
 
         # Store the game in ongoing games
         self.ongoing_games[ctx.author.id] = game
