@@ -78,49 +78,58 @@ class LimboGame:
         server_loss_entries = []
 
         current_timestamp = int(time.time())
-        total_funds_needed = self.bet_amount * original_rolls
         user_data = db.fetch_user(self.user_id)
+        
+        # IMPORTANT: First roll was already paid for in the command
+        # We're only concerned with additional rolls
+        
+        # Process at least the first roll no matter what
+        if self.rolls_remaining <= 0:
+            self.rolls_remaining = 1
+            
+        # If more than 1 roll, check if user has funds for additional rolls
+        additional_rolls_needed = self.rolls_remaining - 1
+        additional_funds_needed = self.bet_amount * additional_rolls_needed
+        
+        # Available funds for additional rolls
         available_funds = user_data['tokens'] + user_data['credits']
-
-        # The currency was already checked and deducted in the limbo command
-        # We should just use whatever rolls were requested
-        # Only adjust rolls if they specifically requested more than they can afford
-        total_funds_needed = self.bet_amount * (self.rolls_remaining -1) #First roll already paid for
-
-        if self.rolls_remaining > 1 and available_funds < total_funds_needed:
+        
+        # If user doesn't have enough for all additional rolls, adjust
+        if additional_rolls_needed > 0 and available_funds < additional_funds_needed:
             max_additional_rolls = int(available_funds / self.bet_amount)
-            self.rolls_remaining = max_additional_rolls + 1 # +1 for the roll they already paid for
-
-            insufficient_embed = discord.Embed(
-                title="⚠️ | Insufficient Funds for All Rolls",
-                description=f"You don't have enough funds for {original_rolls} rolls. Running {self.rolls_remaining} rolls instead.",
-                color=0xFFA500
-            )
-            await self.message.edit(embed=insufficient_embed)
-            await asyncio.sleep(2)  # Give user time to see the message
-
-            # Make sure we have at least 1 roll to process
-            if self.rolls_remaining < 1:
-                self.rolls_remaining = 1
-
-
-
-        # Calculate how much to deduct from tokens vs credits
-        tokens_used = min(user_data['tokens'], self.bet_amount * self.rolls_remaining)
-        credits_used = min(user_data['credits'], self.bet_amount * self.rolls_remaining - tokens_used)
-
-
-        # Update balances
-        if tokens_used > 0:
-            db.update_balance(self.user_id, user_data['tokens'] - tokens_used, "tokens")
-
-        if credits_used > 0:
-            db.update_balance(self.user_id, user_data['credits'] - credits_used, "credits")
-
-        # Keep track of the total funds used
-        self.tokens_used = tokens_used
-        self.credits_used = credits_used
-        remaining_funds = tokens_used + credits_used
+            self.rolls_remaining = max_additional_rolls + 1  # +1 for the roll they already paid for
+            
+            # Show message about insufficient funds
+            if max_additional_rolls < additional_rolls_needed:
+                insufficient_embed = discord.Embed(
+                    title="⚠️ | Insufficient Funds for All Rolls",
+                    description=f"You don't have enough funds for {original_rolls} rolls. Running {self.rolls_remaining} rolls instead.",
+                    color=0xFFA500
+                )
+                await self.message.edit(embed=insufficient_embed)
+                await asyncio.sleep(2)  # Give user time to see the message
+        
+        # Calculate how much to deduct for ADDITIONAL rolls (first roll already paid)
+        tokens_to_use = 0
+        credits_to_use = 0
+        
+        if additional_rolls_needed > 0:
+            tokens_to_use = min(user_data['tokens'], self.bet_amount * additional_rolls_needed)
+            credits_to_use = min(user_data['credits'], self.bet_amount * additional_rolls_needed - tokens_to_use)
+            
+            # Update balances for additional rolls
+            if tokens_to_use > 0:
+                db.update_balance(self.user_id, user_data['tokens'] - tokens_to_use, "tokens")
+            
+            if credits_to_use > 0:
+                db.update_balance(self.user_id, user_data['credits'] - credits_to_use, "credits")
+        
+        # Keep track of TOTAL funds used (including first roll)
+        self.tokens_used = tokens_to_use + (self.tokens_used if hasattr(self, 'tokens_used') else 0)
+        self.credits_used = credits_to_use + (self.credits_used if hasattr(self, 'credits_used') else 0)
+        
+        # Total remaining funds reflects what was JUST deducted plus first roll bet
+        total_bet_amount = self.bet_amount * self.rolls_remaining
 
         # Process all rolls
         last_roll_multiplier = 1.00
@@ -128,11 +137,6 @@ class LimboGame:
         all_rolls = []  # Store all results to display in history
 
         for i in range(self.rolls_remaining):
-            # Check if we have enough funds for this roll
-            if remaining_funds < self.bet_amount:
-                # Stop simulation if we run out of funds
-                break
-
             # Roll the multiplier (with 4% house edge)
             # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.96)
             r = random.random() * 0.96
@@ -264,9 +268,12 @@ class LimboGame:
         embed.set_image(url="attachment://limbo_result.png")
 
         # Create results summary embed field
+        total_rolls = wins + losses  # Use actual count of processed rolls
+        win_rate = (wins/total_rolls)*100 if total_rolls > 0 else 0
+        
         embed.add_field(
             name="Fixed Rolls Summary", 
-            value=f"Total Rolls: **{self.rolls_remaining}**\nWins: **{wins}**\nLosses: **{losses}**\nWin Rate: **{(wins/self.rolls_remaining)*100:.1f}%**", 
+            value=f"Total Rolls: **{total_rolls}**\nWins: **{wins}**\nLosses: **{losses}**\nWin Rate: **{win_rate:.1f}%**", 
             inline=False
         )
 
