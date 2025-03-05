@@ -224,61 +224,42 @@ class PenaltyCog(commands.Cog):
         if currency_type not in ["credits", "tokens"]:
             return await ctx.reply("Invalid currency type! Please use either 'credits' or 'tokens'.")
 
-        # Check if bet amount is valid
-        try:
-            if bet_amount.lower() == "all":
-                db = Users()
-                user_data = db.fetch_user(ctx.author.id)
-                if not user_data:
-                    return await ctx.reply("Your account couldn't be found. Please try again later.")
-                
-                bet_amount = user_data[currency_type]
-                if bet_amount <= 0:
-                    return await ctx.reply(f"You don't have any {currency_type} to bet!")
-            else:
-                bet_amount = float(bet_amount)
-        except ValueError:
-            return await ctx.reply("Invalid bet amount! Please enter a number.")
-
-        # Check if bet amount is positive
-        if bet_amount <= 0:
-            return await ctx.reply("Bet amount must be positive!")
-
-        # Check if user has enough balance
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
-        if not user_data:
-            return await ctx.reply("Your account couldn't be found. Please try again later.")
-        
-        balance = user_data[currency_type]
-        
-        # Initialize tokens and credits used
-        tokens_used = 0
-        credits_used = 0
-        
-        if balance < bet_amount:
-            return await ctx.reply(f"You don't have enough {currency_type} to place this bet! Your balance: {balance:,.2f} {currency_type}")
-        
-        # Set the amount used based on currency type
-        if currency_type == "tokens":
-            tokens_used = bet_amount
-        else:
-            credits_used = bet_amount
-
-        # Loading message
+        # Send loading message
         loading_message = await ctx.reply("⚽ Setting up the penalty game...")
+
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
+
+        # Process the bet amount using the currency helper
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+        # If processing failed, return the error
+        if not success:
+            await loading_message.delete()
+            return await ctx.reply(embed=error_embed)
+
+        # Successful bet processing - extract relevant information
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        bet_amount = bet_info["total_bet_amount"]
+        currency_type = bet_info["currency_type"]
+</old_str>
 
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
             "bet_amount": bet_amount,
-            "currency_type": currency_type
+            "currency_type": currency_type,
+            "tokens_used": tokens_used,
+            "credits_used": credits_used
         }
 
         # Deduct bet from user's balance
+        db = Users()
         if tokens_used > 0:
             db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
         if credits_used > 0:
             db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
+</old_str>
 
         # Create role selection embed
         embed = discord.Embed(
