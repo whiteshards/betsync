@@ -21,8 +21,22 @@ class CasesPlayAgainView(discord.ui.View):
         self.message = None
         self.original_author = ctx.author  # Store the original author explicitly
         self.author_id = ctx.author.id #Added this line
+        
+    def disable_all_buttons(self):
+        """Disable all buttons in the view"""
+        for child in self.children:
+            child.disabled = True
 
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
+    async def on_timeout(self):
+        """Handle timeout by disabling all buttons"""
+        self.disable_all_buttons()
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except:
+                pass
+                
     async def play_again(self, button, interaction):
         """Handle the play again button click"""
         if interaction.user.id != self.author_id:
