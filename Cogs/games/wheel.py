@@ -1,4 +1,3 @@
-
 import discord
 import asyncio
 import random
@@ -71,27 +70,27 @@ class WheelCog(commands.Cog):
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        # Process bet amount
+        # Process bet amount using currency_helper
         from Cogs.utils.currency_helper import process_bet_amount
-        
+
         # Process the bet amount using the currency helper
         success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-        
+
         # If processing failed, return the error
         if not success:
             await loading_message.delete()
             return await ctx.reply(embed=error_embed)
-            
+
         # Extract needed values from bet_info
         tokens_used = bet_info["tokens_used"]
         credits_used = bet_info["credits_used"]
         total_bet = bet_info["total_bet_amount"]
         bet_amount_value = total_bet
-        
+
         # Calculate total amounts for multiple spins
         total_tokens_used = tokens_used * spins
         total_credits_used = credits_used * spins
-        
+
         # Record game stats
         db = Users() 
         user_data = db.fetch_user(ctx.author.id)
@@ -104,110 +103,25 @@ class WheelCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Auto-select currency if not specified
         if currency_type is None:
             tokens_balance = user_data['tokens']
             credits_balance = user_data['credits']
-            
+
             # Use currency with higher balance, or tokens if equal
             if tokens_balance >= credits_balance and tokens_balance > 0:
                 currency_type = "tokens"
             elif credits_balance > 0:
                 currency_type = "credits"
             else:
-                currency_type = "tokens"  # Default to tokens if both are 0 await ctx.reply(embed=embed)
+                currency_type = "tokens"  # Default to tokens if both are 0
 
-        # Process bet amount
-        # Record game stats - this will be the first line after the process_bet_amount code
-                    currency_type = 'credits'
-                else:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Invalid Currency",
-                        description="Please use 'tokens' (t) or 'credits' (c).",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-            else:
-                # Check if bet_amount has 'k' or 'm' suffix
-                if bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
-        except ValueError:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Bet",
-                description="Please enter a valid bet amount.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Ensure bet amount is positive
-        if bet_amount_value <= 0:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Bet",
-                description="Bet amount must be greater than 0.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Process currency type
-        if currency_type is None or currency_type.lower() in ['t', 'token', 'tokens']:
-            currency_type = 'tokens'
-        elif currency_type.lower() in ['c', 'credit', 'credits']:
-            currency_type = 'credits'
-        else:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Currency",
-                description="Please use 'tokens' (t) or 'credits' (c).",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Check if the user has enough balance
+        # Check if user has enough for all spins
         tokens_balance = user_data['tokens']
         credits_balance = user_data['credits']
-        
-        # Initialize tokens and credits used
-        tokens_used = 0
-        credits_used = 0
-        
-        # Determine which currencies to use
-        if currency_type == 'tokens':
-            if tokens_balance >= bet_amount_value:
-                tokens_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Tokens",
-                    description=f"You don't have enough tokens. Your balance: **{tokens_balance:.2f} tokens**\nRequired: **{bet_amount_value:.2f} tokens**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        else:  # credits
-            if credits_balance >= bet_amount_value:
-                credits_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Credits",
-                    description=f"You don't have enough credits. Your balance: **{credits_balance:.2f} credits**\nRequired: **{bet_amount_value:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
 
-        # Calculate total bet amount for all spins
-        total_tokens_used = tokens_used * spins
-        total_credits_used = credits_used * spins
-        
-        # Check if user has enough for all spins
-        if tokens_used > 0 and user_data['tokens'] < total_tokens_used:
+        if tokens_used > 0 and tokens_balance < total_tokens_used:
             await loading_message.delete()
             embed = discord.Embed(
                 title="<:no:1344252518305234987> | Insufficient Tokens",
@@ -215,7 +129,7 @@ class WheelCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-        elif credits_used > 0 and user_data['credits'] < total_credits_used:
+        elif credits_used > 0 and credits_balance < total_credits_used:
             await loading_message.delete()
             embed = discord.Embed(
                 title="<:no:1344252518305234987> | Insufficient Credits",
@@ -250,7 +164,7 @@ class WheelCog(commands.Cog):
             ),
             color=0x00FFAE
         )
-        
+
         # Format bet description
         per_spin_text = ""
         if tokens_used > 0 and credits_used > 0:
@@ -262,10 +176,10 @@ class WheelCog(commands.Cog):
         else:
             per_spin_text = f"{credits_used:.2f} credits"
             wheel_embed.description += f"{total_credits_used:.2f} credits"
-            
+
         if spins > 1:
             wheel_embed.description += f" ({per_spin_text} per spin)"
-            
+
         wheel_embed.add_field(
             name="Possible Outcomes",
             value=(
@@ -277,18 +191,18 @@ class WheelCog(commands.Cog):
             ),
             inline=False
         )
-        
+
         wheel_embed.add_field(
             name="Wheel Spinning",
             value="⚙️ " + "⬛" * 10 + " ⚙️",
             inline=False
         )
-        
+
         wheel_embed.set_footer(text="BetSync Casino • Good luck!", icon_url=self.bot.user.avatar.url)
-        
+
         # Send the initial wheel embed
         wheel_message = await ctx.reply(embed=wheel_embed)
-        
+
         # Create spinning animation - reduced to exactly 2 seconds total
         spinning_frames = [
             "⚙️ " + "⬛" * 4 + "🟡" + "⬛" * 5 + " ⚙️",
@@ -302,7 +216,7 @@ class WheelCog(commands.Cog):
             "⚙️ " + "⬛" * 2 + "🟢" + "⬛" * 7 + " ⚙️",
             "⚙️ " + "⬛" * 3 + "⚪" + "⬛" * 6 + " ⚙️"
         ]
-        
+
         # Animate the wheel spinning - 20 frames × 0.1s = 2 seconds total
         for _ in range(1):  # Reduced to 2 cycles
             for frame in spinning_frames:
@@ -313,17 +227,17 @@ class WheelCog(commands.Cog):
                     inline=False
                 )
                 await wheel_message.edit(embed=wheel_embed)
-                await asyncio.sleep(0.004)  # Exactly 20 frames × 0.1s = 2 seconds total
+                await asyncio.sleep(0.1)  # Reduced speed for animation
 
         # Calculate results for all spins with house edge (3-5%)
         house_edge = 0.04  # 4% house edge
-        
+
         # Store results for all spins
         spin_results = []
         total_winnings = 0
         bet_total = tokens_used + credits_used
         total_bet_amount = bet_total * spins
-        
+
         # Calculate results for each spin
         for _ in range(spins):
             # Apply house edge to outcome calculation
@@ -335,21 +249,21 @@ class WheelCog(commands.Cog):
                 random_value = random.randint(1, self.total_chance)
                 cumulative = 0
                 result_color = None
-                
+
                 for color, data in self.colors.items():
                     cumulative += data["chance"]
                     if random_value <= cumulative:
                         result_color = color
                         break
-            
+
             # Get multiplier for the result
             result_multiplier = self.colors[result_color]["multiplier"]
             result_emoji = self.colors[result_color]["emoji"]
-            
+
             # Calculate winnings for this spin (always paid out in credits)
             winnings = bet_total * result_multiplier
             total_winnings += winnings
-            
+
             # Add this result to our results list
             spin_results.append({
                 "color": result_color,
@@ -357,7 +271,7 @@ class WheelCog(commands.Cog):
                 "multiplier": result_multiplier,
                 "winnings": winnings
             })
-        
+
         # Update the wheel embed with a single animated result
         random_result = random.choice(spin_results)
         result_frame = "⚙️ " + "⬛" * 5 + random_result["emoji"] + "⬛" * 4 + " ⚙️"
@@ -367,7 +281,7 @@ class WheelCog(commands.Cog):
             value=result_frame,
             inline=False
         )
-        
+
         # Create a summary of all results
         results_summary = ""
         wins_count = 0
@@ -375,14 +289,14 @@ class WheelCog(commands.Cog):
             if result["multiplier"] > 0:
                 wins_count += 1
             results_summary += f"Spin {i+1}: {result['emoji']} ({result['color'].capitalize()}) - {result['multiplier']}x - {result['winnings']:.2f} credits\n"
-        
+
         # Add overall results summary
         wheel_embed.add_field(
             name=f"Spin Results ({wins_count}/{spins} wins)",
             value=results_summary,
             inline=False
         )
-        
+
         # Add overall result field
         if total_winnings > 0:
             net_profit = total_winnings - total_bet_amount
@@ -391,28 +305,28 @@ class WheelCog(commands.Cog):
                 value=f"**Total Bet:** {total_bet_amount:.2f}\n**Total Winnings:** {total_winnings:.2f} credits\n**Net Profit:** {net_profit:.2f} credits",
                 inline=False
             )
-            
+
             if net_profit > 0:
                 wheel_embed.color = 0x00FF00  # Green for overall profit
             else:
                 wheel_embed.color = 0xFFA500  # Orange for win but overall loss/breakeven
-            
+
             # Update user's balance with winnings
             db.update_balance(ctx.author.id, total_winnings, "credits", "$inc")
-            
+
             # Process stats and history for each spin
             server_db = Servers()
-            server_data = server_db.fetch_server(ctx.guild.id)
-            
+            server_data = server_db.fetch_server(ctx.guild.id) if ctx.guild else None
+
             # Track wins and losses for stats
             wins_count = 0
             losses_count = 0
             house_profit = 0
-            
+
             # History entries for batch update
             history_entries = []
             server_history_entries = []
-            
+
             for i, result in enumerate(spin_results):
                 # Process individual spin history
                 if result["multiplier"] > 0:
@@ -426,7 +340,7 @@ class WheelCog(commands.Cog):
                         "multiplier": result["multiplier"],
                         "timestamp": int(time.time()) + i  # Ensure unique timestamps
                     }
-                    
+
                     if server_data:
                         server_bet_history_entry = {
                             "type": "win",
@@ -451,7 +365,7 @@ class WheelCog(commands.Cog):
                         "multiplier": result["multiplier"],
                         "timestamp": int(time.time()) + i
                     }
-                    
+
                     if server_data:
                         server_bet_history_entry = {
                             "type": "loss",
@@ -465,9 +379,9 @@ class WheelCog(commands.Cog):
                         }
                         server_history_entries.append(server_bet_history_entry)
                         house_profit += bet_total
-                
+
                 history_entries.append(history_entry)
-            
+
             # Update user's stats with all spins
             db.collection.update_one(
                 {"discord_id": ctx.author.id},
@@ -482,17 +396,17 @@ class WheelCog(commands.Cog):
                     }
                 }
             )
-            
+
             # Update server data with all spins
             if server_data and server_history_entries:
                 server_db.collection.update_one(
                     {"server_id": ctx.guild.id},
                     {
                         "$push": {"server_bet_history": {"$each": server_history_entries, "$slice": -100}},
-                        "$inc": {"total_profit": house_profit}
+                        "$inc": {"profit": house_profit}
                     }
                 )
-                
+
             # Set final embed color based on overall result
             if total_winnings > total_bet_amount:
                 wheel_embed.color = 0x00FF00  # Green for overall profit
@@ -500,15 +414,24 @@ class WheelCog(commands.Cog):
                 wheel_embed.color = 0xFFA500  # Orange for some wins but overall loss
             else:
                 wheel_embed.color = 0xFF0000  # Red for complete loss
-                
+
+        else:
+            # Complete loss (all gray)
+            wheel_embed.color = 0xFF0000
+            wheel_embed.add_field(
+                name="😢 Game Over",
+                value=f"**Total Loss:** {total_bet_amount:.2f}",
+                inline=False
+            )
+
         # Update the embed with play again button
         await wheel_message.edit(embed=wheel_embed)
-        
+
         # Create play again view
         view = PlayAgainView(self, ctx, bet_total, spins=spins)
         await wheel_message.edit(view=view)
         view.message = wheel_message
-        
+
         # Remove user from ongoing games
         self.ongoing_games.pop(ctx.author.id, None)
 
@@ -545,7 +468,7 @@ class PlayAgainView(discord.ui.View):
         # Disable the button when the view times out
         for child in self.children:
             child.disabled = True
-        
+
         try:
             await self.message.edit(view=self)
         except:
