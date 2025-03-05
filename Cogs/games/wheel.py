@@ -74,11 +74,11 @@ class WheelCog(commands.Cog):
         from Cogs.utils.currency_helper import process_bet_amount
         
         # First process the bet amount for a single spin
-        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount*spins, currency_type, loading_message)
         
         # If processing failed, return the error
         if not success:
-            await loading_message.delete()
+            await loading_message.delete() 
             return await ctx.reply(embed=error_embed)
             
         # Extract needed values from bet_info
@@ -104,26 +104,10 @@ class WheelCog(commands.Cog):
             )
             return await ctx.reply(embed=embed)
             
-        tokens_balance = user_data['tokens']
-        credits_balance = user_data['credits']
+        #tokens_balance = user_data['tokens']
+        #credits_balance = user_data['credits']
         
-        # Check if user has enough for all spins
-        if tokens_used > 0 and tokens_balance < total_tokens_used:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Insufficient Tokens",
-                description=f"You don't have enough tokens for {spins} spins. Your balance: **{tokens_balance:.2f} tokens**\nRequired: **{total_tokens_used:.2f} tokens**",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        elif credits_used > 0 and credits_balance < total_credits_used:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Insufficient Credits",
-                description=f"You don't have enough credits for {spins} spins. Your balance: **{credits_balance:.2f} credits**\nRequired: **{total_credits_used:.2f} credits**",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+        # Check if user has enough 
             
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
@@ -133,11 +117,6 @@ class WheelCog(commands.Cog):
             "spins": spins
         }
         
-        # Deduct bet from user's balance
-        if total_tokens_used > 0:
-            db.update_balance(ctx.author.id, -total_tokens_used, "tokens", "$inc")
-        if total_credits_used > 0:
-            db.update_balance(ctx.author.id, -total_credits_used, "credits", "$inc")
 
         # Delete loading message
         await loading_message.delete()

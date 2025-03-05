@@ -594,8 +594,8 @@ class TowerCog(commands.Cog):
         )
 
         # Deduct bet amount from user's balance
-        db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
-        db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
+        #db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
+        #db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
 
 
         game_view = TowerGameView(
