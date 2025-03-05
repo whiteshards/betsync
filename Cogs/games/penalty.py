@@ -219,8 +219,16 @@ class PenaltyCog(commands.Cog):
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
 
-        # Check if currency type is valid
-        currency_type = currency_type.lower() if currency_type else "credits"
+        # Format currency type if provided
+        if currency_type:
+            currency_type = currency_type.lower()
+            # Allow shorthand T for tokens and C for credits
+            if currency_type == 't':
+                currency_type = 'tokens'
+            elif currency_type == 'c':
+                currency_type = 'credits'
+        else:
+            currency_type = "credits"
         if currency_type not in ["credits", "tokens"]:
             return await ctx.reply("Invalid currency type! Please use either 'credits' or 'tokens'.")
 
