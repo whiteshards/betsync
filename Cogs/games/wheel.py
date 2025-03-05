@@ -72,29 +72,29 @@ class WheelCog(commands.Cog):
 
         # Process bet amount using currency_helper
         from Cogs.utils.currency_helper import process_bet_amount
-
-        # Process the bet amount using the currency helper
+        
+        # First process the bet amount for a single spin
         success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-
+        
         # If processing failed, return the error
         if not success:
             await loading_message.delete()
             return await ctx.reply(embed=error_embed)
-
+            
         # Extract needed values from bet_info
         tokens_used = bet_info["tokens_used"]
         credits_used = bet_info["credits_used"]
         total_bet = bet_info["total_bet_amount"]
         bet_amount_value = total_bet
-
+        
         # Calculate total amounts for multiple spins
         total_tokens_used = tokens_used * spins
         total_credits_used = credits_used * spins
-
-        # Record game stats
-        db = Users() 
+        
+        # Verify user has enough for all spins
+        db = Users()
         user_data = db.fetch_user(ctx.author.id)
-
+        
         if user_data == False:
             await loading_message.delete()
             embed = discord.Embed(
@@ -103,24 +103,11 @@ class WheelCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-
-        # Auto-select currency if not specified
-        if currency_type is None:
-            tokens_balance = user_data['tokens']
-            credits_balance = user_data['credits']
-
-            # Use currency with higher balance, or tokens if equal
-            if tokens_balance >= credits_balance and tokens_balance > 0:
-                currency_type = "tokens"
-            elif credits_balance > 0:
-                currency_type = "credits"
-            else:
-                currency_type = "tokens"  # Default to tokens if both are 0
-
-        # Check if user has enough for all spins
+            
         tokens_balance = user_data['tokens']
         credits_balance = user_data['credits']
-
+        
+        # Check if user has enough for all spins
         if tokens_used > 0 and tokens_balance < total_tokens_used:
             await loading_message.delete()
             embed = discord.Embed(
@@ -137,7 +124,7 @@ class WheelCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-
+            
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
             "bet_amount": bet_amount_value,
@@ -145,7 +132,7 @@ class WheelCog(commands.Cog):
             "credits_used": total_credits_used,
             "spins": spins
         }
-
+        
         # Deduct bet from user's balance
         if total_tokens_used > 0:
             db.update_balance(ctx.author.id, -total_tokens_used, "tokens", "$inc")
@@ -454,14 +441,8 @@ class PlayAgainView(discord.ui.View):
         button.disabled = True
         await interaction.response.edit_message(view=self)
 
-        # Check if user can afford the same bet
-        db = Users()
-        user_data = db.fetch_user(interaction.user.id)
-        if not user_data:
-            return await interaction.followup.send("Your account couldn't be found. Please try again later.", ephemeral=True)
-
-        # Use the same bet amount without specifying currency
-        # The currency helper will handle balance checks and currency selection
+        # Use the same bet amount and spins without specifying currency
+        # The currency helper in the wheel command will handle balance checks and currency selection
         await self.cog.wheel(self.ctx, str(self.bet_amount), None, self.spins)
 
     async def on_timeout(self):
