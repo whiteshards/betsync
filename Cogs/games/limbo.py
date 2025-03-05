@@ -82,21 +82,23 @@ class LimboGame:
         user_data = db.fetch_user(self.user_id)
         available_funds = user_data['tokens'] + user_data['credits']
 
+        # Ensure user has at least enough for one roll
+        if available_funds < self.bet_amount:
+            insufficient_embed = self.create_embed()
+            insufficient_embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
+            insufficient_embed.description = f"You don't have enough funds to place even a single bet of {self.bet_amount}."
+            insufficient_embed.color = 0xFF0000
+            self.message = await self.ctx.reply(embed=insufficient_embed)
+            self.running = False
+
+            # Clean up the game from ongoing_games
+            if self.user_id in self.cog.ongoing_games:
+                del self.cog.ongoing_games[self.user_id]
+            return
+
+        # Check if user has enough for all requested rolls
         if available_funds < total_funds_needed:
             max_rolls = int(available_funds / self.bet_amount)
-            if max_rolls <= 0:
-                insufficient_embed = self.create_embed()
-                insufficient_embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
-                insufficient_embed.description = f"You don't have enough funds to place even a single bet of {self.bet_amount}."
-                insufficient_embed.color = 0xFF0000
-                self.message = await self.ctx.reply(embed=insufficient_embed)
-                self.running = False
-
-                # Clean up the game from ongoing_games
-                if self.user_id in self.cog.ongoing_games:
-                    del self.cog.ongoing_games[self.user_id]
-                return
-
             self.rolls_remaining = max_rolls
 
             insufficient_embed = discord.Embed(
