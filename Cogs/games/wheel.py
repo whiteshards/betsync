@@ -93,7 +93,8 @@ class WheelCog(commands.Cog):
         total_credits_used = credits_used * spins
         
         # Record game stats
-        db = Users() db.fetch_user(ctx.author.id)
+        db = Users() 
+        user_data = db.fetch_user(ctx.author.id)
 
         if user_data == False:
             await loading_message.delete()
