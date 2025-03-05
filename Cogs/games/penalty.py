@@ -224,25 +224,35 @@ class PenaltyCog(commands.Cog):
         if currency_type not in ["credits", "tokens"]:
             return await ctx.reply("Invalid currency type! Please use either 'credits' or 'tokens'.")
 
-        # Send loading message
-        loading_message = await ctx.reply("⚽ Setting up the penalty game...")
+        # Create loading embed
+        loading_embed = discord.Embed(
+            title="⚽ Setting up the penalty game...",
+            description="Processing your bet...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
 
         # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
 
-        # Process the bet amount using the currency helper
-        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+        try:
+            # Process the bet amount using the currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
-        # If processing failed, return the error
-        if not success:
+            # If processing failed, return the error
+            if not success:
+                await loading_message.delete()
+                return await ctx.reply(embed=error_embed)
+
+            # Successful bet processing - extract relevant information
+            tokens_used = bet_info["tokens_used"]
+            credits_used = bet_info["credits_used"]
+            bet_amount = bet_info["total_bet_amount"]
+            currency_type = bet_info["currency_type"]
+        except Exception as e:
+            print(f"Error processing bet: {e}")
             await loading_message.delete()
-            return await ctx.reply(embed=error_embed)
-
-        # Successful bet processing - extract relevant information
-        tokens_used = bet_info["tokens_used"]
-        credits_used = bet_info["credits_used"]
-        bet_amount = bet_info["total_bet_amount"]
-        currency_type = bet_info["currency_type"]
+            return await ctx.reply(f"An error occurred while processing your bet: {str(e)}")
 
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
@@ -272,13 +282,12 @@ class PenaltyCog(commands.Cog):
         )
         embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
 
-        # Delete loading message
-        await loading_message.delete()
-
         # Create view with role selection buttons
         view = RoleSelectionView(self, ctx, bet_amount, currency_type, timeout=30)
-        message = await ctx.reply(embed=embed, view=view)
-        view.message = message
+        
+        # Update the loading message instead of deleting and creating a new one
+        message = await loading_message.edit(embed=embed, view=view)
+        view.message = loading_message
 
     async def start_as_taker(self, ctx, interaction, bet_amount, currency_type):
         """Start the game as a penalty taker"""
