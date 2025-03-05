@@ -72,8 +72,28 @@ class WheelCog(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Process bet amount
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
+        from Cogs.utils.currency_helper import process_bet_amount
+        
+        # Process the bet amount using the currency helper
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+        
+        # If processing failed, return the error
+        if not success:
+            await loading_message.delete()
+            return await ctx.reply(embed=error_embed)
+            
+        # Extract needed values from bet_info
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        total_bet = bet_info["total_bet_amount"]
+        bet_amount_value = total_bet
+        
+        # Calculate total amounts for multiple spins
+        total_tokens_used = tokens_used * spins
+        total_credits_used = credits_used * spins
+        
+        # Record game stats
+        db = Users() db.fetch_user(ctx.author.id)
 
         if user_data == False:
             await loading_message.delete()
@@ -98,34 +118,7 @@ class WheelCog(commands.Cog):
                 currency_type = "tokens"  # Default to tokens if both are 0 await ctx.reply(embed=embed)
 
         # Process bet amount
-        try:
-            # Handle 'all' or 'max' bet
-            if bet_amount.lower() in ['all', 'max']:
-                tokens_balance = user_data['tokens']
-                credits_balance = user_data['credits']
-                
-                # Determine which currency to use if not specified
-                if currency_type is None:
-                    # Use tokens if available, otherwise credits
-                    if tokens_balance > 0:
-                        bet_amount_value = tokens_balance
-                        currency_type = 'tokens'
-                    elif credits_balance > 0:
-                        bet_amount_value = credits_balance
-                        currency_type = 'credits'
-                    else:
-                        embed = discord.Embed(
-                            title="<:no:1344252518305234987> | Insufficient Funds",
-                            description="You don't have any tokens or credits to bet.",
-                            color=0xFF0000
-                        )
-                        await loading_message.delete()
-                        return await ctx.reply(embed=embed)
-                elif currency_type.lower() in ['t', 'token', 'tokens']:
-                    bet_amount_value = tokens_balance
-                    currency_type = 'tokens'
-                elif currency_type.lower() in ['c', 'credit', 'credits']:
-                    bet_amount_value = credits_balance
+        # Record game stats - this will be the first line after the process_bet_amount code
                     currency_type = 'credits'
                 else:
                     await loading_message.delete()
@@ -543,19 +536,9 @@ class PlayAgainView(discord.ui.View):
         if not user_data:
             return await interaction.followup.send("Your account couldn't be found. Please try again later.", ephemeral=True)
 
-        tokens_balance = user_data['tokens']
-        credits_balance = user_data['credits']
-
-        total_needed = self.bet_amount * self.spins
-        
-        if tokens_balance >= total_needed:
-            # Use tokens preferentially
-            await self.cog.wheel(self.ctx, str(self.bet_amount), "tokens", self.spins)
-        elif credits_balance >= total_needed:
-            # Use credits if not enough tokens
-            await self.cog.wheel(self.ctx, str(self.bet_amount), "credits", self.spins)
-        else:
-            return await interaction.followup.send(f"You don't have enough balance to play again. You need {self.bet_amount} tokens or credits.", ephemeral=True)
+        # Use the same bet amount without specifying currency
+        # The currency helper will handle balance checks and currency selection
+        await self.cog.wheel(self.ctx, str(self.bet_amount), None, self.spins)
 
     async def on_timeout(self):
         # Disable the button when the view times out
