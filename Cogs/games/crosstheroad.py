@@ -458,14 +458,24 @@ class CrossTheRoadCog(commands.Cog):
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        # Process bet amount using currency helper
+        # Validate difficulty first before processing any bet
+        if difficulty and difficulty.lower() not in ["easy", "medium", "hard", "expert"]:
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Difficulty",
+                description="Valid difficulties are: easy, medium, hard, expert",
+                color=0xFF0000
+            )
+            return await loading_message.edit(embed=error_embed)
+
+        # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
+
+        # Process the bet amount using the currency helper
         success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
-        #Handle errors from currency helper
+        # If processing failed, return the error
         if not success:
-            await loading_message.delete()
-            return await ctx.reply(embed=error_embed)
+            return await loading_message.edit(embed=error_embed)
 
         tokens_used = bet_info["tokens_used"]
         credits_used = bet_info["credits_used"]
