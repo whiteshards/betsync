@@ -78,58 +78,50 @@ class LimboGame:
         server_loss_entries = []
 
         current_timestamp = int(time.time())
+        total_funds_needed = self.bet_amount * original_rolls
         user_data = db.fetch_user(self.user_id)
-        
-        # IMPORTANT: First roll was already paid for in the command
-        # We're only concerned with additional rolls
-        
-        # Process at least the first roll no matter what
-        if self.rolls_remaining <= 0:
-            self.rolls_remaining = 1
-            
-        # If more than 1 roll, check if user has funds for additional rolls
-        additional_rolls_needed = self.rolls_remaining - 1
-        additional_funds_needed = self.bet_amount * additional_rolls_needed
-        
-        # Available funds for additional rolls
         available_funds = user_data['tokens'] + user_data['credits']
-        
-        # If user doesn't have enough for all additional rolls, adjust
-        if additional_rolls_needed > 0 and available_funds < additional_funds_needed:
-            max_additional_rolls = int(available_funds / self.bet_amount)
-            self.rolls_remaining = max_additional_rolls + 1  # +1 for the roll they already paid for
-            
-            # Show message about insufficient funds
-            if max_additional_rolls < additional_rolls_needed:
-                insufficient_embed = discord.Embed(
-                    title="⚠️ | Insufficient Funds for All Rolls",
-                    description=f"You don't have enough funds for {original_rolls} rolls. Running {self.rolls_remaining} rolls instead.",
-                    color=0xFFA500
-                )
-                await self.message.edit(embed=insufficient_embed)
-                await asyncio.sleep(2)  # Give user time to see the message
-        
-        # Calculate how much to deduct for ADDITIONAL rolls (first roll already paid)
-        tokens_to_use = 0
-        credits_to_use = 0
-        
-        if additional_rolls_needed > 0:
-            tokens_to_use = min(user_data['tokens'], self.bet_amount * additional_rolls_needed)
-            credits_to_use = min(user_data['credits'], self.bet_amount * additional_rolls_needed - tokens_to_use)
-            
-            # Update balances for additional rolls
-            if tokens_to_use > 0:
-                db.update_balance(self.user_id, user_data['tokens'] - tokens_to_use, "tokens")
-            
-            if credits_to_use > 0:
-                db.update_balance(self.user_id, user_data['credits'] - credits_to_use, "credits")
-        
-        # Keep track of TOTAL funds used (including first roll)
-        self.tokens_used = tokens_to_use + (self.tokens_used if hasattr(self, 'tokens_used') else 0)
-        self.credits_used = credits_to_use + (self.credits_used if hasattr(self, 'credits_used') else 0)
-        
-        # Total remaining funds reflects what was JUST deducted plus first roll bet
-        total_bet_amount = self.bet_amount * self.rolls_remaining
+
+        if available_funds < total_funds_needed:
+            max_rolls = int(available_funds / self.bet_amount)
+            if max_rolls <= 0:
+                insufficient_embed = self.create_embed()
+                insufficient_embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
+                insufficient_embed.description = f"You don't have enough funds to place even a single bet of {self.bet_amount}."
+                insufficient_embed.color = 0xFF0000
+                self.message = await self.ctx.reply(embed=insufficient_embed)
+                self.running = False
+
+                # Clean up the game from ongoing_games
+                if self.user_id in self.cog.ongoing_games:
+                    del self.cog.ongoing_games[self.user_id]
+                return
+
+            self.rolls_remaining = max_rolls
+
+            insufficient_embed = discord.Embed(
+                title="⚠️ | Insufficient Funds for All Rolls",
+                description=f"You don't have enough funds for {original_rolls} rolls. Running {max_rolls} rolls instead.",
+                color=0xFFA500
+            )
+            await self.message.edit(embed=insufficient_embed)
+            await asyncio.sleep(2)  # Give user time to see the message
+
+        # Calculate how much to deduct from tokens vs credits
+        tokens_used = min(user_data['tokens'], self.bet_amount * self.rolls_remaining)
+        credits_used = min(user_data['credits'], self.bet_amount * self.rolls_remaining - tokens_used)
+
+        # Update balances
+        if tokens_used > 0:
+            db.update_balance(self.user_id, user_data['tokens'] - tokens_used, "tokens")
+
+        if credits_used > 0:
+            db.update_balance(self.user_id, user_data['credits'] - credits_used, "credits")
+
+        # Keep track of the total funds used
+        self.tokens_used = tokens_used
+        self.credits_used = credits_used
+        remaining_funds = tokens_used + credits_used
 
         # Process all rolls
         last_roll_multiplier = 1.00
@@ -137,6 +129,11 @@ class LimboGame:
         all_rolls = []  # Store all results to display in history
 
         for i in range(self.rolls_remaining):
+            # Check if we have enough funds for this roll
+            if remaining_funds < self.bet_amount:
+                # Stop simulation if we run out of funds
+                break
+
             # Roll the multiplier (with 4% house edge)
             # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.96)
             r = random.random() * 0.96
@@ -154,6 +151,9 @@ class LimboGame:
             # Update total stats
             self.total_bets += 1
             self.current_multiplier = rounded_multiplier
+
+            # Deduct bet amount from remaining funds
+            remaining_funds -= self.bet_amount
 
             # Calculate winnings
             if won:
@@ -265,12 +265,9 @@ class LimboGame:
         embed.set_image(url="attachment://limbo_result.png")
 
         # Create results summary embed field
-        total_rolls = wins + losses  # Use actual count of processed rolls
-        win_rate = (wins/total_rolls)*100 if total_rolls > 0 else 0
-        
         embed.add_field(
             name="Fixed Rolls Summary", 
-            value=f"Total Rolls: **{total_rolls}**\nWins: **{wins}**\nLosses: **{losses}**\nWin Rate: **{win_rate:.1f}%**", 
+            value=f"Total Rolls: **{self.rolls_remaining}**\nWins: **{wins}**\nLosses: **{losses}**\nWin Rate: **{(wins/self.rolls_remaining)*100:.1f}%**", 
             inline=False
         )
 
@@ -295,49 +292,148 @@ class LimboGame:
 
             # Start betting loop
             while self.running:
-                # Get current round data first to ensure they get their roll for this round
-                # Generate multiplier (1.00 to 1000.00)
-                rounded_multiplier = round(random.uniform(1.00, 1000.00), 2)
-                won = rounded_multiplier >= self.target_multiplier
-
-                # Check balances for NEXT round (after this roll)
+                # Deduct bet amount
                 user_data = db.fetch_user(self.user_id)
                 tokens_balance = user_data['tokens']
                 credits_balance = user_data['credits']
 
-                # Update total bets counter and history first
+                # Determine which currency to use
+                tokens_used = 0
+                credits_used = 0
+
+                # Auto determine what to use
+                if self.bet_amount <= tokens_balance:
+                    tokens_used = self.bet_amount
+                elif self.bet_amount <= credits_balance:
+                    credits_used = self.bet_amount
+                elif self.bet_amount <= tokens_balance + credits_balance:
+                    # Use all tokens and some credits
+                    tokens_used = tokens_balance
+                    credits_used = self.bet_amount - tokens_balance
+                else:
+                    # Not enough funds to continue
+                    embed = self.create_embed()
+                    embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
+                    embed.description = f"You don't have enough funds to continue betting {self.bet_amount}.\nGame stopped."
+                    embed.color = 0xFF0000
+                    # Keep using the existing rolled multiplier image in the embed
+                    embed.set_image(url="attachment://limbo_result.png")
+                    await self.message.edit(embed=embed, view=None)
+                    self.running = False
+                    break
+
+                # Update balances
+                if tokens_used > 0:
+                    db.update_balance(self.user_id, tokens_balance - tokens_used, "tokens")
+
+                if credits_used > 0:
+                    db.update_balance(self.user_id, credits_balance - credits_used, "credits")
+
+                # Roll the multiplier (with 4% house edge)
+                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.96)
+                r = random.random() * 0.96
+                rolled_multiplier = 1.0 / (1.0 - r)
+                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+
+                # Determine if user won
+                won = rounded_multiplier >= self.target_multiplier
+
+                # Update history
+                self.history.insert(0, (rounded_multiplier, won))
+                if len(self.history) > 10:
+                    self.history.pop()
+
+                # Update total stats
                 self.total_bets += 1
-                self.history.append((rounded_multiplier, won)) #Storing both multiplier and win/loss status
                 self.current_multiplier = rounded_multiplier
 
-                # Process this round's results
+                # Calculate winnings
                 if won:
-                    # Calculate winnings
-                    win_amount = self.bet_amount * self.target_multiplier
-                    self.total_profit += win_amount - self.bet_amount
+                    winnings = self.bet_amount * self.target_multiplier
+                    self.total_profit += winnings - self.bet_amount
 
-                    # Credit user with winnings
-                    if self.tokens_used > 0:
-                        db.update_balance(self.user_id, tokens_balance + win_amount, "tokens", "$inc")
-                    else:
-                        db.update_balance(self.user_id, tokens_balance, credits_balance + win_amount, "credits", "$inc")
+                    # Credit the user with winnings
+                    db.update_balance(self.user_id, winnings, "credits", "$inc")
 
-                    # Update server data
+                    # Add to win history
+                    win_entry = {
+                        "type": "win",
+                        "game": "limbo",
+                        "bet": self.bet_amount,
+                        "amount": winnings,
+                        "multiplier": self.target_multiplier,
+                        "timestamp": int(time.time())
+                    }
+                    db.collection.update_one(
+                        {"discord_id": self.user_id},
+                        {"$push": {"history": {"$each": [win_entry], "$slice": -100}}}
+                    )
+
+                    # Update server history
                     server_db = Servers()
-                    server_db.update_server_loss(self.ctx.guild.id, win_amount - self.bet_amount)
+                    server_data = server_db.fetch_server(self.ctx.guild.id)
+
+                    if server_data:
+                        server_win_entry = {
+                            "type": "win",
+                            "game": "limbo",
+                            "user_id": self.user_id,
+                            "user_name": self.ctx.author.name,
+                            "bet": self.bet_amount,
+                            "amount": winnings,
+                            "multiplier": self.target_multiplier,
+                            "timestamp": int(time.time())
+                        }
+                        server_db.collection.update_one(
+                            {"server_id": self.ctx.guild.id},
+                            {"$push": {"server_bet_history": {"$each": [server_win_entry], "$slice": -100}}}
+                        )
 
                     # Update user stats
                     db.collection.update_one(
                         {"discord_id": self.user_id},
-                        {"$inc": {"total_won": 1, "total_earned": win_amount}}
+                        {"$inc": {"total_won": 1, "total_earned": winnings}}
                     )
+
+                    # Update server profit (user won)
+                    loss = winnings - self.bet_amount
+                    server_db.update_server_profit(self.ctx.guild.id, -loss)
                 else:
-                    # User lost
                     self.total_profit -= self.bet_amount
 
-                    # Update server profit (user lost)
+                    # Add to loss history
+                    loss_entry = {
+                        "type": "loss",
+                        "game": "limbo",
+                        "bet": self.bet_amount,
+                        "amount": self.bet_amount,
+                        "timestamp": int(time.time())
+                    }
+                    db.collection.update_one(
+                        {"discord_id": self.user_id},
+                        {"$push": {"history": {"$each": [loss_entry], "$slice": -100}}}
+                    )
+
+                    # Update server history
                     server_db = Servers()
-                    server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
+                    server_data = server_db.fetch_server(self.ctx.guild.id)
+
+                    if server_data:
+                        server_loss_entry = {
+                            "type": "loss",
+                            "game": "limbo",
+                            "user_id": self.user_id,
+                            "user_name": self.ctx.author.name,
+                            "bet": self.bet_amount,
+                            "timestamp": int(time.time())
+                        }
+                        server_db.collection.update_one(
+                            {"server_id": self.ctx.guild.id},
+                            {"$push": {"server_bet_history": {"$each": [server_loss_entry], "$slice": -100}}}
+                        )
+
+                        # Update server profit (user lost)
+                        server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
 
                     # Update user stats
                     db.collection.update_one(
@@ -349,39 +445,8 @@ class LimboGame:
                 embed = self.create_embed()
                 file = await self.generate_multiplier_image(rounded_multiplier, won)
                 embed.set_image(url="attachment://limbo_result.png")
+
                 await self.message.edit(embed=embed, file=file, view=LimboControlView(self))
-
-                # Check if they have funds for the NEXT bet
-                # Determine which currency to use for next round
-                tokens_used = 0
-                credits_used = 0
-
-                # Auto determine what to use for next round
-                if self.bet_amount <= tokens_balance:
-                    tokens_used = self.bet_amount
-                elif self.bet_amount <= credits_balance:
-                    credits_used = self.bet_amount
-                elif self.bet_amount <= tokens_balance + credits_balance:
-                    # Use all tokens and some credits
-                    tokens_used = tokens_balance
-                    credits_used = self.bet_amount - tokens_used
-                else:
-                    # Not enough funds to continue for NEXT roll
-                    # But current roll was already processed above
-                    embed = self.create_embed()
-                    embed.title = "🎮 | Game Over"
-                    embed.description = f"You've run out of funds to continue betting {self.bet_amount}.\nGame stopped."
-                    embed.color = 0xFF5500
-                    await self.message.edit(embed=embed, view=None)
-                    self.running = False
-                    break
-
-                # Update balances for next round
-                if tokens_used > 0:
-                    db.update_balance(self.user_id, tokens_balance - tokens_used, "tokens")
-
-                if credits_used > 0:
-                    db.update_balance(self.user_id, credits_balance - credits_used, "credits")
 
                 # Wait before next roll
                 await asyncio.sleep(1.0)  # Normal speed for auto mode
@@ -642,29 +707,13 @@ class LimboCog(commands.Cog):
                     # Not a valid number, treat as currency type
                     currency_type = rolls_or_currency
 
-        # Import the currency helper
-        from Cogs.utils.currency_helper import process_bet_amount
-
-        # Process the bet amount using the currency helper
-        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-
-        # If processing failed, return the error
-        if not success:
-            await loading_message.edit(embed=error_embed)
-            return
-
-        # Successful bet processing - extract relevant information
-        tokens_used = bet_info["tokens_used"]
-        credits_used = bet_info["credits_used"]
-        bet_amount_value = bet_info["total_bet_amount"]
-
         # Delete the loading message
-        await loading_message.delete()
+        #await loading_message.delete()
 
         # Create a new game instance
-        game = LimboGame(self, ctx, bet_amount_value, target_multiplier_value, ctx.author.id, rolls)
-        game.tokens_used = tokens_used
-        game.credits_used = credits_used
+        game = LimboGame(self, ctx, int(bet_amount), target_multiplier_value, ctx.author.id, rolls)
+        #game.tokens_used = tokens_used
+        #game.credits_used = credits_used
 
         # Store the game in ongoing games
         self.ongoing_games[ctx.author.id] = game
