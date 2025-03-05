@@ -552,7 +552,14 @@ class TowerCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-
+        if difficulty is None or difficulty.lower() not in ['easy', 'medium', 'hard', 'expert', 'master']:
+            #await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Difficulty",
+                description="Please choose from: easy, medium, hard, expert, master",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
         # Send loading message
         loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
@@ -577,14 +584,7 @@ class TowerCog(commands.Cog):
         bet_amount_value = total_bet
 
         # Validate difficulty
-        if difficulty is None or difficulty.lower() not in ['easy', 'medium', 'hard', 'expert', 'master']:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Difficulty",
-                description="Please choose from: easy, medium, hard, expert, master",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+       
 
         # Record game stats
         db = Users()
