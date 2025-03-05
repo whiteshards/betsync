@@ -471,96 +471,37 @@ class ProgressiveCoinflipCog(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        # Format currency type if provided
-        if currency_type:
-            currency_type = currency_type.lower()
-            # Allow shorthand T for tokens and C for credits
-            if currency_type == 't':
-                currency_type = 'tokens'
-            elif currency_type == 'c':
-                currency_type = 'credits'
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
 
-        # Process bet amount
         try:
-            # Handle 'all' or 'max' bet
-            if bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data['tokens'] + user_data['credits']
-                if user_data['tokens'] >= user_data['credits']:
-                    currency_used = "tokens"
-                else:
-                    currency_used = "credits"
+            # Process the bet amount using the currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
+            # If processing failed, return the error
+            if not success:
+                await loading_message.delete()
+                return await ctx.reply(embed=error_embed)
+
+            # Successful bet processing - extract relevant information
+            tokens_used = bet_info.get("tokens_used", 0)
+            credits_used = bet_info.get("credits_used", 0)
+            bet_amount_value = bet_info.get("total_bet_amount", 0)
+            currency_used = bet_info.get("currency_type", "credits")  # Default to credits if not specified
+
+            # Update the loading message to show bet details
+            if tokens_used > 0 and credits_used > 0:
+                currency_display = f"{tokens_used} tokens and {credits_used} credits"
             else:
-                # Check if bet has 'k' or 'm' suffix
-                if bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
+                currency_display = f"{bet_amount_value} {currency_used}"
 
-                bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
+            loading_embed.description = f"Setting up your {currency_display} progressive coinflip game..."
+            await loading_message.edit(embed=loading_embed)
 
-                if bet_amount_value <= 0:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Invalid Amount",
-                        description="Bet amount must be greater than 0.",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-                # Determine currency if not specified
-                if not currency_type:
-                    if user_data['tokens'] >= bet_amount_value:
-                        currency_used = "tokens"
-                    elif user_data['credits'] >= bet_amount_value:
-                        currency_used = "credits"
-                    else:
-                        await loading_message.delete()
-                        embed = discord.Embed(
-                            title="<:no:1344252518305234987> | Insufficient Funds",
-                            description=f"You don't have enough funds.",
-                            color=0xFF0000
-                        )
-                        return await ctx.reply(embed=embed)
-                else:
-                    currency_used = currency_type
-
-            # Check if user has enough balance
-            if currency_used == "tokens":
-                if bet_amount_value > user_data["tokens"]:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Tokens",
-                        description=f"You don't have enough tokens. Your balance: **{user_data['tokens']:.2f} tokens**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-            elif currency_used == "credits":
-                if bet_amount_value > user_data["credits"]:
-                    await loading_message.delete()
-                    embed = discord.Embed(
-                        title="<:no:1344252518305234987> | Insufficient Credits",
-                        description=f"You don't have enough credits. Your balance: **{user_data['credits']:.2f} credits**",
-                        color=0xFF0000
-                    )
-                    return await ctx.reply(embed=embed)
-
-            # Deduct from user balances
-            if currency_used == "tokens":
-                db.update_balance(ctx.author.id, -bet_amount_value, "tokens", "$inc")
-            else:
-                db.update_balance(ctx.author.id, -bet_amount_value, "credits", "$inc")
-
-        except ValueError:
+        except Exception as e:
+            print(f"Error processing bet: {e}")
             await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+            return await ctx.reply(f"An error occurred while processing your bet: {str(e)}")
 
         # Get total amount bet
         total_bet = bet_amount_value
@@ -835,8 +776,7 @@ class ProgressiveCoinflipCog(commands.Cog):
 
                 # Create continue/cashout view
                 continue_view = ContinueOrCashoutView(
-                    self, ctx, message, bet_amount, currency_used, 
-                    current_flips, new_multiplier
+                    self, ctx, message, bet_amount, currency_used,                     current_flips, new_multiplier
                 )
 
                 # Update message with continue options
