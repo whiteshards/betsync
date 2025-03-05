@@ -553,6 +553,7 @@ class TowerCog(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
+        # Send loading message
         loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
             title=f"{loading_emoji} | Preparing Tower Game...",
@@ -561,112 +562,41 @@ class TowerCog(commands.Cog):
         )
         loading_message = await ctx.reply(embed=loading_embed)
 
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
+        # Process bet amount using currency_helper
+        from Cogs.utils.currency_helper import process_bet_amount
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
-        if user_data == False:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+        # If processing failed, return the error
+        if not success:
+            return await ctx.reply(embed=error_embed)
 
-        if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "expert", "master"]:
+        # Extract needed values from bet_info
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        total_bet = bet_info["total_bet_amount"]
+        bet_amount_value = total_bet
+
+        # Validate difficulty
+        if difficulty is None or difficulty.lower() not in ['easy', 'medium', 'hard', 'expert', 'master']:
             await loading_message.delete()
             embed = discord.Embed(
                 title="<:no:1344252518305234987> | Invalid Difficulty",
-                description="Please choose a valid difficulty: `easy`, `medium`, `hard`, `expert`, or `master`.",
+                description="Please choose from: easy, medium, hard, expert, master",
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
 
-        if not currency_type:
-            currency_type = "tokens"
-        elif currency_type.lower() in ["t", "tokens"]:
-            currency_type = "tokens"
-        elif currency_type.lower() in ["c", "credits"]:
-            currency_type = "credits"
-        else:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Currency",
-                description="Please specify a valid currency: `tokens` or `credits`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+        # Record game stats
+        db = Users()
+        db.collection.update_one(
+            {"discord_id": ctx.author.id},
+            {"$inc": {"total_played": 1, "total_spent": total_bet}}
+        )
 
-        try:
-            if isinstance(bet_amount, str) and bet_amount.lower() in ['all', 'max']:
-                bet_amount_value = user_data[currency_type]
-            else:
-                if isinstance(bet_amount, str) and bet_amount.lower().endswith('k'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000
-                elif isinstance(bet_amount, str) and bet_amount.lower().endswith('m'):
-                    bet_amount_value = float(bet_amount[:-1]) * 1000000
-                else:
-                    bet_amount_value = float(bet_amount)
+        # Deduct bet amount from user's balance
+        db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
+        db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
 
-            bet_amount_value = float(bet_amount_value)
-
-            if bet_amount_value <= 0:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        except ValueError:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Amount",
-                description="Please enter a valid number or 'all'.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        tokens_balance = user_data.get('tokens', 0)
-        credits_balance = user_data.get('credits', 0)
-
-        tokens_used = 0
-        credits_used = 0
-
-        if currency_type == "tokens":
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            elif bet_amount_value <= tokens_balance + credits_balance:
-                tokens_used = tokens_balance
-                credits_used = bet_amount_value - tokens_balance
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough funds. Your balance: **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        else:
-            if bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough credits. Your balance: **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
-
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
-
-        total_bet = tokens_used + credits_used
 
         game_view = TowerGameView(
             self, 
