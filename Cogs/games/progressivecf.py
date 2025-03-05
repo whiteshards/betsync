@@ -485,6 +485,11 @@ class ProgressiveCoinflipCog(commands.Cog):
             # Handle 'all' or 'max' bet
             if bet_amount.lower() in ['all', 'max']:
                 bet_amount_value = user_data['tokens'] + user_data['credits']
+                if user_data['tokens'] >= user_data['credits']:
+                    currency_used = "tokens"
+                else:
+                    currency_used = "credits"
+
             else:
                 # Check if bet has 'k' or 'm' suffix
                 if bet_amount.lower().endswith('k'):
@@ -494,16 +499,59 @@ class ProgressiveCoinflipCog(commands.Cog):
                 else:
                     bet_amount_value = float(bet_amount)
 
-            bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
+                bet_amount_value = float(bet_amount_value)  # Keep as float to support decimals
 
-            if bet_amount_value <= 0:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
+                if bet_amount_value <= 0:
+                    await loading_message.delete()
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Invalid Amount",
+                        description="Bet amount must be greater than 0.",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
+
+                # Determine currency if not specified
+                if not currency_type:
+                    if user_data['tokens'] >= bet_amount_value:
+                        currency_used = "tokens"
+                    elif user_data['credits'] >= bet_amount_value:
+                        currency_used = "credits"
+                    else:
+                        await loading_message.delete()
+                        embed = discord.Embed(
+                            title="<:no:1344252518305234987> | Insufficient Funds",
+                            description=f"You don't have enough funds.",
+                            color=0xFF0000
+                        )
+                        return await ctx.reply(embed=embed)
+                else:
+                    currency_used = currency_type
+
+            # Check if user has enough balance
+            if currency_used == "tokens":
+                if bet_amount_value > user_data["tokens"]:
+                    await loading_message.delete()
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Insufficient Tokens",
+                        description=f"You don't have enough tokens. Your balance: **{user_data['tokens']:.2f} tokens**",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
+            elif currency_used == "credits":
+                if bet_amount_value > user_data["credits"]:
+                    await loading_message.delete()
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Insufficient Credits",
+                        description=f"You don't have enough credits. Your balance: **{user_data['credits']:.2f} credits**",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
+
+            # Deduct from user balances
+            if currency_used == "tokens":
+                db.update_balance(ctx.author.id, -bet_amount_value, "tokens", "$inc")
+            else:
+                db.update_balance(ctx.author.id, -bet_amount_value, "credits", "$inc")
 
         except ValueError:
             await loading_message.delete()
@@ -514,65 +562,8 @@ class ProgressiveCoinflipCog(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        # Get user balances
-        tokens_balance = user_data['tokens']
-        credits_balance = user_data['credits']
-
-        # Determine which currency to use
-        tokens_used = 0
-        credits_used = 0
-
-        if currency_type == 'tokens':
-            # User specifically wants to use tokens
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Tokens",
-                    description=f"You don't have enough tokens. Your balance: **{tokens_balance:.2f} tokens**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        elif currency_type == 'credits':
-            # User specifically wants to use credits
-            if bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Credits",
-                    description=f"You don't have enough credits. Your balance: **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-        else:
-            # Auto determine what to use
-            if bet_amount_value <= tokens_balance:
-                tokens_used = bet_amount_value
-            elif bet_amount_value <= credits_balance:
-                credits_used = bet_amount_value
-            elif bet_amount_value <= tokens_balance + credits_balance:
-                # Use all tokens and some credits
-                tokens_used = tokens_balance
-                credits_used = bet_amount_value - tokens_balance
-            else:
-                await loading_message.delete()
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Funds",
-                    description=f"You don't have enough funds. Your balance: **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
-
-        # Deduct from user balances
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
-
         # Get total amount bet
-        total_bet = tokens_used + credits_used
+        total_bet = bet_amount_value
 
         # Delete loading message
         await loading_message.delete()
@@ -581,7 +572,7 @@ class ProgressiveCoinflipCog(commands.Cog):
         initial_embed = discord.Embed(
             title="🪙 | Progressive Coinflip",
             description=(
-                f"**Bet:** {total_bet:.2f} {'tokens' if tokens_used > 0 else 'credits'}\n"
+                f"**Bet:** {total_bet:,.2f} {currency_used}\n"
                 f"**Initial Multiplier:** 1.96x\n\n"
                 "Choose heads or tails to start flipping!"
             ),
@@ -593,15 +584,13 @@ class ProgressiveCoinflipCog(commands.Cog):
         game_message = await ctx.reply(embed=initial_embed)
 
         # Create game view
-        game_view = PCFView(self, ctx, game_message, total_bet, 'tokens' if tokens_used > 0 else 'credits')
+        game_view = PCFView(self, ctx, game_message, total_bet, currency_used)
         await game_message.edit(view=game_view)
 
-        # Mark the game as ongoing
+        # Mark game as ongoing (after successful bet processing)
         self.ongoing_games[ctx.author.id] = {
-            "tokens_used": tokens_used,
-            "credits_used": credits_used,
-            "bet_amount": total_bet,
-            "view": game_view
+            "bet_amount": bet_amount_value,
+            "currency_type": currency_used
         }
 
     async def process_cashout(self, ctx, interaction, message, bet_amount, currency_used, flips, multiplier, auto_cashout=False):
