@@ -192,6 +192,7 @@ class PenaltyCog(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
         self.message = None
+        self.message2 = None
 
     @commands.command(aliases=["pen", "pk"])
     async def penalty(self, ctx, bet_amount: str = None, currency_type: str = None):
@@ -204,7 +205,7 @@ class PenaltyCog(commands.Cog):
                     "**Usage:** `!penalty <amount> [currency_type]`\n"
                     "**Example:** `!penalty 100` or `!penalty 100 credits`\n\n"
                     "**Choose your role:**\n"
-                    "- **As Penalty Taker:** Choose where to shoot (left/middle/right). If the goalkeeper dives in a different direction, you score and win 1.5x your bet!\n"
+                    "- **As Penalty Taker:** Choose where to shoot (left/middle/right). If the goalkeeper dives in a different direction, you score and win 1.45x your bet!\n"
                     "- **As Goalkeeper:** Choose where to dive (left/middle/right). If you guess correctly where the striker will shoot, you save and win 2.1x your bet!\n"
                 ),
                 color=0x00FFAE
@@ -262,7 +263,7 @@ class PenaltyCog(commands.Cog):
                 f"**Your bet:** {bet_amount:,.2f} {currency_used}\n\n"
                 "**Choose your role:**\n"
                 "**🧤 Goalkeeper:** You dive to save the shot. Win 2.1x if you save!\n"
-                "**⚽ Penalty Taker:** You shoot at goal. Win 1.5x if you score!"
+                "**⚽ Penalty Taker:** You shoot at goal. Win 1.45x if you score!"
             ),
             color=0x00FFAE
         )
@@ -277,12 +278,12 @@ class PenaltyCog(commands.Cog):
 
     async def start_as_taker(self, ctx, interaction, bet_amount, currency_type):
         """Start the game as a penalty taker"""
-        await self.message.delete()
+        #await self.message.delete()
         embed = discord.Embed(
             title="⚽ PENALTY KICK - YOU ARE THE TAKER",
             description=(
                 f"**Your bet:** {bet_amount:,.2f} {currency_type}\n"
-                f"**Potential win:** {bet_amount*1.5:,.2f} credits\n\n"
+                f"**Potential win:** {bet_amount*1.45:,.2f} credits\n\n"
                 "**Choose where to shoot by clicking a button below:**"
             ),
             color=0x00FFAE
@@ -291,12 +292,12 @@ class PenaltyCog(commands.Cog):
 
         # Create view with shooting buttons
         view = PenaltyButtonView(self, ctx, bet_amount, role="taker", timeout=30)
-        self.message = await interaction.followup.send(embed=embed, view=view)
-        view.message = message
+        self.message2 = await self.message.edit(embed=embed, view=view)
+        view.message = self.message2
 
     async def start_as_goalkeeper(self, ctx, interaction, bet_amount, currency_type):
         """Start the game as a goalkeeper"""
-        await self.message.delete()
+        #await self.message.delete()
         embed = discord.Embed(
             title="🧤 PENALTY KICK - YOU ARE THE GOALKEEPER",
             description=(
@@ -310,12 +311,12 @@ class PenaltyCog(commands.Cog):
 
         # Create view with diving buttons
         view = PenaltyButtonView(self, ctx, bet_amount, role="goalkeeper", timeout=30)
-        self.message = await interaction.followup.send(embed=embed, view=view)
-        view.message = message
+        self.message2 = await self.message.edit(embed=embed, view=view)
+        view.message = self.message2
 
     async def process_penalty_shot(self, ctx, interaction, shot_direction, bet_amount):
         """Process the penalty shot when user is the taker"""
-        await self.message.delete()
+        #await self.message.delete()
         # Remove from ongoing games
         if ctx.author.id in self.ongoing_games:
             del self.ongoing_games[ctx.author.id]
@@ -328,7 +329,7 @@ class PenaltyCog(commands.Cog):
         goal_scored = shot_direction != goalkeeper_direction
 
         # Calculate winnings
-        multiplier = 1.5
+        multiplier = 1.45
         winnings = bet_amount * multiplier if goal_scored else 0
 
         # Create result embed
@@ -377,11 +378,11 @@ class PenaltyCog(commands.Cog):
 
         # Create "Play Again" button
         play_again_view = PlayAgainView(self, ctx, bet_amount, timeout=15)
-        message = await interaction.followup.send(embed=embed, view=play_again_view)
+        message = await self.message2.edit(embed=embed, view=play_again_view)
         play_again_view.message = message
 
     async def process_goalkeeper_save(self, ctx, interaction, dive_direction, bet_amount):
-        await self.message.delete()
+        #await self.message.delete()
         """Process the penalty save when user is the goalkeeper"""
         # Remove from ongoing games
         if ctx.author.id in self.ongoing_games:
@@ -444,7 +445,7 @@ class PenaltyCog(commands.Cog):
 
         # Create "Play Again" button
         play_again_view = PlayAgainView(self, ctx, bet_amount, timeout=15)
-        message = await interaction.followup.send(embed=embed, view=play_again_view)
+        message = await self.message2.edit(embed=embed, view=play_again_view)
         play_again_view.message = message
 
     def update_bet_history(self, ctx, game_type, bet_amount, user_choice, ai_choice, won, multiplier, winnings):

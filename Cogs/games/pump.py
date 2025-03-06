@@ -4,7 +4,7 @@ import asyncio
 import time
 import os
 import io
-from PIL import Image, ImageDraw, ImageFont
+#from PIL import Image, ImageDraw #Removed as no longer needed
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from colorama import Fore
@@ -138,7 +138,7 @@ class PumpGameView(discord.ui.View):
         return pressure_bar
 
 
-    async def create_embed(self, status="playing"):
+    def create_embed(self, status="playing", display_message=""):
         """Create game embed with current state"""
         # Format bet description
         if self.tokens_used > 0 and self.credits_used > 0:
@@ -150,29 +150,6 @@ class PumpGameView(discord.ui.View):
 
         # Get balloon visual representation
         balloon_display = self.get_balloon_display()
-
-        # First create the embed structure
-        embed = None
-        file = None
-
-        # Then try to generate the image
-        try:
-            # Import required for BytesIO if needed
-            import io
-
-            image_buffer = await self.cog.generate_balloon_image(self.current_multiplier)
-            if image_buffer:
-                # Create a copy of the buffer to ensure it's open and seekable
-                buffer_copy = io.BytesIO(image_buffer.getvalue())
-                file = discord.File(fp=buffer_copy, filename="balloon.png")
-                print("Successfully created balloon image file")
-            else:
-                print("Failed to generate balloon image: buffer is None")
-        except Exception as e:
-            print(f"Error generating image: {e}")
-            import traceback
-            traceback.print_exc()
-            file = None
 
         currency = "credits"
 
@@ -262,9 +239,7 @@ class PumpGameView(discord.ui.View):
             embed.set_footer(text=f"BetSync Casino • Maximum pumps achieved! Automatic cashout!")
 
         embed.set_author(name=f"Player: {self.ctx.author.name}", icon_url=self.ctx.author.avatar.url)
-        if file:
-            embed.set_image(url=f"attachment://balloon.png")
-        return embed, file
+        return embed
 
     async def pump_callback(self, interaction):
         """Handle clicks on pump button"""
@@ -288,28 +263,20 @@ class PumpGameView(discord.ui.View):
             # Update buttons for next pump
             self.update_buttons()
 
-            # Send updated embed
-            embed, file = await self.create_embed(status="win_pump")
+            # Update the message with the new pumps count
+            embed = self.create_embed(status="win_pump")
 
-            if file:
-                # Use the file directly, it's already a discord.File
-                await interaction.response.edit_message(embed=embed, view=self, attachments=[file])
-            else:
-                await interaction.response.edit_message(embed=embed, view=self)
-
+            await interaction.response.edit_message(embed=embed, view=self)
         else:
             # Pump failed - balloon pops
             self.game_over = True
             self.clear_items()  # Remove all buttons
 
             # Send the game over message
-            embed, file = await self.create_embed(status="lose")
+            embed = self.create_embed(status="lose")
             # No image for popped balloon
-            if file:
-                # Use the file directly, it's already a discord.File
-                await interaction.response.edit_message(embed=embed, view=None, attachments=[file])
-            else:
-                await interaction.response.edit_message(embed=embed, view=None)
+
+            await interaction.response.edit_message(attachments=[], embed=embed, view=None)
 
             # Process the loss
             await self.process_loss()
@@ -409,7 +376,7 @@ class PumpGameView(discord.ui.View):
 
         # Create cashout embed with appropriate status
         status = "max_pumps" if self.current_pumps >= self.max_pumps else "cash_out"
-        cashout_embed, file = await self.create_embed(status=status)
+        cashout_embed = self.create_embed(status=status)
 
         # Create play again view
         play_again_view = PlayAgainView(
@@ -421,11 +388,7 @@ class PumpGameView(discord.ui.View):
         )
 
         # Update the message
-        if file:
-            # Use the file directly, it's already a discord.File
-            await self.message.edit(embed=cashout_embed, view=play_again_view, attachments=[file])
-        else:
-            await self.message.edit(embed=cashout_embed, view=play_again_view)
+        await self.message.edit(attachments=[], embed=cashout_embed, view=play_again_view) #removed attachments
         play_again_view.message = self.message
 
         if self.ctx.author.id in self.cog.ongoing_games:
@@ -508,114 +471,6 @@ class PumpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
-        self.balloon_asset = "assests/balloon.png" #Path to your balloon asset.  Ensure this path is correct.
-        self.watermark = None  # Not using image watermark, using text instead
-
-        try:
-            # Import required modules
-            from PIL import Image, ImageDraw, ImageFont
-
-            # Try roboto font first (included in repo), fall back to arial
-            try:
-                self.font = ImageFont.truetype("roboto.ttf", 36)
-            except:
-                self.font = ImageFont.truetype("arial.ttf", 36)
-        except FileNotFoundError:
-            print("Warning: Font not found. Using default font.")
-            self.font = None
-
-    async def generate_balloon_image(self, multiplier):
-        try:
-            # Make sure we import the required modules
-            import io
-            from PIL import Image, ImageDraw, ImageFont
-
-            # Create a dark blue background (similar to the image)
-            bg_color = (14, 23, 35)  # Dark blue background
-            bg_width, bg_height = 800, 600
-            background = Image.new('RGBA', (bg_width, bg_height), bg_color)
-
-            # Check if balloon asset exists
-            import os
-            if not os.path.exists(self.balloon_asset):
-                print(f"Error: Balloon asset not found at {self.balloon_asset}")
-                return None
-
-            # Open and resize the balloon based on multiplier
-            try:
-                base_balloon = Image.open(self.balloon_asset).convert("RGBA")
-            except Exception as e:
-                print(f"Error opening balloon image: {e}")
-                return None
-
-            width, height = base_balloon.size
-            scale_factor = min(1 + (multiplier - 1) * 0.2, 3)  # Scale up to 3x max size
-            new_width = int(width * scale_factor)
-            new_height = int(height * scale_factor)
-
-            # Resize the balloon
-            resized_balloon = base_balloon.resize((new_width, new_height), Image.LANCZOS)
-
-            # Position the balloon in the center
-            x_position = (bg_width - new_width) // 2
-            y_position = (bg_height - new_height) // 2
-            background.paste(resized_balloon, (x_position, y_position), resized_balloon)
-
-            # Add multiplier text in the center of the balloon
-            draw = ImageDraw.Draw(background)
-            multiplier_text = f"{multiplier:.2f}x"
-
-            # Use the proper font with drop shadow
-            try:
-                font = ImageFont.truetype("roboto.ttf", 60)
-            except:
-                font = ImageFont.load_default()
-
-            # Calculate text position for centering
-            text_bbox = draw.textbbox((0, 0), multiplier_text, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-            text_height = text_bbox[3] - text_bbox[1]
-            text_x = (bg_width - text_width) // 2
-            text_y = (bg_height - text_height) // 2
-
-            # Draw drop shadow with increased offset for better visibility
-            draw.text((text_x + 4, text_y + 4), multiplier_text, font=font, fill=(0, 0, 0, 255)) #Increased shadow darkness
-            # Draw text
-            draw.text((text_x, text_y), multiplier_text, font=font, fill=(255, 255, 255))
-
-            # Add "BetSync Casino" watermark at bottom right
-            watermark_text = "BetSync Casino"
-            watermark_font_size = 24
-            try:
-                watermark_font = ImageFont.truetype("roboto.ttf", watermark_font_size)
-            except:
-                watermark_font = ImageFont.load_default()
-
-            # Calculate watermark position
-            watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
-            watermark_width = watermark_bbox[2] - watermark_bbox[0]
-            watermark_x = bg_width - watermark_width - 20
-            watermark_y = bg_height - watermark_font_size - 10
-
-            # Draw semi-transparent watermark
-            draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(255, 255, 255, 128))
-
-            # Save to BytesIO
-            output = io.BytesIO()
-            background.save(output, format="PNG")
-            output.seek(0)
-            return output
-
-        except FileNotFoundError as e:
-            print(f"Error: File not found - {e}")
-            return None
-        except Exception as e:
-            print(f"An error occurred during image generation: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-
-
 
     @commands.command(aliases=["balloon"])
     async def pump(self, ctx, bet_amount: str = None, difficulty: str = None, currency_type: str = None):
@@ -773,12 +628,9 @@ class PumpCog(commands.Cog):
         await loading_message.delete()
 
         # Create initial embed
-        initial_embed, file = await game_view.create_embed(status="playing")
+        initial_embed = game_view.create_embed(status="playing")
 
-        if file:
-            game_message = await ctx.reply(embed=initial_embed, view=game_view, file=file)
-        else:
-            game_message = await ctx.reply(embed=initial_embed, view=game_view)
+        game_message = await ctx.reply(embed=initial_embed, view=game_view)
         game_view.message = game_message
 
         self.ongoing_games[ctx.author.id] = {
