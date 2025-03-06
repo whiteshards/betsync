@@ -144,41 +144,7 @@ class Lottery(commands.Cog):
             {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
         )
         
-        # Announce the winner in all servers
-        winner_embed = discord.Embed(
-            title="🎉 Lottery Winner Announced! 🎉",
-            description=f"**{winner_user.name}** has won the lottery with **{winner_entries}** entries!",
-            color=discord.Color.gold()
-        )
-        winner_embed.add_field(
-            name="Prize Pool",
-            value=f"{total_pot} tokens"
-        )
-        winner_embed.add_field(
-            name="Winning Amount",
-            value=f"{winning_amount} tokens"
-        )
-        winner_embed.set_footer(text="BetSync Casino • Next lottery starts now!")
-        
-        # Try to send to all guilds where the bot is present
-        for guild in self.bot.guilds:
-            try:
-                # Try to find a general channel or the first text channel
-                general_channel = discord.utils.find(
-                    lambda c: c.name.lower() in ['general', 'chat', 'main'], 
-                    guild.text_channels
-                )
-                
-                if not general_channel:
-                    # If no specific channel found, use the first text channel
-                    text_channels = [c for c in guild.text_channels if c.permissions_for(guild.me).send_messages]
-                    if text_channels:
-                        general_channel = text_channels[0]
-                
-                if general_channel:
-                    await general_channel.send(embed=winner_embed)
-            except Exception as e:
-                print(f"Failed to announce lottery winner in guild {guild.id}: {e}")
+        # No longer announcing to all servers, only DMing the winner
         
         # Also DM the winner
         try:
