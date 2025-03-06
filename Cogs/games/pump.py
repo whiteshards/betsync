@@ -150,9 +150,16 @@ class PumpGameView(discord.ui.View):
 
         # Get balloon visual representation
         balloon_display = self.get_balloon_display()
+        
+        # First create the embed structure
+        embed = None
+        file = None
+        
+        # Then try to generate the image
         try:
-            image = await self.cog.generate_balloon_image(self.current_multiplier)
-            file = discord.File(image, filename="balloon.png")
+            image_buffer = await self.cog.generate_balloon_image(self.current_multiplier)
+            if image_buffer:
+                file = discord.File(fp=image_buffer, filename="balloon.png")
         except Exception as e:
             print(f"Error generating image: {e}")
             file = None
@@ -273,8 +280,9 @@ class PumpGameView(discord.ui.View):
 
             # Update the message with the new pumps count
             embed, file = await self.create_embed(status="win_pump")
+            
             if file:
-                await interaction.response.edit_message(attachments=[file], embed=embed, view=self)
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[file])
             else:
                 await interaction.response.edit_message(embed=embed, view=self)
 
@@ -402,7 +410,7 @@ class PumpGameView(discord.ui.View):
 
         # Update the message
         if file:
-            await self.message.edit(attachments=[file], embed=cashout_embed, view=play_again_view)
+            await self.message.edit(embed=cashout_embed, view=play_again_view, attachments=[file])
         else:
             await self.message.edit(embed=cashout_embed, view=play_again_view)
         play_again_view.message = self.message
@@ -488,45 +496,102 @@ class PumpCog(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
         self.balloon_asset = "assests/balloon.png" #Path to your balloon asset.  Ensure this path is correct.
-        try:
-            self.watermark = Image.open("assests/betsync_casino_watermark.png") #Path to watermark, adjust as needed
-            self.watermark = self.watermark.resize((int(self.watermark.width * 0.5), int(self.watermark.height * 0.5))) #Resize watermark
-        except FileNotFoundError:
-            print("Warning: BetSync Casino watermark not found.  Continuing without watermark.")
-            self.watermark = None
+        self.watermark = None  # Not using image watermark, using text instead
 
         try:
-            self.font = ImageFont.truetype("arial.ttf", 36) #Path to arial.ttf font,  replace with your font if needed.
-
+            # Try roboto font first (included in repo), fall back to arial
+            try:
+                self.font = ImageFont.truetype("roboto.ttf", 36)
+            except:
+                self.font = ImageFont.truetype("arial.ttf", 36)
         except FileNotFoundError:
-            print("Warning: Arial font not found. Using default font.")
+            print("Warning: Font not found. Using default font.")
             self.font = None
 
     async def generate_balloon_image(self, multiplier):
         try:
+            # Create a dark blue background (similar to the image)
+            bg_color = (14, 23, 35)  # Dark blue background
+            bg_width, bg_height = 800, 600
+            background = Image.new('RGBA', (bg_width, bg_height), bg_color)
+            
+            # Open and resize the balloon based on multiplier
             base_balloon = Image.open(self.balloon_asset).convert("RGBA")
             width, height = base_balloon.size
-            scale_factor = min(1 + (multiplier - 1) * 0.2, 3)  #Scale up to 3x max size
+            scale_factor = min(1 + (multiplier - 1) * 0.2, 3)  # Scale up to 3x max size
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
-
+            
+            # Resize the balloon
             resized_balloon = base_balloon.resize((new_width, new_height), Image.LANCZOS)
-            draw = ImageDraw.Draw(resized_balloon)
-
-            text = f"x{multiplier:.2f}"
-            text_width, text_height = draw.textsize(text, font=self.font)
-            text_x = (new_width - text_width) // 2
-            text_y = (new_height - text_height) // 2
-
-            draw.text((text_x, text_y), text, font=self.font, fill=(0, 0, 0), stroke_width=2, stroke_fill=(255, 255, 255))
-
-            if self.watermark:
-                watermark_x = resized_balloon.width - self.watermark.width -10
-                watermark_y = resized_balloon.height - self.watermark.height -10
-                resized_balloon.paste(self.watermark, (watermark_x, watermark_y), self.watermark)
-
+            
+            # Position the balloon in the center of the background
+            balloon_x = (bg_width - new_width) // 2
+            balloon_y = (bg_height - new_height) // 2
+            
+            # Paste the balloon onto the background
+            background.paste(resized_balloon, (balloon_x, balloon_y), resized_balloon)
+            
+            # Create a draw object
+            draw = ImageDraw.Draw(background)
+            
+            # Add multiplier text in center of balloon
+            multiplier_text = f"{multiplier:.2f}x"
+            
+            # Use font if available, otherwise estimate size
+            if self.font:
+                try:
+                    # Use textbbox instead of textsize which is deprecated
+                    bbox = draw.textbbox((0, 0), multiplier_text, font=self.font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                except AttributeError:
+                    # Fallback to textsize for older PIL versions
+                    text_width, text_height = draw.textsize(multiplier_text, font=self.font)
+                
+                # Calculate position (center of balloon)
+                text_x = balloon_x + (new_width - text_width) // 2
+                text_y = balloon_y + (new_height - text_height) // 2
+                
+                # Draw text with drop shadow
+                # Draw shadow
+                shadow_offset = 3
+                draw.text((text_x + shadow_offset, text_y + shadow_offset), 
+                          multiplier_text, font=self.font, fill=(0, 0, 0, 180))
+                
+                # Draw main text
+                draw.text((text_x, text_y), multiplier_text, font=self.font, 
+                          fill=(255, 255, 255), stroke_width=2, stroke_fill=(0, 0, 0))
+            
+            # Add BetSync Casino watermark text at bottom right
+            watermark_text = "BetSync Casino"
+            watermark_font = self.font
+            if not watermark_font:
+                try:
+                    watermark_font = ImageFont.truetype("roboto.ttf", 24)
+                except:
+                    watermark_font = ImageFont.load_default()
+            
+            try:
+                # Use textbbox for newer PIL versions
+                watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
+                watermark_width = watermark_bbox[2] - watermark_bbox[0]
+                watermark_height = watermark_bbox[3] - watermark_bbox[1]
+            except AttributeError:
+                # Fallback to textsize for older PIL versions
+                watermark_width, watermark_height = draw.textsize(watermark_text, font=watermark_font)
+            
+            # Position watermark at bottom right with padding
+            watermark_x = bg_width - watermark_width - 20
+            watermark_y = bg_height - watermark_height - 20
+            
+            # Draw semi-transparent watermark
+            draw.text((watermark_x, watermark_y), watermark_text, 
+                      font=watermark_font, fill=(255, 255, 255, 128))
+            
+            # Save to bytes
             with io.BytesIO() as output:
-                resized_balloon.save(output, format="PNG")
+                background.save(output, format="PNG")
                 output.seek(0)
                 return output
 
@@ -535,6 +600,8 @@ class PumpCog(commands.Cog):
             return None
         except Exception as e:
             print(f"An error occurred during image generation: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 
