@@ -19,12 +19,18 @@ class TicTacToeInvite(discord.ui.View):
         self.currency_type = currency_type
         self.bot = bot
         self.message = message
-
-    async def callback(self, interaction: discord.Interaction):
+    
+    @discord.ui.button(label="Accept", style=discord.ButtonStyle.success, emoji="✅")
+    async def accept_button(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.target.id:
             return await interaction.response.send_message("This is not your invitation!", ephemeral=True)
-
-        # Process bet for challenger
+        
+        # Disable all buttons to prevent multiple clicks
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        # Process bet for both players
         from Cogs.utils.currency_helper import process_bet_amount
         ctx = await self.bot.get_context(self.message)
         loading_embed = discord.Embed(
@@ -35,13 +41,72 @@ class TicTacToeInvite(discord.ui.View):
         loading_message = await interaction.channel.send(embed=loading_embed)
 
         # Process challenger's bet
-        success_challenger, bet_info_challenger, error_embed_challenger = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message)
+        success_challenger, bet_info_challenger, error_embed_challenger = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message, user=self.challenger)
 
         if not success_challenger:
             await loading_message.delete()
-            await interaction.response.send_message(embed=error_embed_challenger)
+            await interaction.followup.send(embed=error_embed_challenger)
             self.stop()
             return
+            
+        # Process target's bet
+        success_target, bet_info_target, error_embed_target = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message, user=self.target)
+        
+        if not success_target:
+            # Refund challenger's bet if target can't afford
+            from Cogs.utils.database import Users
+            db = Users()
+            db.update_balance(self.challenger.id, self.bet_amount, self.currency_type, "$inc")
+            
+            await loading_message.delete()
+            await interaction.followup.send(embed=error_embed_target)
+            self.stop()
+            return
+            
+        self.accepted = True
+        await loading_message.delete()
+        
+        # Start the game
+        game = TicTacToeGame(self.challenger, self.target, self.bet_amount, self.currency_type, self.bot)
+        await game.start_game(interaction)
+        self.stop()
+        
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, emoji="❌")
+    async def decline_button(self, button, interaction: discord.Interaction):
+        if interaction.user.id != self.target.id:
+            return await interaction.response.send_message("This is not your invitation!", ephemeral=True)
+        
+        # Disable all buttons
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        # Send decline message
+        decline_embed = discord.Embed(
+            title="❌ | Invitation Declined",
+            description=f"{self.target.mention} has declined the Tic Tac Toe challenge.",
+            color=discord.Color.red()
+        )
+        await interaction.followup.send(embed=decline_embed)
+        self.stop()
+        
+    async def on_timeout(self):
+        # Disable all buttons
+        for child in self.children:
+            child.disabled = True
+            
+        try:
+            await self.message.edit(view=self)
+            
+            # Send timeout message
+            timeout_embed = discord.Embed(
+                title="⏱️ | Invitation Expired",
+                description=f"The Tic Tac Toe invitation has expired.",
+                color=discord.Color.gold()
+            )
+            await self.message.reply(embed=timeout_embed)
+        except:
+            pass
 
         # Process target's bet
         ctx.author = self.target  # Temporarily change author for bet processing
