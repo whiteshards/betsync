@@ -92,8 +92,7 @@ class TicTacToeGame:
                 f"**{self.player1.name}** (❌) vs **{self.player2.name}** (⭕)\n\n"
                 f"**Bet:** {self.bet_amount} {self.player1_currency_used}/player\n"
                 f"**Reward:** Winner gets 1.95x their bet\n\n"
-                f"**{self.current_player.name}'s turn** ({'❌' if self.current_player == self.player1 else '⭕'})\n\n"
-                f"**Game Board:**\n{self.create_text_board()}"
+                f"**{self.current_player.name}'s turn** ({'❌' if self.current_player == self.player1 else '⭕'})"
             ),
             color=0x00FFAE
         )
@@ -130,8 +129,7 @@ class TicTacToeGame:
                     f"**{self.player1.name}** (❌) vs **{self.player2.name}** (⭕)\n\n"
                     f"**Bet:** {self.bet_amount} {self.player1_currency_used}/player\n"
                     f"**Reward:** Winner gets 1.95x their bet\n\n"
-                    f"**{self.current_player.name}'s turn** {'⭕' if self.current_player == self.player2 else '❌'}\n\n"
-                    f"**Game Board:**\n{self.create_text_board()}"
+                    f"**{self.current_player.name}'s turn** {'⭕' if self.current_player == self.player2 else '❌'}"
                 ),
                 color=0x00FFAE
             )
@@ -176,8 +174,7 @@ class TicTacToeGame:
                     title="⌛ Game Timed Out",
                     description=(
                         f"The game between **{self.player1.name}** and **{self.player2.name}** has timed out.\n"
-                        f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}.\n\n"
-                        f"**Final Board:**\n{self.create_text_board()}"
+                        f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}."
                     ),
                     color=discord.Color.red()
                 )
@@ -208,8 +205,7 @@ class TicTacToeGame:
                 title="🎮 Tic Tac Toe - Draw!",
                 description=(
                     f"The game between **{self.player1.name}** and **{self.player2.name}** ended in a draw.\n"
-                    f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}.\n\n"
-                    f"**Final Board:**\n{self.create_text_board()}"
+                    f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}."
                 ),
                 color=discord.Color.gold()
             )
@@ -218,8 +214,7 @@ class TicTacToeGame:
                 title="🎮 Tic Tac Toe - Game Over!",
                 description=(
                     f"**{winner.name}** has won the game against **{self.player2.name if winner == self.player1 else self.player1.name}**!\n"
-                    f"**{winner.name}** received **{self.bet_amount * 1.95:.2f} credits**.\n\n"
-                    f"**Final Board:**\n{self.create_text_board()}"
+                    f"**{winner.name}** received **{self.bet_amount * 1.95:.2f} credits**."
                 ),
                 color=discord.Color.green()
             )
