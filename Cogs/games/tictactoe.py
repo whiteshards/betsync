@@ -606,7 +606,7 @@ class TicTacToeCog(commands.Cog):
 
         # Delete loading message and send invitation
         await loading_message.delete()
-        invite_message = await ctx.send(content=f"{target.mention}", embed=invite_embed, view=invite_view)
+        invite_message = await ctx.send(f"{target.mention}", embed=invite_embed, view=invite_view)
         invite_view.message = invite_message
 
 def setup(bot):
