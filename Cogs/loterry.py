@@ -232,11 +232,11 @@ class Lottery(commands.Cog):
         if tokens_balance >= cost:
             # Use tokens
             currency_used = "tokens"
-            success = db.update_balance(ctx.author.id, cost, currency_used, "$inc", -1)
+            success = db.update_balance(ctx.author.id, -cost, currency_used, "$inc")
         elif credits_balance >= cost:
             # Use credits
             currency_used = "credits"
-            success = db.update_balance(ctx.author.id, cost, currency_used, "$inc", -1)
+            success = db.update_balance(ctx.author.id, -cost, currency_used, "$inc")
         else:
             # Not enough funds
             embed = discord.Embed(
