@@ -663,7 +663,7 @@ class TicTacToeCog(commands.Cog):
             # First send a mention in a separate message to ensure notification
             await ctx.send(f"{target.mention}", delete_after=1)
             # Then send the actual invitation
-            invite_message = await ctx.send(embed=invite_embed, view=invite_view)
+            invite_message = await ctx.reply(embed=invite_embed, view=invite_view)
             invite_view.message = invite_message
             
             # Print confirmation to console for debugging
