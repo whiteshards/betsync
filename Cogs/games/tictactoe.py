@@ -549,6 +549,7 @@ class TicTacToeCog(commands.Cog):
             currency_display = f"{tokens_used} tokens and {credits_used} credits"
         else:
             currency_display = f"{bet_amount_value} {currency_used}"
+        await loading_message.delete()
 
         invite_embed = discord.Embed(
             title="🎮 Tic Tac Toe Invitation",
