@@ -601,7 +601,8 @@ class PumpCog(commands.Cog):
             output = io.BytesIO()
             background.save(output, format="PNG")
             output.seek(0)
-            return outputenter of the background
+            return output
+            
             balloon_x = (bg_width - new_width) // 2
             balloon_y = (bg_height - new_height) // 2
             
