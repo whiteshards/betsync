@@ -397,38 +397,18 @@ class TicTacToeInvite(discord.ui.View):
         # Disable buttons
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(view=self)
-
-        # Refund the inviter
-        db = Users()
-        if "tokens" in self.currency_used:
-            db.update_balance(self.ctx.author.id, self.bet_amount, "tokens", "$inc")
-        elif "credits" in self.currency_used:
-            db.update_balance(self.ctx.author.id, self.bet_amount, "credits", "$inc")
-        elif "mixed" in self.currency_used:
-            # Mixed currency handling would be implemented here
-            pass
-
-        # Send decline message
-        decline_embed = discord.Embed(
-            title="❌ Game Invitation Declined",
-            description=f"**{self.target.name}** declined your Tic Tac Toe invitation.\nYour {self.bet_amount} {self.currency_used} has been refunded.",
-            color=discord.Color.red()
-        )
-        await self.ctx.send(embed=decline_embed)
-
-    async def on_timeout(self):
-        if not self.responded:
-            # Disable buttons
-            for child in self.children:
-                child.disabled = True
-
+            
+        try:
+            await interaction.response.edit_message(view=self)
+        except Exception as e:
+            print(f"Error editing message: {e}")
             try:
                 await self.message.edit(view=self)
             except:
                 pass
 
-            # Refund the inviter
+        # Refund the inviter
+        try:
             db = Users()
             if "tokens" in self.currency_used:
                 db.update_balance(self.ctx.author.id, self.bet_amount, "tokens", "$inc")
@@ -438,13 +418,53 @@ class TicTacToeInvite(discord.ui.View):
                 # Mixed currency handling would be implemented here
                 pass
 
-            # Send timeout message
-            timeout_embed = discord.Embed(
-                title="⌛ Game Invitation Expired",
-                description=f"**{self.target.name}** did not respond to your Tic Tac Toe invitation.\nYour {self.bet_amount} {self.currency_used} has been refunded.",
-                color=discord.Color.gold()
+            # Send decline message with confirmation of refund
+            decline_embed = discord.Embed(
+                title="❌ Game Invitation Declined",
+                description=f"**{self.target.name}** declined your Tic Tac Toe invitation.\nYour {self.bet_amount} {self.currency_used} has been refunded.",
+                color=discord.Color.red()
             )
-            await self.ctx.send(embed=timeout_embed)
+            await self.ctx.send(embed=decline_embed)
+        except Exception as e:
+            print(f"Error processing refund or sending decline message: {e}")
+            # Send a backup message in case of error
+            try:
+                await self.ctx.send(f"**{self.target.name}** declined the game invitation. There was an issue processing the refund, please contact an admin.")
+            except:
+                pass
+
+    async def on_timeout(self):
+        if not self.responded:
+            # Disable buttons
+            for child in self.children:
+                child.disabled = True
+
+            try:
+                # Update the original invitation message with disabled buttons
+                await self.message.edit(view=self)
+            except Exception as e:
+                print(f"Error editing invitation message: {e}")
+
+            # Refund the inviter
+            db = Users()
+            try:
+                if "tokens" in self.currency_used:
+                    db.update_balance(self.ctx.author.id, self.bet_amount, "tokens", "$inc")
+                elif "credits" in self.currency_used:
+                    db.update_balance(self.ctx.author.id, self.bet_amount, "credits", "$inc")
+                elif "mixed" in self.currency_used:
+                    # Mixed currency handling would be implemented here
+                    pass
+                
+                # Send timeout message
+                timeout_embed = discord.Embed(
+                    title="⌛ Game Invitation Expired",
+                    description=f"**{self.target.name}** did not respond to your Tic Tac Toe invitation.\nYour {self.bet_amount} {self.currency_used} has been refunded.",
+                    color=discord.Color.gold()
+                )
+                await self.ctx.send(embed=timeout_embed)
+            except Exception as e:
+                print(f"Error processing refund or sending timeout message: {e}")
 
 
 class TicTacToeCog(commands.Cog):
@@ -586,7 +606,7 @@ class TicTacToeCog(commands.Cog):
 
         # Delete loading message and send invitation
         await loading_message.delete()
-        invite_message = await ctx.send(embed=invite_embed, view=invite_view)
+        invite_message = await ctx.send(content=f"{target.mention}", embed=invite_embed, view=invite_view)
         invite_view.message = invite_message
 
 def setup(bot):
