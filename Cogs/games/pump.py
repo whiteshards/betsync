@@ -310,7 +310,7 @@ class PumpGameView(discord.ui.View):
                 discord_file = discord.File(fp=file, filename="balloon.png")
                 await interaction.response.edit_message(embed=embed, view=None, attachments=[discord_file])
             else:
-                await interaction.response.edit_message(embed=embed, view=None)None)
+                await interaction.response.edit_message(embed=embed, view=None)
 
             # Process the loss
             await self.process_loss()
