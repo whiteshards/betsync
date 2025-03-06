@@ -14,7 +14,7 @@ load_dotenv()
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all(), case_insensitive=True)
 bot.remove_command("help")
 
-cogs = ["Cogs.guide", "Cogs.fetches", "Cogs.start", "Cogs.currency", "Cogs.history", "Cogs.admin" , "Cogs.servers", "Cogs.tip", "Cogs.games.crash", "Cogs.games.dice", "Cogs.games.coinflip", "Cogs.games.mines", "Cogs.games.penalty", "Cogs.games.wheel", "Cogs.games.progressivecf", "Cogs.games.crosstheroad", "Cogs.games.tower", "Cogs.games.pump", "Cogs.games.limbo", "Cogs.games.race", "Cogs.games.cases"]
+cogs = ["Cogs.guide", "Cogs.fetches", "Cogs.start", "Cogs.currency", "Cogs.history", "Cogs.admin" , "Cogs.servers", "Cogs.tip", "Cogs.games.crash", "Cogs.games.dice", "Cogs.games.coinflip", "Cogs.games.mines", "Cogs.games.penalty", "Cogs.games.wheel", "Cogs.games.progressivecf", "Cogs.games.crosstheroad", "Cogs.games.tower", "Cogs.games.pump", "Cogs.games.limbo", "Cogs.games.race", "Cogs.games.cases", "Cogs.games.tictactoe"]
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -68,7 +68,7 @@ async def on_command(ctx):
         )
         await ctx.reply(embed=embed)
         return
-    
+
     # Continue with user registration check
     db = Users()
     if db.fetch_user(ctx.author.id) != False:
@@ -91,7 +91,7 @@ async def on_ready():
         print(f"{Fore.GREEN}[+] {Fore.WHITE}Loaded Cog: {Fore.GREEN}{i}{Fore.WHITE}")
         #except Exception as e:
         #print(f"{Fore.RED}[-] {Fore.WHITE}FIX THIs {e}")
-            
+
 
 
 bot.run(os.environ['TOKEN'])
