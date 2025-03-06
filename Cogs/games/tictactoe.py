@@ -1,3 +1,22 @@
+
+# Add this method to the TicTacToe challenge view class
+
+async def challenge_accepted(self, ctx, loading_message):
+    # Process challenger's bet only after target accepts
+    from Cogs.utils.currency_helper import process_bet_amount
+    
+    # First process challenger's bet
+    ctx.author = self.challenger  # Set author to challenger
+    success_challenger, bet_info_challenger, error_embed_challenger = await process_bet_amount(
+        ctx, self.bet_amount, self.currency_type, loading_message
+    )
+    
+    if not success_challenger:
+        return False, error_embed_challenger
+        
+    # Return success if everything went well
+    return True, None
+
 import discord
 import asyncio
 import time
@@ -115,14 +134,34 @@ class TicTacToeInvite(discord.ui.View):
         if not success_target:
             # Refund challenger's bet if target doesn't have enough
             await loading_message.delete()
-            await interaction.response.send_message(embed=error_embed_target)
+            try:
+                await interaction.response.send_message(embed=error_embed_target)
+            except:
+                await interaction.followup.send(embed=error_embed_target)
             self.stop()
             return
 
         await loading_message.delete()
+        # Process challenger's bet now that target has accepted
+        success_challenger, error_embed_challenger = await self.challenge_accepted(ctx, loading_message)
+        if not success_challenger:
+            # If challenger doesn't have enough, refund target's bet
+            from Cogs.utils.mongo import Users
+            db = Users()
+            db.update_balance(self.target.id, self.bet_amount, "credits", "$inc")
+            try:
+                await interaction.response.send_message(embed=error_embed_challenger)
+            except:
+                await interaction.followup.send(embed=error_embed_challenger)
+            self.stop()
+            return
+            
         self.accepted = True
         self.stop()
-        await interaction.response.send_message(f"You accepted {self.challenger.mention}'s Tic Tac Toe challenge!")
+        try:
+            await interaction.response.send_message(f"You accepted {self.challenger.mention}'s Tic Tac Toe challenge!")
+        except:
+            await interaction.followup.send(f"You accepted {self.challenger.mention}'s Tic Tac Toe challenge!")allenge!")
 
 
 class TicTacToeGame:
