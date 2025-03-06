@@ -150,16 +150,16 @@ class PumpGameView(discord.ui.View):
 
         # Get balloon visual representation
         balloon_display = self.get_balloon_display()
-        
+
         # First create the embed structure
         embed = None
         file = None
-        
+
         # Then try to generate the image
         try:
             # Import required for BytesIO if needed
             import io
-            
+
             image_buffer = await self.cog.generate_balloon_image(self.current_multiplier)
             if image_buffer:
                 # Create a copy of the buffer to ensure it's open and seekable
@@ -288,11 +288,13 @@ class PumpGameView(discord.ui.View):
             # Update buttons for next pump
             self.update_buttons()
 
-            # Update the message with the new pumps count
+            # Send updated embed
             embed, file = await self.create_embed(status="win_pump")
-            
+
             if file:
-                await interaction.response.edit_message(embed=embed, view=self, attachments=[file])
+                # Create a discord.File from the BytesIO buffer
+                discord_file = discord.File(fp=file, filename="balloon.png")
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[discord_file])
             else:
                 await interaction.response.edit_message(embed=embed, view=self)
 
@@ -511,7 +513,7 @@ class PumpCog(commands.Cog):
         try:
             # Import required modules
             from PIL import Image, ImageDraw, ImageFont
-            
+
             # Try roboto font first (included in repo), fall back to arial
             try:
                 self.font = ImageFont.truetype("roboto.ttf", 36)
@@ -526,60 +528,60 @@ class PumpCog(commands.Cog):
             # Make sure we import the required modules
             import io
             from PIL import Image, ImageDraw, ImageFont
-            
+
             # Create a dark blue background (similar to the image)
             bg_color = (14, 23, 35)  # Dark blue background
             bg_width, bg_height = 800, 600
             background = Image.new('RGBA', (bg_width, bg_height), bg_color)
-            
+
             # Check if balloon asset exists
             import os
             if not os.path.exists(self.balloon_asset):
                 print(f"Error: Balloon asset not found at {self.balloon_asset}")
                 return None
-                
+
             # Open and resize the balloon based on multiplier
             try:
                 base_balloon = Image.open(self.balloon_asset).convert("RGBA")
             except Exception as e:
                 print(f"Error opening balloon image: {e}")
                 return None
-                
+
             width, height = base_balloon.size
             scale_factor = min(1 + (multiplier - 1) * 0.2, 3)  # Scale up to 3x max size
             new_width = int(width * scale_factor)
             new_height = int(height * scale_factor)
-            
+
             # Resize the balloon
             resized_balloon = base_balloon.resize((new_width, new_height), Image.LANCZOS)
-            
+
             # Position the balloon in the center
             x_position = (bg_width - new_width) // 2
             y_position = (bg_height - new_height) // 2
             background.paste(resized_balloon, (x_position, y_position), resized_balloon)
-            
+
             # Add multiplier text in the center of the balloon
             draw = ImageDraw.Draw(background)
             multiplier_text = f"{multiplier:.2f}x"
-            
+
             # Use the proper font with drop shadow
             try:
                 font = ImageFont.truetype("roboto.ttf", 60)
             except:
                 font = ImageFont.load_default()
-                
+
             # Calculate text position for centering
             text_bbox = draw.textbbox((0, 0), multiplier_text, font=font)
             text_width = text_bbox[2] - text_bbox[0]
             text_height = text_bbox[3] - text_bbox[1]
             text_x = (bg_width - text_width) // 2
             text_y = (bg_height - text_height) // 2
-            
-            # Draw drop shadow
-            draw.text((text_x+2, text_y+2), multiplier_text, font=font, fill=(0, 0, 0, 180))
+
+            # Draw drop shadow with increased offset for better visibility
+            draw.text((text_x + 4, text_y + 4), multiplier_text, font=font, fill=(0, 0, 0, 255)) #Increased shadow darkness
             # Draw text
             draw.text((text_x, text_y), multiplier_text, font=font, fill=(255, 255, 255))
-            
+
             # Add "BetSync Casino" watermark at bottom right
             watermark_text = "BetSync Casino"
             watermark_font_size = 24
@@ -587,105 +589,21 @@ class PumpCog(commands.Cog):
                 watermark_font = ImageFont.truetype("roboto.ttf", watermark_font_size)
             except:
                 watermark_font = ImageFont.load_default()
-                
+
             # Calculate watermark position
             watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
             watermark_width = watermark_bbox[2] - watermark_bbox[0]
             watermark_x = bg_width - watermark_width - 20
             watermark_y = bg_height - watermark_font_size - 10
-            
+
             # Draw semi-transparent watermark
             draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(255, 255, 255, 128))
-            
+
             # Save to BytesIO
             output = io.BytesIO()
             background.save(output, format="PNG")
             output.seek(0)
             return output
-            
-            balloon_x = (bg_width - new_width) // 2
-            balloon_y = (bg_height - new_height) // 2
-            
-            # Paste the balloon onto the background
-            background.paste(resized_balloon, (balloon_x, balloon_y), resized_balloon)
-            
-            # Create a draw object
-            draw = ImageDraw.Draw(background)
-            
-            # Add multiplier text in center of balloon
-            multiplier_text = f"{multiplier:.2f}x"
-            
-            # Load font for text
-            font_size = 36
-            try:
-                if os.path.exists("roboto.ttf"):
-                    text_font = ImageFont.truetype("roboto.ttf", font_size)
-                elif os.path.exists("arial.ttf"):
-                    text_font = ImageFont.truetype("arial.ttf", font_size)
-                else:
-                    text_font = ImageFont.load_default()
-            except Exception:
-                text_font = ImageFont.load_default()
-            
-            # Get text dimensions
-            try:
-                # Use textbbox instead of textsize which is deprecated
-                bbox = draw.textbbox((0, 0), multiplier_text, font=text_font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-            except AttributeError:
-                # Fallback to textsize for older PIL versions
-                text_width, text_height = draw.textsize(multiplier_text, font=text_font)
-            
-            # Calculate position (center of balloon)
-            text_x = balloon_x + (new_width - text_width) // 2
-            text_y = balloon_y + (new_height - text_height) // 2
-            
-            # Draw text with drop shadow
-            # Draw shadow
-            shadow_offset = 3
-            draw.text((text_x + shadow_offset, text_y + shadow_offset), 
-                      multiplier_text, font=text_font, fill=(0, 0, 0, 180))
-            
-            # Draw main text
-            draw.text((text_x, text_y), multiplier_text, font=text_font, 
-                      fill=(255, 255, 255))
-            
-            # Add BetSync Casino watermark text at bottom right
-            watermark_text = "BetSync Casino"
-            watermark_font_size = 24
-            try:
-                if os.path.exists("roboto.ttf"):
-                    watermark_font = ImageFont.truetype("roboto.ttf", watermark_font_size)
-                elif os.path.exists("arial.ttf"):
-                    watermark_font = ImageFont.truetype("arial.ttf", watermark_font_size)
-                else:
-                    watermark_font = ImageFont.load_default()
-            except Exception:
-                watermark_font = ImageFont.load_default()
-            
-            try:
-                # Use textbbox for newer PIL versions
-                watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
-                watermark_width = watermark_bbox[2] - watermark_bbox[0]
-                watermark_height = watermark_bbox[3] - watermark_bbox[1]
-            except AttributeError:
-                # Fallback to textsize for older PIL versions
-                watermark_width, watermark_height = draw.textsize(watermark_text, font=watermark_font)
-            
-            # Position watermark at bottom right with padding
-            watermark_x = bg_width - watermark_width - 20
-            watermark_y = bg_height - watermark_height - 20
-            
-            # Draw semi-transparent watermark
-            draw.text((watermark_x, watermark_y), watermark_text, 
-                      font=watermark_font, fill=(255, 255, 255, 128))
-            
-            # Save to bytes
-            with io.BytesIO() as output:
-                background.save(output, format="PNG")
-                output.seek(0)
-                return output
 
         except FileNotFoundError as e:
             print(f"Error: File not found - {e}")
