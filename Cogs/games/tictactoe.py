@@ -605,7 +605,7 @@ class TicTacToeCog(commands.Cog):
         invite_view = TicTacToeInvite(self, ctx, target, bet_amount_value, currency_used)
 
         # Delete loading message and send invitation
-        await loading_message.delete()
+        #await loading_message.delete()
         
         # Set the message attribute before sending to avoid race condition
         try:
@@ -617,10 +617,11 @@ class TicTacToeCog(commands.Cog):
             
             # Print confirmation to console for debugging
             print(f"Successfully sent TicTacToe invitation to {target.name}")
+            #await loading_message.delete()
         except Exception as e:
             print(f"Error sending TicTacToe invitation: {e}")
             # Fallback in case of error to ensure invitation is sent
-            await ctx.send(f"{target.mention}, you've been invited to a TicTacToe game! Please check the message above.")
+            #await ctx.send(f"{target.mention}, you've been invited to a TicTacToe game! Please check the message above.")
 
 def setup(bot):
     bot.add_cog(TicTacToeCog(bot))
