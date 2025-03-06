@@ -1,7 +1,7 @@
 import discord
 from Cogs.utils.mongo import Users
 
-async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_message=None):
+async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_message=None, **kwargs):
     """
     Processes bet amounts intelligently based on user's balance and specified currency.
     
