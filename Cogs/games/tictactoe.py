@@ -2,8 +2,6 @@ import discord
 import asyncio
 import random
 import datetime
-import io
-from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users
 from Cogs.utils.emojis import emoji
@@ -42,60 +40,30 @@ class TicTacToeGame:
         self.game_over = False
         self.timeout_time = 120  # Timeout in seconds
 
-    def create_board_image(self):
-        # Create image with dark background
-        img_size = 600
-        cell_size = img_size // 3
-        img = Image.new('RGB', (img_size, img_size), (33, 35, 38))  # Dark background
-        draw = ImageDraw.Draw(img)
-
-        # Draw grid lines
-        line_color = (80, 80, 80)  # Gray lines
-        line_width = 8
-        for i in range(1, 3):
-            # Vertical lines
-            draw.line([(i * cell_size, 0), (i * cell_size, img_size)], fill=line_color, width=line_width)
-            # Horizontal lines
-            draw.line([(0, i * cell_size), (img_size, i * cell_size)], fill=line_color, width=line_width)
-
-        # Draw X's and O's
+    def create_text_board(self):
+        # Create a text-based representation of the board
+        board_str = ""
+        
+        # Row separators
+        horizontal_line = "➖➖➖➖➖\n"
+        
         for y in range(3):
+            # Add cells for this row
             for x in range(3):
-                if self.board[y][x] is not None:
-                    center_x = x * cell_size + cell_size // 2
-                    center_y = y * cell_size + cell_size // 2
-                    cell_padding = cell_size // 5
-
-                    if self.board[y][x] == self.player1:  # X for player 1
-                        # Draw X (white)
-                        x_size = cell_size - cell_padding * 2
-                        draw.line(
-                            [(center_x - x_size//2, center_y - x_size//2), 
-                             (center_x + x_size//2, center_y + x_size//2)], 
-                            fill=(255, 255, 255), width=12)
-                        draw.line(
-                            [(center_x + x_size//2, center_y - x_size//2), 
-                             (center_x - x_size//2, center_y + x_size//2)], 
-                            fill=(255, 255, 255), width=12)
-                    else:  # O for player 2
-                        # Draw O (blue)
-                        circle_size = cell_size - cell_padding * 2
-                        draw.ellipse(
-                            [(center_x - circle_size//2, center_y - circle_size//2),
-                             (center_x + circle_size//2, center_y + circle_size//2)],
-                            outline=(0, 122, 255), width=12)
-                        # Inner circle (black)
-                        inner_size = circle_size // 5
-                        draw.ellipse(
-                            [(center_x - inner_size, center_y - inner_size),
-                             (center_x + inner_size, center_y + inner_size)],
-                            fill=(33, 35, 38), outline=(33, 35, 38))
-
-        # Convert to bytes for Discord
-        buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
-        buffer.seek(0)
-        return buffer
+                if self.board[y][x] == self.player1:
+                    board_str += "❌ "  # X for player 1
+                elif self.board[y][x] == self.player2:
+                    board_str += "⭕ "  # O for player 2
+                else:
+                    board_str += "⬛ "  # Empty cell
+            
+            board_str += "\n"
+            
+            # Add horizontal line between rows (except after the last row)
+            if y < 2:
+                board_str += horizontal_line
+                
+        return board_str
 
     def create_game_view(self):
         view = discord.ui.View(timeout=self.timeout_time)
@@ -117,25 +85,21 @@ class TicTacToeGame:
         return view
 
     async def start_game(self):
-        # Create initial game board image
-        board_image = self.create_board_image()
-        file = discord.File(board_image, filename="board.png")
-
         # Create initial game embed
         embed = discord.Embed(
             title="🎮 Tic Tac Toe",
             description=(
-                f"**{self.player1.name}** (X) vs **{self.player2.name}** (O)\n\n"
+                f"**{self.player1.name}** (❌) vs **{self.player2.name}** (⭕)\n\n"
                 f"**Bet:** {self.bet_amount} {self.player1_currency_used}/player\n"
                 f"**Reward:** Winner gets 1.95x their bet\n\n"
-                f"**{self.current_player.name}'s turn** (X)"
+                f"**{self.current_player.name}'s turn** ({'❌' if self.current_player == self.player1 else '⭕'})\n\n"
+                f"**Game Board:**\n{self.create_text_board()}"
             ),
             color=0x00FFAE
         )
-        embed.set_image(url="attachment://board.png")
 
         # Post the game message
-        self.message = await self.ctx.send(embed=embed, file=file, view=self.create_game_view())
+        self.message = await self.ctx.send(embed=embed, view=self.create_game_view())
 
         # Start timeout task
         self.timeout_task = asyncio.create_task(self.handle_timeout())
@@ -159,25 +123,21 @@ class TicTacToeGame:
             # Switch current player
             self.current_player = self.player2 if self.current_player == self.player1 else self.player1
 
-            # Update board image
-            board_image = self.create_board_image()
-            file = discord.File(board_image, filename="board.png")
-
             # Update embed
             embed = discord.Embed(
                 title="🎮 Tic Tac Toe",
                 description=(
-                    f"**{self.player1.name}** (X) vs **{self.player2.name}** (O)\n\n"
+                    f"**{self.player1.name}** (❌) vs **{self.player2.name}** (⭕)\n\n"
                     f"**Bet:** {self.bet_amount} {self.player1_currency_used}/player\n"
                     f"**Reward:** Winner gets 1.95x their bet\n\n"
-                    f"**{self.current_player.name}'s turn** {'(O)' if self.current_player == self.player2 else '(X)'}"
+                    f"**{self.current_player.name}'s turn** {'⭕' if self.current_player == self.player2 else '❌'}\n\n"
+                    f"**Game Board:**\n{self.create_text_board()}"
                 ),
                 color=0x00FFAE
             )
-            embed.set_image(url="attachment://board.png")
 
             # Update message with new view
-            await interaction.response.edit_message(embed=embed, file=file, view=self.create_game_view())
+            await interaction.response.edit_message(embed=embed, view=self.create_game_view())
 
     def check_winner(self):
         # Check rows
@@ -211,24 +171,20 @@ class TicTacToeGame:
             if not self.game_over:
                 self.game_over = True
 
-                # Create final board image
-                board_image = self.create_board_image()
-                file = discord.File(board_image, filename="board.png")
-
                 # Create timeout embed
                 embed = discord.Embed(
                     title="⌛ Game Timed Out",
                     description=(
                         f"The game between **{self.player1.name}** and **{self.player2.name}** has timed out.\n"
-                        f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}."
+                        f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}.\n\n"
+                        f"**Final Board:**\n{self.create_text_board()}"
                     ),
                     color=discord.Color.red()
                 )
-                embed.set_image(url="attachment://board.png")
 
                 # Update the game message
                 if self.message:
-                    await self.message.edit(embed=embed, file=file, view=None)
+                    await self.message.edit(embed=embed, view=None)
 
                 # Refund both players
                 await self.process_refunds()
@@ -246,17 +202,14 @@ class TicTacToeGame:
         if self.timeout_task:
             self.timeout_task.cancel()
 
-        # Create final board image
-        board_image = self.create_board_image()
-        file = discord.File(board_image, filename="board.png")
-
         # Create game end embed
         if draw:
             embed = discord.Embed(
                 title="🎮 Tic Tac Toe - Draw!",
                 description=(
                     f"The game between **{self.player1.name}** and **{self.player2.name}** ended in a draw.\n"
-                    f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}."
+                    f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}.\n\n"
+                    f"**Final Board:**\n{self.create_text_board()}"
                 ),
                 color=discord.Color.gold()
             )
@@ -265,18 +218,17 @@ class TicTacToeGame:
                 title="🎮 Tic Tac Toe - Game Over!",
                 description=(
                     f"**{winner.name}** has won the game against **{self.player2.name if winner == self.player1 else self.player1.name}**!\n"
-                    f"**{winner.name}** received **{self.bet_amount * 1.95:.2f} credits**."
+                    f"**{winner.name}** received **{self.bet_amount * 1.95:.2f} credits**.\n\n"
+                    f"**Final Board:**\n{self.create_text_board()}"
                 ),
                 color=discord.Color.green()
             )
-
-        embed.set_image(url="attachment://board.png")
 
         # Update message with final view (all buttons disabled)
         for item in self.view.children:
             item.disabled = True
 
-        await interaction.response.edit_message(embed=embed, file=file, view=self.view)
+        await interaction.response.edit_message(embed=embed, view=self.view)
 
         # Process rewards
         if draw:
