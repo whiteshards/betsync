@@ -292,9 +292,8 @@ class PumpGameView(discord.ui.View):
             embed, file = await self.create_embed(status="win_pump")
 
             if file:
-                # Create a new discord.File from the BytesIO buffer
-                discord_file = discord.File(fp=file, filename="balloon.png")
-                await interaction.response.edit_message(embed=embed, view=self, attachments=[discord_file])
+                # Use the file directly, it's already a discord.File
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[file])
             else:
                 await interaction.response.edit_message(embed=embed, view=self)
 
@@ -423,9 +422,8 @@ class PumpGameView(discord.ui.View):
 
         # Update the message
         if file:
-            # Create a Discord File from BytesIO
-            discord_file = discord.File(fp=file, filename="balloon.png")
-            await self.message.edit(embed=cashout_embed, view=play_again_view, attachments=[discord_file])
+            # Use the file directly, it's already a discord.File
+            await self.message.edit(embed=cashout_embed, view=play_again_view, attachments=[file])
         else:
             await self.message.edit(embed=cashout_embed, view=play_again_view)
         play_again_view.message = self.message
