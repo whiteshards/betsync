@@ -752,6 +752,7 @@ class LimboCog(commands.Cog):
             return await ctx.reply(f"An error occurred while processing your bet: {str(e)}")
 
         # Create a new game instance
+        await loading_message.delete()
         game = LimboGame(self, ctx, bet_amount_value, target_multiplier_value, ctx.author.id, rolls)
         game.tokens_used = tokens_used
         game.credits_used = credits_used

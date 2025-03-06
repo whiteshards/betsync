@@ -171,18 +171,10 @@ class PlayAgainView(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
         # Check if user can afford the same bet
-        db = Users()
-        user_data = db.fetch_user(interaction.user.id)
-        if not user_data:
-            return await interaction.followup.send("Your account couldn't be found. Please try again later.", ephemeral=True)
-
-        credits_balance = user_data['credits']
-
-        if credits_balance < self.bet_amount:
-            return await interaction.followup.send(f"You don't have enough credits to play again. You need {self.bet_amount} credits.", ephemeral=True)
+        
 
         # Create a new penalty game with the same bet amount
-        await self.cog.penalty(self.ctx, str(self.bet_amount), "credits")
+        await self.cog.penalty(self.ctx, str(self.bet_amount))
 
     async def on_timeout(self):
         for child in self.children:
@@ -199,6 +191,7 @@ class PenaltyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+        self.message = None
 
     @commands.command(aliases=["pen", "pk"])
     async def penalty(self, ctx, bet_amount: str = None, currency_type: str = None):
@@ -219,18 +212,7 @@ class PenaltyCog(commands.Cog):
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
 
-        # Format currency type if provided
-        if currency_type:
-            currency_type = currency_type.lower()
-            # Allow shorthand T for tokens and C for credits
-            if currency_type == 't':
-                currency_type = 'tokens'
-            elif currency_type == 'c':
-                currency_type = 'credits'
-        else:
-            currency_type = "credits"
-        if currency_type not in ["credits", "tokens"]:
-            return await ctx.reply("Invalid currency type! Please use either 'credits' or 'tokens'.")
+        
 
         # Create loading embed
         loading_embed = discord.Embed(
@@ -271,11 +253,7 @@ class PenaltyCog(commands.Cog):
         }
 
         # Deduct bet from user's balance
-        db = Users()
-        if tokens_used > 0:
-            db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
-        if credits_used > 0:
-            db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
+        
 
         # Create role selection embed
         embed = discord.Embed(
@@ -294,11 +272,12 @@ class PenaltyCog(commands.Cog):
         view = RoleSelectionView(self, ctx, bet_amount, currency_type, timeout=30)
         
         # Update the loading message instead of deleting and creating a new one
-        message = await loading_message.edit(embed=embed, view=view)
+        self.message = await loading_message.edit(embed=embed, view=view)
         view.message = loading_message
 
     async def start_as_taker(self, ctx, interaction, bet_amount, currency_type):
         """Start the game as a penalty taker"""
+        await self.message.delete()
         embed = discord.Embed(
             title="⚽ PENALTY KICK - YOU ARE THE TAKER",
             description=(
@@ -312,11 +291,12 @@ class PenaltyCog(commands.Cog):
 
         # Create view with shooting buttons
         view = PenaltyButtonView(self, ctx, bet_amount, role="taker", timeout=30)
-        message = await interaction.followup.send(embed=embed, view=view)
+        self.message = await interaction.followup.send(embed=embed, view=view)
         view.message = message
 
     async def start_as_goalkeeper(self, ctx, interaction, bet_amount, currency_type):
         """Start the game as a goalkeeper"""
+        await self.message.delete()
         embed = discord.Embed(
             title="🧤 PENALTY KICK - YOU ARE THE GOALKEEPER",
             description=(
@@ -330,11 +310,12 @@ class PenaltyCog(commands.Cog):
 
         # Create view with diving buttons
         view = PenaltyButtonView(self, ctx, bet_amount, role="goalkeeper", timeout=30)
-        message = await interaction.followup.send(embed=embed, view=view)
+        self.message = await interaction.followup.send(embed=embed, view=view)
         view.message = message
 
     async def process_penalty_shot(self, ctx, interaction, shot_direction, bet_amount):
         """Process the penalty shot when user is the taker"""
+        await self.message.delete()
         # Remove from ongoing games
         if ctx.author.id in self.ongoing_games:
             del self.ongoing_games[ctx.author.id]
@@ -400,6 +381,7 @@ class PenaltyCog(commands.Cog):
         play_again_view.message = message
 
     async def process_goalkeeper_save(self, ctx, interaction, dive_direction, bet_amount):
+        await self.message.delete()
         """Process the penalty save when user is the goalkeeper"""
         # Remove from ongoing games
         if ctx.author.id in self.ongoing_games:
