@@ -162,7 +162,9 @@ class PumpGameView(discord.ui.View):
             
             image_buffer = await self.cog.generate_balloon_image(self.current_multiplier)
             if image_buffer:
-                file = discord.File(fp=image_buffer, filename="balloon.png")
+                # Create a copy of the buffer to ensure it's open and seekable
+                buffer_copy = io.BytesIO(image_buffer.getvalue())
+                file = discord.File(fp=buffer_copy, filename="balloon.png")
                 print("Successfully created balloon image file")
             else:
                 print("Failed to generate balloon image: buffer is None")
@@ -551,7 +553,55 @@ class PumpCog(commands.Cog):
             # Resize the balloon
             resized_balloon = base_balloon.resize((new_width, new_height), Image.LANCZOS)
             
-            # Position the balloon in the center of the background
+            # Position the balloon in the center
+            x_position = (bg_width - new_width) // 2
+            y_position = (bg_height - new_height) // 2
+            background.paste(resized_balloon, (x_position, y_position), resized_balloon)
+            
+            # Add multiplier text in the center of the balloon
+            draw = ImageDraw.Draw(background)
+            multiplier_text = f"{multiplier:.2f}x"
+            
+            # Use the proper font with drop shadow
+            try:
+                font = ImageFont.truetype("roboto.ttf", 60)
+            except:
+                font = ImageFont.load_default()
+                
+            # Calculate text position for centering
+            text_bbox = draw.textbbox((0, 0), multiplier_text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            text_x = (bg_width - text_width) // 2
+            text_y = (bg_height - text_height) // 2
+            
+            # Draw drop shadow
+            draw.text((text_x+2, text_y+2), multiplier_text, font=font, fill=(0, 0, 0, 180))
+            # Draw text
+            draw.text((text_x, text_y), multiplier_text, font=font, fill=(255, 255, 255))
+            
+            # Add "BetSync Casino" watermark at bottom right
+            watermark_text = "BetSync Casino"
+            watermark_font_size = 24
+            try:
+                watermark_font = ImageFont.truetype("roboto.ttf", watermark_font_size)
+            except:
+                watermark_font = ImageFont.load_default()
+                
+            # Calculate watermark position
+            watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
+            watermark_width = watermark_bbox[2] - watermark_bbox[0]
+            watermark_x = bg_width - watermark_width - 20
+            watermark_y = bg_height - watermark_font_size - 10
+            
+            # Draw semi-transparent watermark
+            draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(255, 255, 255, 128))
+            
+            # Save to BytesIO
+            output = io.BytesIO()
+            background.save(output, format="PNG")
+            output.seek(0)
+            return outputenter of the background
             balloon_x = (bg_width - new_width) // 2
             balloon_y = (bg_height - new_height) // 2
             
