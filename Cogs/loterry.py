@@ -1,4 +1,4 @@
-
+import os
 import discord
 import datetime
 import time
@@ -12,7 +12,7 @@ from colorama import Fore
 class Lottery(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.lottery_collection = MongoClient().betsync_db.lottery
+        self.lottery_collection = MongoClient(os.getenv("MONGO"))["BetSync"]["lottery"]
         self.current_lottery = None
         self.lottery_cooldown = {}
         self.initialize_lottery()
