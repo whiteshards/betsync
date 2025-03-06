@@ -111,13 +111,54 @@ class TicTacToeGame:
         winner = self.check_winner()
         is_draw = self.is_board_full()
 
+        # Create updated view to show the latest move first
+        updated_view = self.create_game_view()
+
         if winner:
             self.game_over = True
             self.winner = winner
+            
+            # First update the message to show the final move
+            embed = discord.Embed(
+                title="🎮 Tic Tac Toe",
+                description=(
+                    f"**{self.player1.name}** (❌) vs **{self.player2.name}** (⭕)\n\n"
+                    f"**Bet:** {self.bet_amount} {self.player1_currency_used}/player\n"
+                    f"**Reward:** Winner gets 1.95x their bet\n\n"
+                    f"**{self.current_player.name}** just made a move!"
+                ),
+                color=0x00FFAE
+            )
+            
+            # Update the message with the latest board state
+            await interaction.response.edit_message(embed=embed, view=updated_view)
+            
+            # Then end the game with a short delay to show the final move
+            await asyncio.sleep(0.5)
             await self.end_game(interaction, winner=winner)
+            
         elif is_draw:
             self.game_over = True
+            
+            # First update the message to show the final move
+            embed = discord.Embed(
+                title="🎮 Tic Tac Toe",
+                description=(
+                    f"**{self.player1.name}** (❌) vs **{self.player2.name}** (⭕)\n\n"
+                    f"**Bet:** {self.bet_amount} {self.player1_currency_used}/player\n"
+                    f"**Reward:** Winner gets 1.95x their bet\n\n"
+                    f"**{self.current_player.name}** just made a move!"
+                ),
+                color=0x00FFAE
+            )
+            
+            # Update the message with the latest board state
+            await interaction.response.edit_message(embed=embed, view=updated_view)
+            
+            # Then end the game with a short delay
+            await asyncio.sleep(0.5)
             await self.end_game(interaction, draw=True)
+            
         else:
             # Switch current player
             self.current_player = self.player2 if self.current_player == self.player1 else self.player1
@@ -135,7 +176,7 @@ class TicTacToeGame:
             )
 
             # Update message with new view
-            await interaction.response.edit_message(embed=embed, view=self.create_game_view())
+            await interaction.response.edit_message(embed=embed, view=updated_view)
 
     def check_winner(self):
         # Check rows
@@ -238,11 +279,21 @@ class TicTacToeGame:
                 color=discord.Color.green()
             )
 
-        # Update message with final view (all buttons disabled)
-        for item in self.view.children:
+        # Create final view with all buttons disabled but still showing the final state
+        final_view = self.create_game_view()
+        for item in final_view.children:
             item.disabled = True
 
-        await interaction.response.edit_message(embed=embed, view=self.view)
+        # Try to edit the message, but handle the case where it might have already been modified
+        try:
+            await interaction.edit_original_response(embed=embed, view=final_view)
+        except:
+            # Fallback if the original response can't be edited
+            try:
+                await self.message.edit(embed=embed, view=final_view)
+            except:
+                # If both fail, try a new response
+                await interaction.followup.send(embed=embed, view=final_view)
 
         # Process rewards
         if draw:
