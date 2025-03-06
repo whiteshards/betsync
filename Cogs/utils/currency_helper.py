@@ -1,7 +1,7 @@
 import discord
 from Cogs.utils.mongo import Users
 
-async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_message=None, user=None):
+async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=None, user=None):
     """
     Processes bet amounts intelligently based on user's balance and specified currency.
 
@@ -19,14 +19,14 @@ async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_messag
             - error_embed: Error embed to return to user (if not successful)
     """
     author = ctx.author
-    target_user = user if user else ctx.author
+    user = ctx.author if user is None else user
     db = Users()
-    user_data = db.fetch_user(target_user.id)
+    user_data = db.fetch_user(user.id)
 
     if not user_data:
         error_embed = discord.Embed(
             title="<:no:1344252518305234987> | Account Required",
-            description=f"{target_user.mention} needs an account to place bets. Use a command to create one.",
+            description=f"{user.mention} needs an account to place bets. Use a command to create one.",
             color=0xFF0000
         )
         return False, None, error_embed
@@ -117,7 +117,7 @@ async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_messag
         else:
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Insufficient Tokens",
-                description=f"{target_user.mention} doesn't have enough tokens. Your balance: **{tokens_balance:.2f} tokens**",
+                description=f"{user.mention} doesn't have enough tokens. Your balance: **{tokens_balance:.2f} tokens**",
                 color=0xFF0000
             )
             return False, None, error_embed
@@ -127,7 +127,7 @@ async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_messag
         else:
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Insufficient Credits",
-                description=f"{target_user.mention} doesn't have enough credits. Your balance: **{credits_balance:.2f} credits**",
+                description=f"{user.mention} doesn't have enough credits. Your balance: **{credits_balance:.2f} credits**",
                 color=0xFF0000
             )
             return False, None, error_embed
@@ -151,40 +151,40 @@ async def process_bet_amount(ctx, bet_amount, currency_type=None, loading_messag
         else:
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Insufficient Balance",
-                description=f"{target_user.mention} doesn't have enough balance. They have **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
+                description=f"{user.mention} doesn't have enough balance. They have **{tokens_balance:.2f} tokens** and **{credits_balance:.2f} credits**",
                 color=0xFF0000
             )
             return False, None, error_embed
 
     # Apply the deductions to the user's balance
     if tokens_used > 0:
-        db.update_balance(target_user.id, -tokens_used, "tokens", "$inc")
+        db.update_balance(user.id, -tokens_used, "tokens", "$inc")
 
     if credits_used > 0:
-        db.update_balance(target_user.id, -credits_used, "credits", "$inc")
+        db.update_balance(user.id, -credits_used, "credits", "$inc")
 
     # Create a result dictionary with all relevant information
     bet_info = {
         "tokens_used": tokens_used,
         "credits_used": credits_used,
         "total_bet_amount": tokens_used + credits_used,
-        "user_id": target_user.id,
+        "user_id": user.id,
         "remaining_tokens": tokens_balance - tokens_used,
         "remaining_credits": credits_balance - credits_used
     }
 
     # Update loading message if provided
-    if loading_message:
-        currency_text = ""
-        if tokens_used > 0 and credits_used > 0:
-            currency_text = f"**{tokens_used:.2f} tokens** and **{credits_used:.2f} credits**"
-        elif tokens_used > 0:
-            currency_text = f"**{tokens_used:.2f} tokens**"
-        else:
-            currency_text = f"**{credits_used:.2f} credits**"
+    async def update_loading(content):
+        if loading_message:
+            try:
+                await loading_message.edit(embed=discord.Embed(
+                    title="Processing bet...",
+                    description=content,
+                    color=0x00FFAE
+                ))
+            except:
+                pass
 
-        loading_embed = loading_message.embeds[0]
-        loading_embed.description = f"{target_user.mention}'s Bet: {currency_text}"
-        await loading_message.edit(embed=loading_embed)
+    await update_loading(f"{user.mention}'s Bet:  {f'**{tokens_used:.2f} tokens** and **{credits_used:.2f} credits**' if tokens_used > 0 and credits_used > 0 else f'**{tokens_used:.2f} tokens**' if tokens_used > 0 else f'**{credits_used:.2f} credits**'}")
 
     return True, bet_info, None

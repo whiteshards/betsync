@@ -38,10 +38,10 @@ class TicTacToeInvite(discord.ui.View):
             description="Please wait while we process the bets for both players.",
             color=0x00FFAE
         )
-        loading_message = await interaction.channel.send(embed=loading_embed)
+        loading_message = await interaction.followup.send(embed=loading_embed)
 
         # Process challenger's bet
-        success_challenger, bet_info_challenger, error_embed_challenger = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message, user=self.challenger)
+        success_challenger, bet_info_challenger, error_embed_challenger = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message, self.challenger)
 
         if not success_challenger:
             await loading_message.delete()
@@ -50,7 +50,7 @@ class TicTacToeInvite(discord.ui.View):
             return
             
         # Process target's bet
-        success_target, bet_info_target, error_embed_target = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message, user=self.target)
+        success_target, bet_info_target, error_embed_target = await process_bet_amount(ctx, self.bet_amount, self.currency_type, loading_message, self.target)
         
         if not success_target:
             # Refund challenger's bet if target can't afford
