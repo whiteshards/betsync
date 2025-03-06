@@ -168,23 +168,42 @@ class TicTacToeGame:
             await asyncio.sleep(self.timeout_time)
             if not self.game_over:
                 self.game_over = True
-
+                
+                # Determine the winner (opposite of current player)
+                winner = self.player2 if self.current_player == self.player1 else self.player1
+                
                 # Create timeout embed
                 embed = discord.Embed(
                     title="⌛ Game Timed Out",
                     description=(
-                        f"The game between **{self.player1.name}** and **{self.player2.name}** has timed out.\n"
-                        f"Both players have been refunded their {self.bet_amount} {self.player1_currency_used}."
+                        f"**{self.current_player.name}** didn't make a move in time.\n"
+                        f"**{winner.name}** wins by timeout!\n"
+                        f"**{winner.name}** received **{self.bet_amount * 1.95:.2f} credits**."
                     ),
-                    color=discord.Color.red()
+                    color=discord.Color.orange()
                 )
 
                 # Update the game message
                 if self.message:
-                    await self.message.edit(embed=embed, view=None)
+                    # Create a final view with all buttons disabled
+                    final_view = discord.ui.View()
+                    for y in range(3):
+                        for x in range(3):
+                            button = TicTacToeButton(x, y, self)
+                            button.disabled = True
+                            if self.board[y][x] is not None:
+                                if self.board[y][x] == self.player1:
+                                    button.label = "X"
+                                    button.style = discord.ButtonStyle.danger
+                                else:
+                                    button.label = "O"
+                                    button.style = discord.ButtonStyle.primary
+                            final_view.add_item(button)
+                            
+                    await self.message.edit(embed=embed, view=final_view)
 
-                # Refund both players
-                await self.process_refunds()
+                # Process win reward for the non-timing out player
+                await self.process_win_reward(winner)
 
                 # Remove game from ongoing games
                 if self.player1.id in self.cog.ongoing_games:
