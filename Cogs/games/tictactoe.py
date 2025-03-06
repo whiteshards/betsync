@@ -606,8 +606,21 @@ class TicTacToeCog(commands.Cog):
 
         # Delete loading message and send invitation
         await loading_message.delete()
-        invite_message = await ctx.send(f"{target.mention}", embed=invite_embed, view=invite_view)
-        invite_view.message = invite_message
+        
+        # Set the message attribute before sending to avoid race condition
+        try:
+            # First send a mention in a separate message to ensure notification
+            await ctx.send(f"{target.mention}", delete_after=1)
+            # Then send the actual invitation
+            invite_message = await ctx.send(embed=invite_embed, view=invite_view)
+            invite_view.message = invite_message
+            
+            # Print confirmation to console for debugging
+            print(f"Successfully sent TicTacToe invitation to {target.name}")
+        except Exception as e:
+            print(f"Error sending TicTacToe invitation: {e}")
+            # Fallback in case of error to ensure invitation is sent
+            await ctx.send(f"{target.mention}, you've been invited to a TicTacToe game! Please check the message above.")
 
 def setup(bot):
     bot.add_cog(TicTacToeCog(bot))
