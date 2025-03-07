@@ -41,7 +41,7 @@ class PlayAgainView(discord.ui.View):
             from Cogs.utils.currency_helper import process_bet_amount
 
             # Process bet using currency helper
-            success, bet_info, error_embed = await process_bet_amount(ctx, self.bet_amount, self.currency_used, None)
+            success, bet_info, error_embed = await process_bet_amount(self.ctx, self.bet_amount, self.currency_used, None)
             if not success:
                 return await interaction.followup.send(embed=error_embed)
 
