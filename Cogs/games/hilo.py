@@ -428,7 +428,7 @@ class HiLo(commands.Cog):
         """Generate the game image similar to the provided example"""
         # Create base canvas (dark blue background)
         width, height = 1000, 600
-        bg_color = (12, 26, 38)
+        bg_color = (12, 26, 38)  # Darker blue background matching reference
         image = Image.new("RGB", (width, height), bg_color)
         draw = ImageDraw.Draw(image)
 
@@ -437,24 +437,27 @@ class HiLo(commands.Cog):
             font_path = "roboto.ttf"
             small_font = ImageFont.truetype(font_path, 16)
             medium_font = ImageFont.truetype(font_path, 20)
-            large_font = ImageFont.truetype(font_path, 24)
+            large_font = ImageFont.truetype(font_path, 28)  # Increased font size for card guides
         except Exception:
             small_font = ImageFont.load_default()
             medium_font = ImageFont.load_default()
             large_font = ImageFont.load_default()
 
-        # Draw card value guides at the left and right (K and A)
-        self.draw_card_guides(draw, width, small_font)
+        # Draw card value guides at the left and right (K and A) - larger with better styling
+        self.draw_card_guides(draw, width, large_font, small_font)
 
-        # Draw the current card in the center
+        # Draw the current card in the center - larger size
         current_card_img = await self.get_card_image(current_card)
-        current_card_pos = (width//2 - 60, height//2 - 180)
+        # Make current card 20% larger
+        new_width, new_height = int(current_card_img.width * 1.2), int(current_card_img.height * 1.2)
+        current_card_img = current_card_img.resize((new_width, new_height))
+        current_card_pos = (width//2 - new_width//2, height//2 - 180)
         image.paste(current_card_img, current_card_pos, current_card_img.convert("RGBA"))
 
         # Draw profit information bar
-        self.draw_profit_bar(draw, width, height, high_profit, low_profit, total_profit, currency, medium_font)
+        self.draw_profit_bar(draw, width, height, high_profit, low_profit, total_profit, currency, small_font)
 
-        # Draw previous cards in reverse order (newest first)
+        # Draw previous cards in reverse order (newest first) - smaller with better spacing
         if previous_cards:
             self.draw_previous_cards(image, previous_cards, width, height)
 
@@ -467,18 +470,19 @@ class HiLo(commands.Cog):
                 start_card_index = len(previous_cards) - 5
 
             first_card_pos_x = 30
-            first_card_pos_y = height - 180
+            first_card_pos_y = height - 150  # Adjusted position
 
             # Draw green label
             draw.rectangle(
-                [first_card_pos_x, first_card_pos_y + 110, first_card_pos_x + 100, first_card_pos_y + 140], 
+                [first_card_pos_x, first_card_pos_y + 85, first_card_pos_x + 80, first_card_pos_y + 110], 
                 fill=(0, 255, 0)
             )
             draw.text(
-                (first_card_pos_x + 20, first_card_pos_y + 117), 
+                (first_card_pos_x + 40, first_card_pos_y + 97), 
                 "Start Card", 
                 fill=(0, 0, 0), 
-                font=small_font
+                font=small_font,
+                anchor="mm"
             )
 
         # Convert to bytes for Discord
@@ -488,49 +492,139 @@ class HiLo(commands.Cog):
 
         return buffer
 
-    def draw_card_guides(self, draw, width, font):
+    def draw_card_guides(self, draw, width, large_font, small_font):
         """Draw the card value guides (K and A) with explanations"""
-        # Left side - K guide
-        draw.rectangle([30, 150, 110, 250], outline=(50, 60, 70), width=2)
-        draw.text((70, 180), "K", fill=(100, 120, 130), font=font, anchor="mm")
-        draw.text((70, 210), "↑", fill=(100, 120, 130), font=font, anchor="mm")
-        draw.text((70, 280), "KING BEING", fill=(100, 120, 130), font=font, anchor="mm")
-        draw.text((70, 300), "THE HIGHEST", fill=(100, 120, 130), font=font, anchor="mm")
+        # Card guide styling
+        guide_border_color = (30, 40, 50)
+        guide_text_color = (120, 140, 150)
+        
+        # Left side - K guide (larger and more visible)
+        guide_width, guide_height = 120, 150
+        left_x = 120
+        guide_y = 150
+        
+        # Draw rounded rectangle for K guide
+        draw.rectangle(
+            [left_x - guide_width//2, guide_y, left_x + guide_width//2, guide_y + guide_height], 
+            fill=(20, 30, 40),
+            outline=guide_border_color, 
+            width=2
+        )
+        
+        # Draw K and arrow
+        draw.text((left_x, guide_y + 40), "K", fill=guide_text_color, font=large_font, anchor="mm")
+        draw.text((left_x, guide_y + 80), "↑", fill=guide_text_color, font=large_font, anchor="mm")
+        
+        # Draw explanation text below guide box
+        draw.text(
+            (left_x, guide_y + guide_height + 30), 
+            "KING BEING", 
+            fill=guide_text_color, 
+            font=small_font, 
+            anchor="mm"
+        )
+        draw.text(
+            (left_x, guide_y + guide_height + 50), 
+            "THE HIGHEST", 
+            fill=guide_text_color, 
+            font=small_font, 
+            anchor="mm"
+        )
 
-        # Right side - A guide
-        draw.rectangle([width - 110, 150, width - 30, 250], outline=(50, 60, 70), width=2)
-        draw.text((width - 70, 180), "A", fill=(100, 120, 130), font=font, anchor="mm")
-        draw.text((width - 70, 210), "↓", fill=(100, 120, 130), font=font, anchor="mm")
-        draw.text((width - 70, 280), "ACE BEING", fill=(100, 120, 130), font=font, anchor="mm")
-        draw.text((width - 70, 300), "THE LOWEST", fill=(100, 120, 130), font=font, anchor="mm")
+        # Right side - A guide (larger and more visible)
+        right_x = width - 120
+        
+        # Draw rounded rectangle for A guide
+        draw.rectangle(
+            [right_x - guide_width//2, guide_y, right_x + guide_width//2, guide_y + guide_height], 
+            fill=(20, 30, 40),
+            outline=guide_border_color, 
+            width=2
+        )
+        
+        # Draw A and arrow
+        draw.text((right_x, guide_y + 40), "A", fill=guide_text_color, font=large_font, anchor="mm")
+        draw.text((right_x, guide_y + 80), "↓", fill=guide_text_color, font=large_font, anchor="mm")
+        
+        # Draw explanation text below guide box
+        draw.text(
+            (right_x, guide_y + guide_height + 30), 
+            "ACE BEING", 
+            fill=guide_text_color, 
+            font=small_font, 
+            anchor="mm"
+        )
+        draw.text(
+            (right_x, guide_y + guide_height + 50), 
+            "THE LOWEST", 
+            fill=guide_text_color, 
+            font=small_font, 
+            anchor="mm"
+        )
 
     def draw_profit_bar(self, draw, width, height, high_profit, low_profit, total_profit, currency, font):
-        """Draw the profit information bar"""
+        """Draw the profit information bar with improved styling matching reference"""
         # Draw profit bar background
         bar_y = 420
         bar_height = 70
-        draw.rectangle([20, bar_y, width - 20, bar_y + bar_height], fill=(30, 45, 55))
+        draw.rectangle([20, bar_y, width - 20, bar_y + bar_height], fill=(25, 35, 45))
 
         # Divide into three sections
         section_width = (width - 40) // 3
 
+        # Helper function to format profit values
+        def format_profit(value):
+            return f"{value:.2f}"  # Always 2 decimal places
+
         # Higher profit section
-        draw.text((30 + section_width//2, bar_y + 20), f"Profit Higher ({self.format_multiplier(high_profit/total_profit if total_profit else 0)}×)", 
-                 fill=(200, 220, 240), font=font, anchor="mm")
-        draw.text((30 + section_width//2, bar_y + 50), f"↑ {high_profit:.8f} {currency}", 
-                 fill=(255, 255, 255), font=font, anchor="mm")
+        high_multiplier = high_profit/total_profit if total_profit else 0
+        draw.text(
+            (30 + section_width//2, bar_y + 20), 
+            f"Profit Higher ({self.format_multiplier(high_multiplier)}×)", 
+            fill=(180, 200, 220), 
+            font=font, 
+            anchor="mm"
+        )
+        draw.text(
+            (30 + section_width//2, bar_y + 50), 
+            f"↑ {format_profit(high_profit)} {currency}", 
+            fill=(255, 255, 255), 
+            font=font, 
+            anchor="mm"
+        )
 
         # Lower profit section
-        draw.text((30 + section_width + section_width//2, bar_y + 20), f"Profit Lower ({self.format_multiplier(low_profit/total_profit if total_profit else 0)}×)", 
-                 fill=(200, 220, 240), font=font, anchor="mm")
-        draw.text((30 + section_width + section_width//2, bar_y + 50), f"↓ {low_profit:.8f} {currency}", 
-                 fill=(255, 255, 255), font=font, anchor="mm")
+        low_multiplier = low_profit/total_profit if total_profit else 0
+        draw.text(
+            (30 + section_width + section_width//2, bar_y + 20), 
+            f"Profit Lower ({self.format_multiplier(low_multiplier)}×)", 
+            fill=(180, 200, 220), 
+            font=font, 
+            anchor="mm"
+        )
+        draw.text(
+            (30 + section_width + section_width//2, bar_y + 50), 
+            f"↓ {format_profit(low_profit)} {currency}", 
+            fill=(255, 255, 255), 
+            font=font, 
+            anchor="mm"
+        )
 
         # Total profit section
-        draw.text((30 + 2*section_width + section_width//2, bar_y + 20), f"Total Profit ({self.format_multiplier(1.0)}×)", 
-                 fill=(200, 220, 240), font=font, anchor="mm")
-        draw.text((30 + 2*section_width + section_width//2, bar_y + 50), f"{total_profit:.8f} {currency}", 
-                 fill=(255, 255, 255), font=font, anchor="mm")
+        draw.text(
+            (30 + 2*section_width + section_width//2, bar_y + 20), 
+            f"Total Profit ({self.format_multiplier(1.0)}×)", 
+            fill=(180, 200, 220), 
+            font=font, 
+            anchor="mm"
+        )
+        draw.text(
+            (30 + 2*section_width + section_width//2, bar_y + 50), 
+            f"{format_profit(total_profit)} {currency}", 
+            fill=(255, 255, 255), 
+            font=font, 
+            anchor="mm"
+        )
 
     def format_multiplier(self, value):
         """Format multiplier to show 2 decimal places"""
@@ -539,25 +633,43 @@ class HiLo(commands.Cog):
         return "0.00"
 
     def draw_previous_cards(self, image, previous_cards, width, height):
-        """Draw the previous cards in sequence"""
-        # Start position for the first card
-        card_x = 30
-        card_y = height - 180
-
+        """Draw the previous cards in sequence - smaller with better spacing"""
+        # Start position for the first card in history
+        start_x = 30
+        card_y = height - 150  # Moved up slightly
+        
+        # Calculate card size (make them smaller)
+        card_width, card_height = 90, 135  # 75% of original size
+        
+        # Spacing between cards
+        spacing = 20
+        
         # We'll show at most 5 previous cards
         cards_to_show = previous_cards[-5:] if len(previous_cards) > 5 else previous_cards
-
+        
+        # Calculate total width needed
+        total_width = len(cards_to_show) * (card_width + spacing) - spacing
+        
+        # Center the cards horizontally if there are fewer than 5
+        if len(cards_to_show) < 5:
+            start_x = (width - total_width) // 2
+        
+        # Current x position
+        card_x = start_x
+        
         # Draw each card
         for card in cards_to_show:
+            # Get the card image
             card_img = self.get_card_image_sync(card)
+            
+            # Resize to smaller size
+            card_img = card_img.resize((card_width, card_height))
+            
+            # Paste onto main image
             image.paste(card_img, (card_x, card_y), card_img.convert("RGBA"))
-
+            
             # Move to the next position
-            card_x += 120
-
-            # If we reach the edge of the screen, stop
-            if card_x > width - 120:
-                break
+            card_x += card_width + spacing
 
     async def get_card_image(self, card):
         """Get the card image from assets folder or cache"""
