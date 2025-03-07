@@ -78,7 +78,7 @@ class HoldButton(discord.ui.Button):
         embed.set_footer(text="BetSync Casino • Hold cards you want to keep")
 
         await interaction.response.edit_message(embed=embed, view=self.view)
-        await interaction.message.edit(attachments=[file])
+        await interaction.message.edit(file=file)
 
 class PokerView(discord.ui.View):
     def __init__(self, cog, ctx, cards, user_id, bet_amount, timeout=60):
@@ -107,6 +107,7 @@ class PokerView(discord.ui.View):
     async def deal_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
+        del self.cog.ongoing_games[self.user_id]
 
         # Disable all buttons
         for child in self.children:
@@ -119,6 +120,7 @@ class PokerView(discord.ui.View):
         await self.cog.replace_cards(self.ctx, self.cards, self.held_cards, self.bet_amount, self.message)
 
     async def on_timeout(self):
+        
         for child in self.children:
             child.disabled = True
 
@@ -128,8 +130,9 @@ class PokerView(discord.ui.View):
             pass
 
         # Return the bet if the game timed out
-        db = Users()
-        db.update_balance(self.user_id, self.bet_amount, "credits", "$inc")
+        
+        #db = Users()
+        #db.update_balance(self.user_id, self.bet_amount, "credits", "$inc")
 
         # Remove from ongoing games
         if self.user_id in self.cog.ongoing_games:
@@ -141,7 +144,7 @@ class PokerView(discord.ui.View):
                 description="Your bet has been returned.",
                 color=discord.Color.red()
             )
-            await self.ctx.author.send(embed=timeout_embed)
+            #await self.ctx.author.send(embed=timeout_embed)
         except:
             pass
 
@@ -197,7 +200,7 @@ class Poker(commands.Cog):
             large_font = ImageFont.load_default()
 
         # Title at the top
-        draw.text((width//2, 50), "BetRush Poker", font=large_font, fill=(200, 200, 200), anchor="mm")
+        draw.text((width//2, 50), "BetSync Poker", font=large_font, fill=(200, 200, 200), anchor="mm")
 
         # Load and place cards
         card_width = 150
@@ -247,7 +250,7 @@ class Poker(commands.Cog):
             if held_cards[i]:
                 hold_pos = (start_x + (i * (card_width + card_spacing)) + card_width//2,
                            y_position + card_height + 15)
-                draw.text(hold_pos, "HOLD", font=medium_font, fill=(255, 255, 255), anchor="mm")
+                #draw.text(hold_pos, "HOLD", font=medium_font, fill=(255, 255, 255), anchor="mm")
 
         # Add win type at the bottom if final
         if is_final and win_type is not None:
