@@ -739,9 +739,16 @@ class HiLo(commands.Cog):
                 return await ctx.reply(embed=error_embed)
 
             # Set up the game
-            bet_amount = bet_info["amount"]
-            currency_used = bet_info["currency"]
+            tu = bet_info["tokens_used"]
+            cu = bet_info["credits_used"]
+            if tu > 0:
+                currency_used = "tokens"
 
+            elif cu > 0:
+                currency_used = "credits"
+
+            else:
+                currency_used = "mixed/none"
             # Update loading message to indicate progress
             await loading_message.edit(embed=discord.Embed(
                 title=f"{loading_emoji} | Setting Up Game...",
@@ -756,7 +763,7 @@ class HiLo(commands.Cog):
             current_card = deck.pop(0)
 
             # Create game view
-            view = HiLoView(self, ctx, bet_amount, currency_used, deck, current_card)
+            view = HiLoView(self, ctx, int(bet_amount), currency_used, deck, current_card)
 
             # Calculate initial potential profits
             view.calculate_potential_profits()
