@@ -66,33 +66,33 @@ class Users:
             
             webhook_url = os.environ.get("WEBHOOK")
             if webhook_url:
+                # Get user object to fetch avatar if possible
+                user = None
+                try:
+                    # Try to get the user from the bot's cache
+                    if hasattr(self, 'bot'):
+                        user = self.bot.get_user(user_id)
+                except:
+                    pass
+                
                 # Create a pretty embed
                 embed = discord.Embed(
-                    title=f"{'💰 Balance Added' if change > 0 else '💸 Balance Deducted'}",
+                    title=f"{'Balance Added' if change > 0 else 'Balance Deducted'}",
                     color=0x00FF00 if change > 0 else 0xFF0000,
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
+                    description=(
+                        f"<:Veried_memeber_icon:1347561332043677706> <@{user_id}>\n"
+                        f"<:member_hexagon:1347561410837876786> `{user_id}`\n\n"
+                        f"{'<:star_token:1347561369901203499>' if currency == 'tokens' else '<:NA_CashIcon:1347561395083804702>'} **{currency.capitalize()}**\n"
+                        f"Previous: **{previous_amount:.2f}**\n"
+                        f"New: **{new_amount:.2f}**\n"
+                        f"Change: **{'+' if change > 0 else ''}{change:.2f}**"
+                    )
                 )
                 
-                # Add user info
-                embed.add_field(
-                    name="👤 User",
-                    value=f"ID: `{user_id}`",
-                    inline=False
-                )
-                
-                # Add balance info
-                embed.add_field(
-                    name=f"{'🪙' if currency == 'tokens' else '💵'} {currency.capitalize()}",
-                    value=f"Previous: **{previous_amount:.2f}**\nNew: **{new_amount:.2f}**\nChange: **{'+' if change > 0 else ''}{change:.2f}**",
-                    inline=True
-                )
-                
-                # Add operation info
-                embed.add_field(
-                    name="⚙️ Operation",
-                    value=f"`{operation}`",
-                    inline=True
-                )
+                # Set thumbnail to user avatar if available
+                if user and user.avatar:
+                    embed.set_thumbnail(url=user.avatar.url)
                 
                 # Add footer
                 embed.set_footer(text="BetSync Casino | Balance Update")
