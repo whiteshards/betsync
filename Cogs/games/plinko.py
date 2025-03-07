@@ -214,11 +214,15 @@ class PlinkoGame:
         num_slots = len(self.multiplier_table)
         actual_rows = self.rows + 2  # User rows + 2 as per requirement
 
-        # Start randomly at one of the two gaps at the top
-        position = random.choice([0, 1])
+        # Start at the center for the first row (topmost row)
+        position = num_slots // 2
 
         # For each row, the ball can go left or right at each peg
         for row in range(actual_rows):
+            # Calculate how many pegs are in this row
+            # First row has fewest pegs, increasing as we go down
+            current_row_pegs = row + 1
+
             # Add current position to path
             path.append(position)
 
@@ -280,13 +284,14 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Starting with 2 gaps at top (3 pegs), increasing as we go down
+        # Draw pegs - Start with fewer pegs at top, increasing as we go down
         for row in range(actual_rows):
-            # First row starts with 3 pegs (2 gaps), then increases
-            num_pegs = row + 3
+            # Calculate number of pegs for this row (increasing from top to bottom)
+            # First row has fewest pegs, increasing by 1 each row
+            num_pegs = row + 1
 
             # Calculate starting x position to center the pegs
-            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
+            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
 
             for peg in range(num_pegs):
