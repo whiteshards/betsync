@@ -210,15 +210,16 @@ class PlinkoGame:
         """Simulate a ball's path through the Plinko board"""
         path = []
         num_slots = len(self.multiplier_table)
+        actual_rows = self.rows + 2  # User rows + 2 as per requirement
 
-        # Start at the center for the first row
+        # Start at the center for the first row (topmost row)
         position = num_slots // 2
 
         # For each row, the ball can go left or right at each peg
-        for row in range(self.rows):
+        for row in range(actual_rows):
             # Calculate how many pegs are in this row
-            # First row has fewest pegs, last row has num_slots - 1 pegs
-            current_row_pegs = row + 1
+            # First row has most pegs, decreasing as we go down
+            current_row_pegs = actual_rows - row
 
             # Add current position to path
             path.append(position)
@@ -231,13 +232,10 @@ class PlinkoGame:
             # Decide direction (left or right)
             if random.random() < 0.5 - center_bias:
                 # Ball goes to the left
-                position -= 1
+                position = max(0, position - 1)
             else:
                 # Ball goes to the right
-                position += 1
-
-            # Ensure position stays within bounds for next row
-            position = max(0, min(position, num_slots - 1))
+                position = min(position + 1, num_slots - 1)
 
         # Final landing position is the last position in the path
         final_pos = position
@@ -273,21 +271,26 @@ class PlinkoGame:
             multiplier_font = ImageFont.load_default()
             watermark_font = ImageFont.load_default()
 
-        # Calculate spacing to ensure the number of slots at the bottom matches the number of multipliers
+        # Calculate the actual display rows (user_rows + 2)
+        actual_rows = self.rows + 2
+        
+        # The number of slots/gaps at the bottom should be actual_rows - 1
+        # This ensures we have one more multiplier than the user-specified rows
         num_slots = len(self.multiplier_table)
         horizontal_spacing = board_width / (num_slots + 1)
         
-        # Calculate vertical spacing with more space at the top
-        vertical_spacing = board_height / (self.rows + 3)  # +3 for top and bottom margins
+        # Calculate vertical spacing with appropriate margins
+        vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with few pegs at top, increasing as we go down
-        for row in range(self.rows):
-            # Calculate number of pegs for this row (increasing from top to bottom)
-            num_pegs = row + 1  
+        # Draw pegs - Start with many pegs at top, decreasing as we go down
+        for row in range(actual_rows):
+            # Calculate number of pegs for this row (decreasing from top to bottom)
+            # First row has most pegs, decreasing by 1 each row
+            num_pegs = actual_rows - row
             
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
-            y = vertical_spacing * (row + 2)  # Start drawing pegs a bit lower to leave space at top
+            y = vertical_spacing * (row + 1)  # Proper spacing from top
             
             for peg in range(num_pegs):
                 x = start_x + peg * horizontal_spacing
@@ -299,7 +302,7 @@ class PlinkoGame:
         bucket_height = multiplier_height * 0.8
         
         # Position buckets just below the last row of pegs
-        bucket_y = vertical_spacing * (self.rows + 2)
+        bucket_y = vertical_spacing * (actual_rows + 0.5)
 
         # Color mapping for multipliers
         def get_multiplier_color(multiplier):
