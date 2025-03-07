@@ -12,15 +12,15 @@ from Cogs.utils.emojis import emoji
 
 # Define the paytable with multipliers for each hand type
 paytable = {
-    "Royal Flush": 1000,
-    "Straight Flush": 200,
-    "Four of a Kind": 60,
+    "Royal Flush": 100,
+    "Straight Flush": 75,
+    "Four of a Kind": 45,
     "Full House": 25,
     "Flush": 20,
     "Straight": 15,
-    "Three of a Kind": 9,
-    "Two Pair": 4,
-    "One Pair": 1,
+    "Three of a Kind": 8,
+    "Two Pair": 3.5,
+    "One Pair": 0.96,
     "High Card": 0
 }
 
@@ -260,7 +260,7 @@ class Poker(commands.Cog):
             if held_cards[i]:
                 hold_pos = (start_x + (i * (card_width + card_spacing)) + card_width//2,
                            y_position + card_height + 15)
-                #draw.text(hold_pos, "HOLD", font=medium_font, fill=(255, 255, 255), anchor="mm")
+                draw.text(hold_pos, "held", font=small_font, fill=(255, 255, 255), anchor="mm")
 
         # Add win type at the bottom if final
         if is_final and win_type is not None:
@@ -477,15 +477,15 @@ class Poker(commands.Cog):
                     "3. Non-held cards are replaced with new ones\n"
                     "4. Your final hand determines your winnings\n\n"
                     "**Payouts:**\n"
-                    "- Royal Flush: 1000x\n"
-                    "- Straight Flush: 200x\n" 
-                    "- Four of a Kind: 60x\n"
+                    "- Royal Flush: 100x\n"
+                    "- Straight Flush: 75x\n" 
+                    "- Four of a Kind: 45x\n"
                     "- Full House: 25x\n"
                     "- Flush: 20x\n"
                     "- Straight: 15x\n"
-                    "- Three of a Kind: 9x\n"
-                    "- Two Pair: 4x\n"
-                    "- One Pair: 1x\n"
+                    "- Three of a Kind: 8x\n"
+                    "- Two Pair: 3.5x\n"
+                    "- One Pair: 0.96x\n"
                 ),
                 color=0x00FFAE
             )
