@@ -614,7 +614,12 @@ class Poker(commands.Cog):
         if multiplier > 0:
             # Win
             db.update_balance(ctx.author.id, winnings, "credits", "$inc")
-            db.update_stats(ctx.author.id, bet_amount, winnings, "win")
+            
+            # Update stats directly in the collection
+            db.collection.update_one(
+                {"discord_id": ctx.author.id},
+                {"$inc": {"total_won": 1, "total_earned": winnings, "total_played": 1}}
+            )
 
             # Add to history
             history_entry = {
@@ -659,7 +664,11 @@ class Poker(commands.Cog):
             )
         else:
             # Loss
-            db.update_stats(ctx.author.id, bet_amount, 0, "loss")
+            # Update stats directly in the collection
+            db.collection.update_one(
+                {"discord_id": ctx.author.id},
+                {"$inc": {"total_lost": 1, "total_played": 1, "total_spent": bet_amount}}
+            )
 
             # Add to history
             history_entry = {
