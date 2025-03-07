@@ -21,7 +21,7 @@ class PlayAgainView(discord.ui.View):
         self.author_id = ctx.author.id
 
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
-    async def play_again(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def play_again(self,button, interaction: discord.Interaction):
         if interaction.user.id != self.author_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
@@ -548,7 +548,7 @@ class HiLo(commands.Cog):
         
         # Draw K and arrow
         draw.text((left_x, guide_y + 40), "K", fill=guide_text_color, font=large_font, anchor="mm")
-        draw.text((left_x, guide_y + 80), "↑", fill=guide_text_color, font=large_font, anchor="mm")
+        #draw.text((left_x, guide_y + 80), "↑", fill=guide_text_color, font=large_font, anchor="mm")
         
         # Draw explanation text below guide box
         draw.text(
@@ -579,7 +579,7 @@ class HiLo(commands.Cog):
         
         # Draw A and arrow
         draw.text((right_x, guide_y + 40), "A", fill=guide_text_color, font=large_font, anchor="mm")
-        draw.text((right_x, guide_y + 80), "↓", fill=guide_text_color, font=large_font, anchor="mm")
+        #draw.text((right_x, guide_y + 80), "↓", fill=guide_text_color, font=large_font, anchor="mm")
         
         # Draw explanation text below guide box
         draw.text(
@@ -622,7 +622,7 @@ class HiLo(commands.Cog):
         )
         draw.text(
             (30 + section_width//2, bar_y + 50), 
-            f"↑ {format_profit(high_profit)} {currency}", 
+            f"{format_profit(high_profit)} {currency}", 
             fill=(255, 255, 255), 
             font=font, 
             anchor="mm"
@@ -639,7 +639,7 @@ class HiLo(commands.Cog):
         )
         draw.text(
             (30 + section_width + section_width//2, bar_y + 50), 
-            f"↓ {format_profit(low_profit)} {currency}", 
+            f"{format_profit(low_profit)} {currency}", 
             fill=(255, 255, 255), 
             font=font, 
             anchor="mm"
