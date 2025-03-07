@@ -284,14 +284,14 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with fewer pegs at top, increasing as we go down
+        # Draw pegs - Start with 3 pegs at top (2 gaps), increasing as we go down
         for row in range(actual_rows):
-            # Calculate number of pegs for this row (increasing from top to bottom)
-            # First row has fewest pegs, increasing by 1 each row
-            num_pegs = row + 1
+            # First row always has 3 pegs (2 gaps), then increases by 1 each row
+            num_pegs = row + 3
 
             # Calculate starting x position to center the pegs
-            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
+            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
+
             y = vertical_spacing * (row + 1)  # Proper spacing from top
 
             for peg in range(num_pegs):
@@ -613,7 +613,7 @@ class Plinko(commands.Cog):
         difficulty = difficulty.lower()
 
         # Validate rows
-        if rows is None or rows < 8 or rows > 16:
+        if rows is None or rows < 8 or rows >> 16:
             embed = discord.Embed(
                 title="❌ Invalid Rows",
                 description="Please choose a number of rows between 8 and 16.",
