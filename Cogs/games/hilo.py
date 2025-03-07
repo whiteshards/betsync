@@ -1,4 +1,3 @@
-
 import os
 import discord
 import random
@@ -48,7 +47,7 @@ class PlayAgainView(discord.ui.View):
 
             # Launch a new game
             await self.cog.hilo(ctx, bet_info["amount"], bet_info["currency"])
-            
+
         except Exception as e:
             # Handle any errors
             print(f"Error in Play Again: {e}")
@@ -80,28 +79,28 @@ class HiLoView(discord.ui.View):
     async def higher_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         await self.process_round(interaction, "high")
 
     @discord.ui.button(label="LOWER", style=discord.ButtonStyle.primary, emoji="⬇️")
     async def lower_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         await self.process_round(interaction, "low")
 
     @discord.ui.button(label="SKIP", style=discord.ButtonStyle.secondary, emoji="⏭️")
     async def skip_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         await self.process_round(interaction, "skip")
 
     @discord.ui.button(label="CASH OUT", style=discord.ButtonStyle.success, emoji="💰")
     async def cashout_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         await self.cash_out(interaction)
 
     async def cash_out(self, interaction):
@@ -109,57 +108,57 @@ class HiLoView(discord.ui.View):
         # Disable all buttons
         for child in self.children:
             child.disabled = True
-        
+
         self.game_over = True
         winnings = self.current_winnings
-        
+
         # Create final game image showing cash out
         game_image = await self.cog.create_game_image(self.current_card, self.previous_cards, 
                                                      0, 0, winnings, self.currency_used, 
                                                      cashed_out=True)
-        
+
         # Update the embed
         embed = discord.Embed(
             title="🃏 HiLo - CASHED OUT 💰",
             description=f"**{self.ctx.author.name}** cashed out with **{winnings:.2f}** {self.currency_used}!",
             color=discord.Color.green()
         )
-        
+
         embed.add_field(
             name="Multiplier",
             value=f"{self.current_multiplier:.2f}x",
             inline=True
         )
-        
+
         embed.add_field(
             name="Final Winnings", 
             value=f"{winnings:.2f} {self.currency_used}",
             inline=True
         )
-        
+
         embed.set_footer(text=f"BetSync Casino • {len(self.deck)} cards left in deck")
-        
+
         # Set the game image
         file = discord.File(fp=game_image, filename="hilo_game.png")
         embed.set_image(url="attachment://hilo_game.png")
-        
+
         await interaction.response.edit_message(embed=embed, file=file, view=self)
-        
+
         # Process winnings using the currency helper
         from Cogs.utils.currency_helper import process_win
         await process_win(self.ctx, winnings, self.currency_used, "hilo", skip_context=True)
-        
+
         # Add to user and server history
         self.cog.add_to_history(self.ctx.author.id, self.ctx.guild.id, winnings, self.bet_amount, "win", "hilo")
-        
+
         # Remove from ongoing games
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
-        
+
         # Add play again button
         view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
         view.message = self.message
-        
+
         await interaction.followup.send(
             f"Would you like to play again with {self.bet_amount} {self.currency_used}?",
             view=view
@@ -172,10 +171,10 @@ class HiLoView(discord.ui.View):
                 child.disabled = True
             await interaction.response.edit_message(view=self)
             return
-            
+
         # Get the next card
         new_card = self.deck.pop(0)
-        
+
         # Skip just changes the card without affecting winnings
         if choice == "skip":
             # Save current card to previous cards before updating
@@ -183,28 +182,35 @@ class HiLoView(discord.ui.View):
             # Keep only the last 5 previous cards to avoid crowding
             if len(self.previous_cards) > 5:
                 self.previous_cards.pop(0)
-                
+
             self.current_card = new_card
-            
+
             # Update potential profits
             self.calculate_potential_profits()
-            
+
             # Create game image
             game_image = await self.cog.create_game_image(self.current_card, self.previous_cards, 
                                                           self.high_profit, self.low_profit, 
                                                           self.current_winnings, self.currency_used)
-            
+
             # Update the embed with the image
             embed = self.create_game_embed()
             file = discord.File(fp=game_image, filename="hilo_game.png")
             embed.set_image(url="attachment://hilo_game.png")
-            
-            return await interaction.response.edit_message(embed=embed, file=file, view=self)
-            
+
+            try:
+                await interaction.response.edit_message(embed=embed, file=file, view=self)
+            except discord.errors.HTTPException as e:
+                print(f"HTTP Error when editing message: {e}")
+                # Try sending a new message if editing fails
+                await interaction.followup.send("There was an issue updating the game. Here's the current state:", embed=embed, file=file, view=self)
+
+            return
+
         # Check if the guess is correct
         current_value = self.get_card_value(self.current_card)
         new_value = self.get_card_value(new_card)
-        
+
         # Determine if player won
         won = False
         if choice == "high":
@@ -215,88 +221,93 @@ class HiLoView(discord.ui.View):
             # Win if new card is lower
             if new_value < current_value:
                 won = True
-                
+
         # Update the UI based on result
         if won:
             # Calculate new multiplier based on probability
             probability = self.calculate_probability(choice)
             new_multiplier = self.calculate_multiplier(probability)
-            
+
             # Save current card to previous cards
             self.previous_cards.append(self.current_card)
             # Keep only the last 5 previous cards
             if len(self.previous_cards) > 5:
                 self.previous_cards.pop(0)
-                
+
             # Update game state
             self.current_multiplier *= new_multiplier
             self.current_winnings = self.bet_amount * self.current_multiplier
             self.current_card = new_card
-            
+
             # Update potential profits
             self.calculate_potential_profits()
-            
+
             # Create game image
             game_image = await self.cog.create_game_image(self.current_card, self.previous_cards, 
                                                           self.high_profit, self.low_profit, 
                                                           self.current_winnings, self.currency_used)
-            
+
             # Update the embed with the image
             embed = self.create_game_embed(win=True)
             file = discord.File(fp=game_image, filename="hilo_game.png")
             embed.set_image(url="attachment://hilo_game.png")
-            
-            await interaction.response.edit_message(embed=embed, file=file, view=self)
+
+            try:
+                await interaction.response.edit_message(embed=embed, file=file, view=self)
+            except discord.errors.HTTPException as e:
+                print(f"HTTP Error when editing message: {e}")
+                # Try sending a new message if editing fails
+                await interaction.followup.send("There was an issue updating the game. Here's the current state:", embed=embed, file=file, view=self)
         else:
             # Game over - player lost
             self.game_over = True
-            
+
             # Disable all buttons
             for child in self.children:
                 child.disabled = True
-            
+
             # Add the last card to previous cards for the final image
             self.previous_cards.append(self.current_card)
             if len(self.previous_cards) > 5:
                 self.previous_cards.pop(0)
-                
+
             # Create final game image showing the losing card
             game_image = await self.cog.create_game_image(new_card, self.previous_cards, 
                                                           0, 0, 0, self.currency_used, 
                                                           game_over=True, lost_choice=choice)
-                
+
             # Create losing embed
             embed = discord.Embed(
                 title="🃏 HiLo - GAME OVER 💔",
                 description=f"**{self.ctx.author.name}** guessed {choice.upper()} and lost!",
                 color=discord.Color.red()
             )
-            
+
             embed.add_field(
                 name="Potential Winnings Lost", 
                 value=f"{self.current_winnings:.2f} {self.currency_used}",
                 inline=True
             )
-            
+
             embed.set_footer(text="BetSync Casino • Better luck next time!")
-            
+
             # Set the game image
             file = discord.File(fp=game_image, filename="hilo_game.png")
             embed.set_image(url="attachment://hilo_game.png")
-            
+
             await interaction.response.edit_message(embed=embed, file=file, view=self)
-            
+
             # Add to history
             self.cog.add_to_history(self.ctx.author.id, self.ctx.guild.id, 0, self.bet_amount, "loss", "hilo")
-            
+
             # Remove from ongoing games
             if self.ctx.author.id in self.cog.ongoing_games:
                 del self.cog.ongoing_games[self.ctx.author.id]
-                
+
             # Add play again button
             view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
             view.message = self.message
-            
+
             await interaction.followup.send(
                 f"Would you like to play again with {self.bet_amount} {self.currency_used}?",
                 view=view
@@ -310,32 +321,32 @@ class HiLoView(discord.ui.View):
             color = discord.Color.green()
         else:
             title = "🃏 HiLo - Choose Wisely"
-            
+
         embed = discord.Embed(
             title=title,
             description=f"Will the next card be higher or lower than the current one?",
             color=color
         )
-        
+
         embed.add_field(
             name="Current Multiplier",
             value=f"{self.current_multiplier:.2f}x",
             inline=True
         )
-        
+
         embed.add_field(
             name="Current Winnings", 
             value=f"{self.current_winnings:.2f} {self.currency_used}",
             inline=True
         )
-        
+
         embed.set_footer(text=f"BetSync Casino • {len(self.deck)} cards left in deck")
         return embed
-        
+
     def get_card_emoji(self, card):
         """Get emoji representation of a card"""
         value, suit = card
-        
+
         # Map suit to emoji
         suit_emoji = {
             "hearts": "♥️",
@@ -343,7 +354,7 @@ class HiLoView(discord.ui.View):
             "clubs": "♣️",
             "spades": "♠️"
         }
-        
+
         # Map value to display value
         value_map = {
             1: "A",
@@ -351,24 +362,24 @@ class HiLoView(discord.ui.View):
             12: "Q", 
             13: "K"
         }
-        
+
         display_value = value_map.get(value, str(value))
         return f"{display_value} {suit_emoji[suit]}"
-        
+
     def get_card_value(self, card):
         """Get numerical value of a card"""
         value, _ = card
         return value
-        
+
     def calculate_probability(self, choice):
         """Calculate probability of winning based on current card and choice"""
         current_value = self.get_card_value(self.current_card)
-        
+
         # Count higher, lower, and equal cards in the deck
         higher_count = 0
         lower_count = 0
         equal_count = 0
-        
+
         for card in self.deck:
             card_value = self.get_card_value(card)
             if card_value > current_value:
@@ -379,28 +390,28 @@ class HiLoView(discord.ui.View):
                 # Same value, different suit
                 if card[1] != self.current_card[1]:
                     equal_count += 1
-        
+
         # Calculate probability based on choice
         if choice == "high":
             return (higher_count + equal_count) / len(self.deck) if len(self.deck) > 0 else 0
         elif choice == "low":
             return lower_count / len(self.deck) if len(self.deck) > 0 else 0
         return 0
-        
+
     def calculate_multiplier(self, probability):
         """Calculate round multiplier based on probability"""
         house_edge = 0.04  # 4% house edge
         if probability <= 0:
             return 1.0  # Safety check
         return (1.0 - house_edge) / probability
-        
+
     def calculate_potential_profits(self):
         """Calculate potential profits for high and low bets"""
         # Calculate high probability and multiplier
         high_probability = self.calculate_probability("high")
         high_multiplier = self.calculate_multiplier(high_probability)
         self.high_profit = self.current_winnings * high_multiplier
-        
+
         # Calculate low probability and multiplier
         low_probability = self.calculate_probability("low")
         low_multiplier = self.calculate_multiplier(low_probability)
@@ -411,7 +422,7 @@ class HiLo(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
         self.card_cache = {}  # Cache for loaded card images
-        
+
     async def create_game_image(self, current_card, previous_cards, high_profit, low_profit, total_profit, 
                                currency, game_over=False, lost_choice=None, cashed_out=False):
         """Generate the game image similar to the provided example"""
@@ -420,7 +431,7 @@ class HiLo(commands.Cog):
         bg_color = (12, 26, 38)
         image = Image.new("RGB", (width, height), bg_color)
         draw = ImageDraw.Draw(image)
-        
+
         # Try to load font, fall back to default if not found
         try:
             font_path = "roboto.ttf"
@@ -431,22 +442,22 @@ class HiLo(commands.Cog):
             small_font = ImageFont.load_default()
             medium_font = ImageFont.load_default()
             large_font = ImageFont.load_default()
-        
+
         # Draw card value guides at the left and right (K and A)
         self.draw_card_guides(draw, width, small_font)
-        
+
         # Draw the current card in the center
         current_card_img = await self.get_card_image(current_card)
         current_card_pos = (width//2 - 60, height//2 - 180)
         image.paste(current_card_img, current_card_pos, current_card_img.convert("RGBA"))
-        
+
         # Draw profit information bar
         self.draw_profit_bar(draw, width, height, high_profit, low_profit, total_profit, currency, medium_font)
-        
+
         # Draw previous cards in reverse order (newest first)
         if previous_cards:
             self.draw_previous_cards(image, previous_cards, width, height)
-            
+
         # Add start card label to the first card in the sequence
         if previous_cards:
             # Calculate position for the first card in the list
@@ -454,10 +465,10 @@ class HiLo(commands.Cog):
                 start_card_index = 0
             else:
                 start_card_index = len(previous_cards) - 5
-                
+
             first_card_pos_x = 30
             first_card_pos_y = height - 180
-            
+
             # Draw green label
             draw.rectangle(
                 [first_card_pos_x, first_card_pos_y + 110, first_card_pos_x + 100, first_card_pos_y + 140], 
@@ -469,14 +480,14 @@ class HiLo(commands.Cog):
                 fill=(0, 0, 0), 
                 font=small_font
             )
-            
+
         # Convert to bytes for Discord
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         buffer.seek(0)
-        
+
         return buffer
-        
+
     def draw_card_guides(self, draw, width, font):
         """Draw the card value guides (K and A) with explanations"""
         # Left side - K guide
@@ -485,92 +496,92 @@ class HiLo(commands.Cog):
         draw.text((70, 210), "↑", fill=(100, 120, 130), font=font, anchor="mm")
         draw.text((70, 280), "KING BEING", fill=(100, 120, 130), font=font, anchor="mm")
         draw.text((70, 300), "THE HIGHEST", fill=(100, 120, 130), font=font, anchor="mm")
-        
+
         # Right side - A guide
         draw.rectangle([width - 110, 150, width - 30, 250], outline=(50, 60, 70), width=2)
         draw.text((width - 70, 180), "A", fill=(100, 120, 130), font=font, anchor="mm")
         draw.text((width - 70, 210), "↓", fill=(100, 120, 130), font=font, anchor="mm")
         draw.text((width - 70, 280), "ACE BEING", fill=(100, 120, 130), font=font, anchor="mm")
         draw.text((width - 70, 300), "THE LOWEST", fill=(100, 120, 130), font=font, anchor="mm")
-    
+
     def draw_profit_bar(self, draw, width, height, high_profit, low_profit, total_profit, currency, font):
         """Draw the profit information bar"""
         # Draw profit bar background
         bar_y = 420
         bar_height = 70
         draw.rectangle([20, bar_y, width - 20, bar_y + bar_height], fill=(30, 45, 55))
-        
+
         # Divide into three sections
         section_width = (width - 40) // 3
-        
+
         # Higher profit section
         draw.text((30 + section_width//2, bar_y + 20), f"Profit Higher ({self.format_multiplier(high_profit/total_profit if total_profit else 0)}×)", 
                  fill=(200, 220, 240), font=font, anchor="mm")
         draw.text((30 + section_width//2, bar_y + 50), f"↑ {high_profit:.8f} {currency}", 
                  fill=(255, 255, 255), font=font, anchor="mm")
-        
+
         # Lower profit section
         draw.text((30 + section_width + section_width//2, bar_y + 20), f"Profit Lower ({self.format_multiplier(low_profit/total_profit if total_profit else 0)}×)", 
                  fill=(200, 220, 240), font=font, anchor="mm")
         draw.text((30 + section_width + section_width//2, bar_y + 50), f"↓ {low_profit:.8f} {currency}", 
                  fill=(255, 255, 255), font=font, anchor="mm")
-        
+
         # Total profit section
         draw.text((30 + 2*section_width + section_width//2, bar_y + 20), f"Total Profit ({self.format_multiplier(1.0)}×)", 
                  fill=(200, 220, 240), font=font, anchor="mm")
         draw.text((30 + 2*section_width + section_width//2, bar_y + 50), f"{total_profit:.8f} {currency}", 
                  fill=(255, 255, 255), font=font, anchor="mm")
-    
+
     def format_multiplier(self, value):
         """Format multiplier to show 2 decimal places"""
         if isinstance(value, (int, float)):
             return f"{value:.2f}"
         return "0.00"
-    
+
     def draw_previous_cards(self, image, previous_cards, width, height):
         """Draw the previous cards in sequence"""
         # Start position for the first card
         card_x = 30
         card_y = height - 180
-        
+
         # We'll show at most 5 previous cards
         cards_to_show = previous_cards[-5:] if len(previous_cards) > 5 else previous_cards
-        
+
         # Draw each card
         for card in cards_to_show:
             card_img = self.get_card_image_sync(card)
             image.paste(card_img, (card_x, card_y), card_img.convert("RGBA"))
-            
+
             # Move to the next position
             card_x += 120
-            
+
             # If we reach the edge of the screen, stop
             if card_x > width - 120:
                 break
-    
+
     async def get_card_image(self, card):
         """Get the card image from assets folder or cache"""
         value, suit = card
-        
+
         # Convert card value to filename format
         value_map = {1: "A", 11: "J", 12: "Q", 13: "K"}
         card_value = value_map.get(value, str(value))
-        
+
         # Generate file path
         card_key = f"{suit}_{card_value}"
-        
+
         # Check if card is in cache
         if card_key in self.card_cache:
             return self.card_cache[card_key]
-        
+
         # Load the card image
         try:
             card_path = f"assests/{suit}_{card_value}.png"
             card_img = Image.open(card_path).convert("RGBA")
-            
+
             # Resize to standard size
             card_img = card_img.resize((120, 180))
-            
+
             # Store in cache
             self.card_cache[card_key] = card_img
             return card_img
@@ -579,40 +590,40 @@ class HiLo(commands.Cog):
             # Create a blank white card as fallback
             card_img = Image.new("RGBA", (120, 180), (255, 255, 255, 255))
             draw = ImageDraw.Draw(card_img)
-            
+
             # Add card value and suit text
             suit_symbol = {"hearts": "♥", "diamonds": "♦", "clubs": "♣", "spades": "♠"}
             text_color = (255, 0, 0) if suit in ["hearts", "diamonds"] else (0, 0, 0)
-            
+
             draw.text((60, 90), f"{card_value}\n{suit_symbol.get(suit, '')}", 
                      fill=text_color, anchor="mm")
-            
+
             self.card_cache[card_key] = card_img
             return card_img
-    
+
     def get_card_image_sync(self, card):
         """Synchronous version of get_card_image to use when drawing multiple cards"""
         value, suit = card
-        
+
         # Convert card value to filename format
         value_map = {1: "A", 11: "J", 12: "Q", 13: "K"}
         card_value = value_map.get(value, str(value))
-        
+
         # Generate file path
         card_key = f"{suit}_{card_value}"
-        
+
         # Check if card is in cache
         if card_key in self.card_cache:
             return self.card_cache[card_key]
-        
+
         # Load the card image
         try:
             card_path = f"assests/{suit}_{card_value}.png"
             card_img = Image.open(card_path).convert("RGBA")
-            
+
             # Resize to standard size
             card_img = card_img.resize((120, 180))
-            
+
             # Store in cache
             self.card_cache[card_key] = card_img
             return card_img
@@ -621,17 +632,17 @@ class HiLo(commands.Cog):
             # Create a blank white card as fallback
             card_img = Image.new("RGBA", (120, 180), (255, 255, 255, 255))
             draw = ImageDraw.Draw(card_img)
-            
+
             # Add card value and suit text
             suit_symbol = {"hearts": "♥", "diamonds": "♦", "clubs": "♣", "spades": "♠"}
             text_color = (255, 0, 0) if suit in ["hearts", "diamonds"] else (0, 0, 0)
-            
+
             draw.text((60, 90), f"{card_value}\n{suit_symbol.get(suit, '')}", 
                      fill=text_color, anchor="mm")
-            
+
             self.card_cache[card_key] = card_img
             return card_img
-    
+
     def add_to_history(self, user_id, server_id, amount, bet_amount, result_type, game):
         """Add game result to user and server history"""
         try:
@@ -645,7 +656,7 @@ class HiLo(commands.Cog):
                 "timestamp": int(time.time())
             }
             db.update_history(user_id, history_entry)
-            
+
             # Update server history
             server_db = Servers()
             server_history_entry = {
@@ -657,13 +668,13 @@ class HiLo(commands.Cog):
                 "timestamp": int(time.time())
             }
             server_db.update_history(server_id, server_history_entry)
-            
+
             # Update server profit
             if result_type == "win":
                 server_db.update_server_profit(server_id, -amount)
             else:
                 server_db.update_server_profit(server_id, bet_amount)
-                
+
         except Exception as e:
             print(f"Error updating history: {e}")
 
@@ -671,7 +682,7 @@ class HiLo(commands.Cog):
         """Create a standard deck of cards"""
         values = list(range(1, 14))  # 1 to 13 (Ace to King)
         suits = ["hearts", "diamonds", "clubs", "spades"]
-        
+
         deck = [(value, suit) for value in values for suit in suits]
         random.shuffle(deck)
         return deck
@@ -726,62 +737,62 @@ class HiLo(commands.Cog):
                 except:
                     pass
                 return await ctx.reply(embed=error_embed)
-                
+
             # Set up the game
             bet_amount = bet_info["amount"]
             currency_used = bet_info["currency"]
-            
+
             # Update loading message to indicate progress
             await loading_message.edit(embed=discord.Embed(
                 title=f"{loading_emoji} | Setting Up Game...",
                 description=f"Placing bet of {bet_amount} {currency_used}...",
                 color=0x00FFAE
             ))
-            
+
             # Create a shuffled deck of cards
             deck = self.create_deck()
-            
+
             # Draw the first card
             current_card = deck.pop(0)
-            
+
             # Create game view
             view = HiLoView(self, ctx, bet_amount, currency_used, deck, current_card)
-            
+
             # Calculate initial potential profits
             view.calculate_potential_profits()
-            
+
             # Update loading message again
             await loading_message.edit(embed=discord.Embed(
                 title=f"{loading_emoji} | Generating Game...",
                 description=f"Creating game display...",
                 color=0x00FFAE
             ))
-            
+
             # Generate the initial game image
             game_image = await self.create_game_image(current_card, [], 
                                                     view.high_profit, view.low_profit, 
                                                     view.current_winnings, currency_used)
-            
+
             # Create initial game embed
             embed = view.create_game_embed()
-            
+
             # Add the image to the embed
             file = discord.File(fp=game_image, filename="hilo_game.png")
             embed.set_image(url="attachment://hilo_game.png")
-            
+
             # Mark user as having an ongoing game
             self.ongoing_games[ctx.author.id] = "hilo"
-            
+
             # Send the game message
             message = await ctx.reply(embed=embed, file=file, view=view)
             view.message = message
-            
+
             # Delete loading message
             try:
                 await loading_message.delete()
             except:
                 pass
-                
+
         except Exception as e:
             # Handle any unexpected errors
             print(f"Error in HiLo game: {e}")
@@ -791,18 +802,18 @@ class HiLo(commands.Cog):
                 color=0xFF0000
             )
             error_embed.set_footer(text="If this issue persists, please contact a server admin.")
-            
+
             # Clean up ongoing game entry if it was created
             if ctx.author.id in self.ongoing_games:
                 del self.ongoing_games[ctx.author.id]
-                
+
             # Try to delete loading message if it exists
             try:
                 if 'loading_message' in locals():
                     await loading_message.delete()
             except:
                 pass
-                
+
             await ctx.reply(embed=error_embed)
 
 def setup(bot):
