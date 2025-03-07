@@ -9,3 +9,4 @@ colorama
 requests
 Pillow
 discord-py
+Pillow
