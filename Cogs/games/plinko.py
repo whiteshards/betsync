@@ -523,12 +523,13 @@ class PlinkoCog(commands.Cog):
         from Cogs.utils.currency_helper import process_bet_amount
         success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
         
-        # If processing failed, return
+        # If processing failed, return the error
         if not success:
-            return
+            await loading_message.delete()
+            return await ctx.reply(embed=error_embed)
         
         # Extract processed bet information
-        bet_amount = bet_info["amount"]
+        bet_amount = bet_info["total_bet_amount"]
         tokens_used = bet_info["tokens_used"] if "tokens_used" in bet_info else 0
         credits_used = bet_info["credits_used"] if "credits_used" in bet_info else 0
         currency_type = bet_info["currency_type"]
