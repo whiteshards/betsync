@@ -113,67 +113,98 @@ class HiLoView(discord.ui.View):
                                                      0, 0, winnings, self.currency_used, 
                                                      cashed_out=True)
 
-        # Update the embed
-        embed = discord.Embed(
-            title="🃏 HiLo - CASHED OUT 💰",
-            description=f"**{self.ctx.author.name}** cashed out with **{winnings:.2f}** {self.currency_used}!",
-            color=discord.Color.green()
-        )
-
-        embed.add_field(
-            name="Multiplier",
-            value=f"{self.current_multiplier:.2f}x",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Final Winnings", 
-            value=f"{winnings:.2f} {self.currency_used}",
-            inline=True
-        )
+        # Get database connections
+        from Cogs.utils.mongo import Users, Servers
+        db = Users()
         
-        # Add card history field if we have previous cards
-        if self.previous_cards:
-            # Format card history with newest cards first
-            card_history = []
-            for i, card in enumerate(self.previous_cards):
-                card_emoji = self.get_card_emoji(card)
-                if i == 0 and len(self.previous_cards) == len(card_history) + 1:
-                    card_history.append(f"**Start: {card_emoji}**")
-                else:
-                    card_history.append(card_emoji)
+        # Process winnings directly with mongo
+        try:
+            # Update user's balance
+            update_success = db.update_balance(self.ctx.author.id, winnings, self.currency_used, "$inc")
             
-            # Join the cards with arrows in between
-            card_history_text = " → ".join(card_history)
-            if len(card_history) > 0:
-                embed.add_field(
-                    name="Card History",
-                    value=card_history_text,
-                    inline=False
+            if not update_success:
+                # Handle the error
+                error_embed = discord.Embed(
+                    title="⚠️ Error Processing Winnings",
+                    description=f"There was an error processing your winnings. Please contact support.",
+                    color=discord.Color.red()
                 )
+                return await interaction.response.edit_message(embed=error_embed)
+                
+            # Update user stats
+            db.collection.update_one(
+                {"discord_id": self.ctx.author.id},
+                {"$inc": {"total_won": 1, "total_earned": winnings}}
+            )
+            
+            # Update the embed
+            embed = discord.Embed(
+                title="🃏 HiLo - CASHED OUT 💰",
+                description=f"**{self.ctx.author.name}** cashed out with **{winnings:.2f}** {self.currency_used}!",
+                color=discord.Color.green()
+            )
 
-        embed.set_footer(text=f"BetSync Casino • Play again with the button below")
+            embed.add_field(
+                name="Multiplier",
+                value=f"{self.current_multiplier:.2f}x",
+                inline=True
+            )
 
-        # Set the game image
-        file = discord.File(fp=game_image, filename="hilo_game.png")
-        embed.set_image(url="attachment://hilo_game.png")
+            embed.add_field(
+                name="Final Winnings", 
+                value=f"{winnings:.2f} {self.currency_used}",
+                inline=True
+            )
+            
+            # Add card history field if we have previous cards
+            if self.previous_cards:
+                # Format card history with newest cards first
+                card_history = []
+                for i, card in enumerate(self.previous_cards):
+                    card_emoji = self.get_card_emoji(card)
+                    if i == 0 and len(self.previous_cards) == len(card_history) + 1:
+                        card_history.append(f"**Start: {card_emoji}**")
+                    else:
+                        card_history.append(card_emoji)
+                
+                # Join the cards with arrows in between
+                card_history_text = " → ".join(card_history)
+                if len(card_history) > 0:
+                    embed.add_field(
+                        name="Card History",
+                        value=card_history_text,
+                        inline=False
+                    )
 
-        # Process winnings using the currency helper
-        from Cogs.utils.currency_helper import process_win
-        await process_win(self.ctx, winnings, self.currency_used, "hilo", skip_context=True)
+            embed.set_footer(text=f"BetSync Casino • Play again with the button below")
 
-        # Add to user and server history
-        self.cog.add_to_history(self.ctx.author.id, self.ctx.guild.id, winnings, self.bet_amount, "win", "hilo")
+            # Set the game image
+            file = discord.File(fp=game_image, filename="hilo_game.png")
+            embed.set_image(url="attachment://hilo_game.png")
 
-        # Remove from ongoing games
-        if self.ctx.author.id in self.cog.ongoing_games:
-            del self.cog.ongoing_games[self.ctx.author.id]
+            # Add to user and server history
+            self.cog.add_to_history(self.ctx.author.id, self.ctx.guild.id, winnings, self.bet_amount, "win", "hilo")
 
-        # Create a new view with just the Play Again button
-        view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
-        view.message = self.message
+            # Remove from ongoing games
+            if self.ctx.author.id in self.cog.ongoing_games:
+                del self.cog.ongoing_games[self.ctx.author.id]
 
-        await interaction.response.edit_message(embed=embed, file=file, view=view)
+            # Create a new view with just the Play Again button
+            view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
+            view.message = self.message
+
+            await interaction.response.edit_message(embed=embed, file=file, view=view)
+            
+        except Exception as e:
+            # Handle any unexpected errors
+            print(f"Error processing HiLo cash out: {e}")
+            error_embed = discord.Embed(
+                title="⚠️ Error Processing Winnings",
+                description=f"There was an error processing your winnings. Please try again or contact support.",
+                color=discord.Color.red()
+            )
+            error_embed.set_footer(text="BetSync Casino • Error logged")
+            await interaction.response.edit_message(embed=error_embed)
 
     async def process_round(self, interaction, choice):
         """Process a round of HiLo"""
