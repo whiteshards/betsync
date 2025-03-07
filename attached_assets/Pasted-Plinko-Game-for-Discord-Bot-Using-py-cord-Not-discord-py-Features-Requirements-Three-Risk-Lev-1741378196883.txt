@@ -1,0 +1,40 @@
+Plinko Game for Discord Bot (Using py-cord, Not discord.py)
+
+Features & Requirements:
+Three Risk Levels:
+
+Low, Medium, and High difficulty settings, each with distinct multipliers as provided.
+Higher multipliers on the sides, lower in the middle.
+Game Mechanics:
+
+Players initiate the game with !plinko (plk) <bet amt> <difficulty> <rows (8-16)> <currency_type> (optional).
+An embed appears with a “Drop” button, allowing users to drop one ball at a time.
+Players can drop as many balls as they like until they stop manually.
+Each ball follows true Plinko physics, bouncing left or right at each peg with appropriate probability distribution.
+Image Generation (High Quality, Inspired by Stake’s Plinko):
+
+Properly structured pegboard with clear spacing.
+Balls are white and visually distinct from the background.
+Multipliers are displayed with colorful backgrounds (adjust colors if needed to avoid clutter).
+Stretch the image if necessary to maintain clarity of multipliers and ball positions.
+A clean, subtle "Betsync" watermark in the middle of the image.
+A more visible "Betsync" watermark at the bottom right.
+Embed Design:
+
+Modern and sleek (colors matching the difficulty chosen).
+Displays bet amount, selected difficulty, number of rows, and current winnings.
+Updates in real-time as balls drop, showing the results dynamically.
+Includes a high-quality Plinko board image that visually represents where each ball landed.
+Error Handling & Validation:
+
+Ensure users input valid bet amounts, difficulty levels, and row numbers (8-16).
+Prevent spam/misuse (e.g., adding a short cooldown for the drop button).
+Utilize the currency_helper util for conversions and calculations.
+Handle cases where users lack sufficient balance.
+Miscellaneous Features:
+
+Works seamlessly within the existing casino bot ecosystem.
+Consistent with other games' styling, interactions, and error handling.
+The drop button disappears when the user stops dropping balls.
+
+add detailed error handling and make sure there are no errors when you generate the code and everything works fine, dont ruin my expectations.
