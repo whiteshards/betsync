@@ -77,8 +77,8 @@ class HoldButton(discord.ui.Button):
         embed.set_image(url="attachment://poker_game.png")
         embed.set_footer(text="BetSync Casino • Hold cards you want to keep")
 
-        await interaction.response.edit_message(embed=embed, view=self.view)
-        await interaction.message.edit(attachments=[file])
+        await interaction.response.edit_message(embed=embed, view=self.view, file=file)
+        #await interaction.message.edit(attachments=file)
 
 class PokerView(discord.ui.View):
     def __init__(self, cog, ctx, cards, user_id, bet_amount, timeout=60):
