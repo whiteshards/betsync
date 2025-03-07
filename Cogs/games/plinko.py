@@ -1,4 +1,3 @@
-
 import discord
 import random
 import io
@@ -7,6 +6,7 @@ from typing import List, Tuple
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 from Cogs.utils.mongo import Users, Servers
+import datetime
 
 # Define multiplier tables from the provided data
 MULTIPLIER_TABLES = {
@@ -68,7 +68,9 @@ class PlinkoGame:
         self.drops = 0
         self.ball_paths = []
         self.ball_results = []
-        
+        self.win_amount = 0 #added
+        self.server_id = ctx.guild.id #added
+
         # Set colors based on difficulty
         if difficulty == "low":
             self.color = RISK_COLORS["low_risk"]
@@ -85,7 +87,7 @@ class PlinkoGame:
         try:
             self.running = True
             self.view = PlinkoView(self)
-            
+
             # Create initial game embed
             embed = discord.Embed(
                 title=f"🎮 Plinko Game - {self.difficulty.capitalize()} Risk",
@@ -98,161 +100,144 @@ class PlinkoGame:
                 ),
                 color=self.color
             )
-            
+
             # Generate initial board image
             board_image = self.generate_board_image()
             file = discord.File(board_image, filename="plinko_board.png")
             embed.set_image(url="attachment://plinko_board.png")
             embed.set_footer(text=f"BetSync Casino • {self.ctx.author.name}'s Plinko Game")
-            
+
             # Send the initial message
             self.message = await self.ctx.send(embed=embed, file=file, view=self.view)
-            
+
         except Exception as e:
             print(f"Error starting Plinko game: {e}")
             self.running = False
             await self.ctx.send(f"Error starting the game: {e}")
-            
-    async def drop_ball(self):
-        """Process a single ball drop"""
-        if not self.running:
-            return
 
+    async def drop_ball(self):
+        """Drop a ball and update the game state"""
         try:
-            db = Users()
-            user_data = db.fetch_user(self.user_id)
-            
-            if not user_data:
-                await self.ctx.send(
-                    embed=discord.Embed(
-                        title="❌ Error",
-                        description="User account not found.",
-                        color=0xFF0000
-                    )
-                )
-                await self.end_game()
-                return
-                
-            current_balance = user_data.get(self.currency_type, 0)
-            
-            # Check if user has enough balance
-            if current_balance < self.bet_amount:
-                await self.ctx.send(
-                    embed=discord.Embed(
-                        title="❌ Insufficient Balance",
-                        description=f"You don't have enough {self.currency_type} to place this bet.",
-                        color=0xFF0000
-                    )
-                )
-                await self.end_game()
-                return
-                
-            # Deduct bet amount using $inc operation
-            db.update_balance(self.user_id, -self.bet_amount, self.currency_type, "$inc")
-            
-            # Update stats
-            db.collection.update_one(
-                {"discord_id": self.user_id},
-                {"$inc": {"total_played": 1, "total_spent": self.bet_amount}}
-            )
-            
-            # Get server for profit tracking
-            server_db = Servers()
-            server = server_db.fetch_server(self.ctx.guild.id)
-            
-            # Simulate the ball path
+            # Disable buttons during ball drop to prevent spam
+            for item in self.view.children:
+                item.disabled = True
+            await self.message.edit(view=self.view)
+
+            # Clear previous ball path if any
+            if self.ball_paths:
+                # Keep only the most recent path
+                self.ball_paths = []
+
+            # Simulate the ball path and landing
             path, landing_pos = self.simulate_ball_path()
+
+            # Store the path for rendering
             self.ball_paths.append(path)
-            
-            # Calculate winnings
+
+            # Get multiplier based on landing position
             multiplier = self.multiplier_table[landing_pos]
-            winnings = round(self.bet_amount * multiplier, 2)
-            self.ball_results.append((landing_pos, multiplier, winnings))
-            self.total_winnings += winnings
-            self.drops += 1
-            
-            # Update user balance with winnings
-            if winnings > 0:
-                db.update_balance(self.user_id, winnings, self.currency_type, "$inc")
-                db.collection.update_one(
-                    {"discord_id": self.user_id},
-                    {"$inc": {"total_earned": winnings, "total_won": 1}}
-                )
-            else:
-                db.collection.update_one(
-                    {"discord_id": self.user_id},
-                    {"$inc": {"total_lost": 1}}
-                )
-            
+            self.win_amount += self.bet_amount * multiplier
+
+            # Update the embed with the new ball drop
+            await self.update_game_embed()
+
+            # Update database for the user's balance
+            db = Users()
+            db_update = db.update_balance(self.user_id, self.bet_amount, self.currency_type, "$inc", -1)
+
+            # Update database for the win amount if applicable
+            if multiplier > 0:
+                win_update = db.update_balance(self.user_id, self.bet_amount * multiplier, self.currency_type, "$inc", 1)
+
+            # Add to history
+            total_profit = self.win_amount - (len(self.ball_paths) * self.bet_amount)
+
+            history_entry = {
+                "game": "plinko",
+                "timestamp": datetime.datetime.now(),
+                "bet_amount": self.bet_amount,
+                "win_amount": self.win_amount,
+                "profit": total_profit,
+                "details": {
+                    "difficulty": self.difficulty,
+                    "rows": self.rows,
+                    "balls_dropped": len(self.ball_paths),
+                    "multipliers": [self.multiplier_table[p[-1]] for p in self.ball_paths]
+                }
+            }
+
+            db.update_history(self.user_id, history_entry)
+
+            # Also update server history
+            servers_db = Servers()
+            servers_db.update_history(self.server_id, history_entry)
+
             # Update server profit
-            profit = self.bet_amount - winnings
-            if server:
-                server_db.collection.update_one(
-                    {"server_id": self.ctx.guild.id}, 
-                    {"$inc": {"total_profit": profit}}
-                )
-            
-            # Generate updated board image
-            board_image = self.generate_board_image()
-            file = discord.File(board_image, filename="plinko_board.png")
-            
-            # Create updated embed
-            net_profit = self.total_winnings - (self.bet_amount * self.drops)
+            server_profit = -total_profit  # Server profits when player loses
+            servers_db.update_server_profit(self.server_id, server_profit)
+
+            # Re-enable buttons after processing is complete
+            for item in self.view.children:
+                item.disabled = False
+            await self.message.edit(view=self.view)
+
+        except Exception as e:
+            print(f"Error in drop_ball: {e}")
+            # Re-enable buttons in case of error
+            for item in self.view.children:
+                item.disabled = False
+            await self.message.edit(view=self.view)
+
+    async def update_game_embed(self):
+        """Update the game embed with the latest information"""
+        try:
+            net_profit = self.win_amount - (self.bet_amount * self.drops)
             profit_display = f"**+{net_profit:.2f}**" if net_profit >= 0 else f"**{net_profit:.2f}**"
-            
+
             embed = discord.Embed(
                 title=f"🎮 Plinko Game - {self.difficulty.capitalize()} Risk",
                 description=(
                     f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Drops:** {self.drops}\n"
-                    f"**Total Winnings:** {self.total_winnings:.2f} {self.currency_type}\n"
+                    f"**Total Winnings:** {self.win_amount:.2f} {self.currency_type}\n"
                     f"**Net Profit:** {profit_display} {self.currency_type}\n\n"
-                    f"**Last Drop:** {multiplier}x multiplier → {winnings:.2f} {self.currency_type}"
+                    f"**Last Drop:** {self.multiplier_table[self.ball_paths[-1][-1]]}x multiplier → {self.bet_amount * self.multiplier_table[self.ball_paths[-1][-1]]:.2f} {self.currency_type}"
                 ),
                 color=self.color
             )
+            board_image = self.generate_board_image()
+            file = discord.File(board_image, filename="plinko_board.png")
             embed.set_image(url="attachment://plinko_board.png")
             embed.set_footer(text=f"BetSync Casino • {self.ctx.author.name}'s Plinko Game")
-            
-            # Update the message
+
             await self.message.edit(embed=embed, file=file, view=self.view)
-        
         except Exception as e:
-            print(f"Error in drop_ball: {e}")
-            await self.ctx.send(
-                embed=discord.Embed(
-                    title="❌ Error",
-                    description=f"An error occurred while processing your drop: {e}",
-                    color=0xFF0000
-                )
-            )
-    
+            print(f"Error updating Plinko embed: {e}")
+
+
     def simulate_ball_path(self) -> Tuple[List[int], int]:
-        """
-        Simulate a ball's path through the Plinko board
-        Returns the path (list of positions at each row) and final landing position
-        """
+        """Simulate a ball's path through the Plinko board"""
         path = []
         num_slots = len(self.multiplier_table)
-        
+
         # Start at the center for the first row
         position = (num_slots - self.rows) // 2
-        
+
         # For each row, the ball can go left or right at each peg
         for row in range(self.rows):
             # Calculate how many pegs are in this row
             # In our new arrangement, last row has num_slots - 1 pegs
-            current_row_pegs = num_slots - row - 1
-            
+            current_row_pegs = num_slots - row -1
+
             # Add current position to path
             path.append(position)
-            
+
             # True physics-based Plinko has roughly 50/50 chance at each peg
             # Add slight bias toward center for realism
             center = current_row_pegs / 2
             center_bias = 0.02 * abs(position - center)
-            
+
             # Decide direction (left or right)
             if random.random() < 0.5 - center_bias:
                 # Ball goes to the right gap (stay at same position)
@@ -260,16 +245,16 @@ class PlinkoGame:
             else:
                 # Ball goes to the left gap (position + 1)
                 position += 1
-                
+
             # Ensure position stays within bounds for next row
             position = max(0, min(position, current_row_pegs))
-        
+
         # Final landing position is the last position in the path
         final_pos = position
-        
+
         # Return the path and final landing position
         return path, final_pos
-    
+
     def generate_board_image(self) -> io.BytesIO:
         """Generate a visual representation of the Plinko board"""
         # Constants for board rendering
@@ -278,11 +263,11 @@ class PlinkoGame:
         peg_radius = 8
         ball_radius = 12
         multiplier_height = 80
-        
+
         # Calculate board dimensions
         board_width = width
         board_height = height - multiplier_height
-        
+
         # Create a new image
         img = Image.new('RGBA', (width, height), (40, 44, 52, 255))  # Dark background
         draw = ImageDraw.Draw(img)
@@ -297,33 +282,33 @@ class PlinkoGame:
             title_font = ImageFont.load_default()
             multiplier_font = ImageFont.load_default()
             watermark_font = ImageFont.load_default()
-            
+
         # Calculate spacing to ensure the number of slots at the bottom matches the number of multipliers
         num_slots = len(self.multiplier_table)
         horizontal_spacing = board_width / (num_slots + 1)
         vertical_spacing = board_height / (self.rows + 2)  # +2 for top and bottom margins
-        
+
         # Draw pegs
         for row in range(self.rows):
             # Each row should have (number of multipliers - row) pegs to ensure proper alignment
             # For the bottom row, we need (num_slots - 1) pegs to create num_slots gaps
             num_pegs = num_slots - row
-            
+
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
             y = vertical_spacing * (row + 1)
-            
+
             for peg in range(num_pegs):
                 x = start_x + peg * horizontal_spacing
                 draw.ellipse((x - peg_radius, y - peg_radius, x + peg_radius, y + peg_radius), 
                              fill=(230, 230, 230, 255))  # White pegs
-        
+
         # Draw multiplier buckets at the bottom - one for each multiplier
         bucket_width = horizontal_spacing * 0.9
         bucket_height = multiplier_height * 0.8
         # Move buckets closer to the pegs
         bucket_y = board_height - bucket_height/2
-        
+
         # Color mapping for multipliers
         def get_multiplier_color(multiplier):
             if multiplier >= 10:
@@ -334,11 +319,11 @@ class PlinkoGame:
                 return (0, 191, 255, 255)  # Blue for neutral multipliers
             else:
                 return (158, 158, 158, 255)  # Grey for low multipliers
-        
+
         # Draw multiplier buckets
         for i, multiplier in enumerate(self.multiplier_table):
             x = horizontal_spacing * (i + 1)
-            
+
             # Draw bucket
             bucket_color = get_multiplier_color(multiplier)
             draw.rectangle(
@@ -346,7 +331,7 @@ class PlinkoGame:
                 fill=bucket_color,
                 outline=(255, 255, 255, 100)
             )
-            
+
             # Draw multiplier text
             text_color = (255, 255, 255, 255)  # White text
             multiplier_text = f"{multiplier}x"
@@ -356,7 +341,7 @@ class PlinkoGame:
             text_x = x - text_width / 2
             text_y = bucket_y + (bucket_height - text_height) / 2
             draw.text((text_x, text_y), multiplier_text, font=multiplier_font, fill=text_color)
-            
+
         # Add subtle BetSync watermark in the middle
         watermark_text = "BetSync"
         watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
@@ -364,7 +349,7 @@ class PlinkoGame:
         watermark_x = (width - watermark_width) / 2
         watermark_y = board_height / 2 - 20
         draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(255, 255, 255, 40))
-        
+
         # Add more visible BetSync watermark at the bottom right
         bottom_watermark = "BetSync"
         bottom_watermark_bbox = draw.textbbox((0, 0), bottom_watermark, font=multiplier_font)
@@ -373,14 +358,14 @@ class PlinkoGame:
         bottom_watermark_y = height - 25
         draw.text((bottom_watermark_x, bottom_watermark_y), bottom_watermark, 
                   font=multiplier_font, fill=(255, 255, 255, 180))
-        
+
         # Draw only the most recent ball
         if self.ball_paths and len(self.ball_paths[-1]) > 0:
             final_pos = self.ball_paths[-1][-1]
             # Align with the gaps between pegs
             final_x = horizontal_spacing * (final_pos + 1)
             final_y = board_height - ball_radius
-            
+
             # Draw the ball
             draw.ellipse(
                 (final_x - ball_radius, final_y - ball_radius, 
@@ -388,64 +373,64 @@ class PlinkoGame:
                 fill=(255, 255, 255, 255),  # White ball
                 outline=(255, 0, 0, 255)    # Red outline
             )
-        
+
         # Save to a BytesIO object
         img_buffer = io.BytesIO()
         img.save(img_buffer, format='PNG')
         img_buffer.seek(0)
-        
+
         return img_buffer
-    
+
     async def end_game(self, interaction=None):
         """End the Plinko game normally"""
         if not self.running:
             return
-            
+
         self.running = False
-        
+
         # Disable buttons
         for child in self.view.children:
             child.disabled = True
-            
+
         try:
             # Final update to the message
             if self.message:
-                net_profit = self.total_winnings - (self.bet_amount * self.drops)
+                net_profit = self.win_amount - (self.bet_amount * self.drops)
                 profit_display = f"**+{net_profit:.2f}**" if net_profit >= 0 else f"**{net_profit:.2f}**"
-                
+
                 embed = discord.Embed(
                     title=f"🎮 Plinko Game - Finished",
                     description=(
                         f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                         f"**Rows:** {self.rows}\n"
                         f"**Total Drops:** {self.drops}\n"
-                        f"**Total Winnings:** {self.total_winnings:.2f} {self.currency_type}\n"
+                        f"**Total Winnings:** {self.win_amount:.2f} {self.currency_type}\n"
                         f"**Net Profit:** {profit_display} {self.currency_type}\n\n"
                         "Thanks for playing Plinko!"
                     ),
                     color=self.color
                 )
-                
+
                 board_image = self.generate_board_image()
                 file = discord.File(board_image, filename="plinko_board.png")
                 embed.set_image(url="attachment://plinko_board.png")
                 embed.set_footer(text=f"BetSync Casino • Game Finished")
-                
+
                 await self.message.edit(embed=embed, file=file, view=self.view)
         except Exception as e:
             print(f"Error ending Plinko game: {e}")
-            
+
         # Clean up
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
-    
+
     async def timeout_game(self):
         """Handle game timeout"""
         if not self.running:
             return
-            
+
         self.running = False
-        
+
         try:
             # Final timeout message
             embed = discord.Embed(
@@ -454,25 +439,25 @@ class PlinkoGame:
                     f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Total Drops:** {self.drops}\n"
-                    f"**Total Winnings:** {self.total_winnings:.2f} {self.currency_type}\n\n"
+                    f"**Total Winnings:** {self.win_amount:.2f} {self.currency_type}\n\n"
                     "Game timed out due to inactivity."
                 ),
                 color=discord.Color.dark_gray()
             )
-            
+
             # Disable all buttons
             for child in self.view.children:
                 child.disabled = True
-                
+
             board_image = self.generate_board_image()
             file = discord.File(board_image, filename="plinko_board.png")
             embed.set_image(url="attachment://plinko_board.png")
             embed.set_footer(text=f"BetSync Casino • Game Timed Out")
-            
+
             await self.message.edit(embed=embed, file=file, view=self.view)
         except Exception as e:
             print(f"Error handling Plinko timeout: {e}")
-            
+
         # Clean up
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
@@ -490,7 +475,7 @@ class PlinkoView(discord.ui.View):
         )
         self.drop_button.callback = self.drop_callback
         self.add_item(self.drop_button)
-        
+
         self.stop_button = discord.ui.Button(
             style=discord.ButtonStyle.danger,
             label="Stop",
@@ -499,7 +484,7 @@ class PlinkoView(discord.ui.View):
         )
         self.stop_button.callback = self.stop_callback
         self.add_item(self.stop_button)
-        
+
         # Add a cooldown to prevent spam
         self.last_drop_time = 0
         self.cooldown = 1.5  # 1.5 seconds cooldown between drops
@@ -509,7 +494,7 @@ class PlinkoView(discord.ui.View):
             # Check if the interaction is from the game owner
             if interaction.user.id != self.game.user_id:
                 return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
             # Check for cooldown
             current_time = time.time()
             if current_time - self.last_drop_time < self.cooldown:
@@ -518,23 +503,23 @@ class PlinkoView(discord.ui.View):
                     f"Please wait {remaining} seconds before dropping another ball.", 
                     ephemeral=True
                 )
-            
+
             self.last_drop_time = current_time
-            
+
             # Disable buttons during ball drop to prevent spam
             self.drop_button.disabled = True
             self.stop_button.disabled = True
-            
+
             # Update the view with disabled buttons
             await interaction.response.edit_message(view=self)
-            
+
             # Drop the ball
             await self.game.drop_ball()
-            
+
             # Re-enable buttons after drop is complete
             self.drop_button.disabled = False
             self.stop_button.disabled = False
-            
+
             # View will be updated by the drop_ball method
         except Exception as e:
             print(f"Error in drop_callback: {e}")
@@ -548,16 +533,16 @@ class PlinkoView(discord.ui.View):
             # Check if the interaction is from the game owner
             if interaction.user.id != self.game.user_id:
                 return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
             # Acknowledge the interaction
             await interaction.response.defer(ephemeral=False)
-            
+
             # End the game
             await self.game.end_game(interaction)
         except Exception as e:
             print(f"Error in stop_callback: {e}")
             await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
-        
+
     async def on_timeout(self):
         """Handle view timeout - auto-end the game after timeout period"""
         if self.game.running:
@@ -571,15 +556,15 @@ class Plinko(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}  # Store ongoing games for each user
-        
+
     @commands.command(aliases=["plk"])
     async def plinko(self, ctx, bet_amount: float = None, difficulty: str = None, rows: int = None, currency_type: str = "tokens"):
         """
         Play a game of Plinko
-        
+
         Usage: !plinko <bet amount> <difficulty> <rows> <currency_type>
         Example: !plinko 10 medium 12 tokens
-        
+
         Difficulty: low, medium, high
         Rows: 8-16
         Currency: tokens, credits
@@ -592,7 +577,7 @@ class Plinko(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Validate bet amount
         if bet_amount is None or bet_amount <= 0:
             embed = discord.Embed(
@@ -606,7 +591,7 @@ class Plinko(commands.Cog):
                 inline=False
             )
             return await ctx.reply(embed=embed)
-            
+
         # Validate difficulty
         if difficulty is None or difficulty.lower() not in ["low", "medium", "high"]:
             embed = discord.Embed(
@@ -620,10 +605,10 @@ class Plinko(commands.Cog):
                 inline=False
             )
             return await ctx.reply(embed=embed)
-            
+
         # Normalize difficulty
         difficulty = difficulty.lower()
-            
+
         # Validate rows
         if rows is None or rows < 8 or rows > 16:
             embed = discord.Embed(
@@ -637,7 +622,7 @@ class Plinko(commands.Cog):
                 inline=False
             )
             return await ctx.reply(embed=embed)
-            
+
         # Validate currency type
         currency_type = currency_type.lower()
         if currency_type not in ["token", "tokens", "credit", "credits"]:
@@ -652,17 +637,17 @@ class Plinko(commands.Cog):
                 inline=False
             )
             return await ctx.reply(embed=embed)
-            
+
         # Normalize currency type
         if currency_type in ["token", "tokens"]:
             currency_db_field = "tokens"
         else:
             currency_db_field = "credits"
-            
+
         # Check if the user exists in the database
         db = Users()
         user_data = db.fetch_user(ctx.author.id)
-        
+
         if not user_data:
             embed = discord.Embed(
                 title="❌ Account Not Found",
@@ -670,10 +655,10 @@ class Plinko(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Check if the user has enough balance
         user_balance = user_data.get(currency_db_field, 0)
-        
+
         if user_balance < bet_amount:
             embed = discord.Embed(
                 title="❌ Insufficient Balance",
@@ -681,7 +666,7 @@ class Plinko(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Create and start the game
         try:
             # Create the game
@@ -694,13 +679,13 @@ class Plinko(commands.Cog):
                 user_id=ctx.author.id,
                 currency_type=currency_db_field
             )
-            
+
             # Store the game
             self.ongoing_games[ctx.author.id] = game
-            
+
             # Start the game
             await game.start_game()
-            
+
         except Exception as e:
             print(f"Error creating Plinko game: {e}")
             embed = discord.Embed(
@@ -709,7 +694,7 @@ class Plinko(commands.Cog):
                 color=0xFF0000
             )
             await ctx.reply(embed=embed)
-            
+
     @plinko.error
     async def plinko_error(self, ctx, error):
         """Handle errors for the plinko command"""
