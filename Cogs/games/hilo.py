@@ -470,18 +470,32 @@ class HiLo(commands.Cog):
                 start_card_index = len(previous_cards) - 5
 
             first_card_pos_x = 30
-            first_card_pos_y = height - 150  # Adjusted position
-
-            # Draw green label
-            draw.rectangle(
-                [first_card_pos_x, first_card_pos_y + 85, first_card_pos_x + 80, first_card_pos_y + 110], 
+            first_card_pos_y = height - 180  # Adjusted position to match new card position
+            
+            # Get smaller label width that matches the card width
+            label_width = 70
+            
+            # Position label at the bottom of the card with some margin
+            label_y = first_card_pos_y + 95
+            
+            # Draw green label with rounded corners (increased radius)
+            draw.rounded_rectangle(
+                [first_card_pos_x, label_y, first_card_pos_x + label_width, label_y + 20], 
+                radius=8,  # More rounded corners
                 fill=(0, 255, 0)
             )
+            
+            # Use smaller font size for the text
+            try:
+                label_font = ImageFont.truetype("roboto.ttf", 13)  # Smaller font
+            except Exception:
+                label_font = small_font
+                
             draw.text(
-                (first_card_pos_x + 40, first_card_pos_y + 97), 
+                (first_card_pos_x + label_width//2, label_y + 10), 
                 "Start Card", 
                 fill=(0, 0, 0), 
-                font=small_font,
+                font=label_font,
                 anchor="mm"
             )
 
@@ -634,12 +648,13 @@ class HiLo(commands.Cog):
 
     def draw_previous_cards(self, image, previous_cards, width, height):
         """Draw the previous cards in sequence - smaller with better spacing"""
-        # Start position for the first card in history
+        # Start position for the first card in history - always start from left
         start_x = 30
-        card_y = height - 150  # Moved up slightly
+        # Adjust card position to have proper margin from bottom
+        card_y = height - 180  
         
         # Calculate card size (make them smaller)
-        card_width, card_height = 90, 135  # 75% of original size
+        card_width, card_height = 80, 120  # Smaller size (66% of original size)
         
         # Spacing between cards
         spacing = 20
@@ -650,11 +665,7 @@ class HiLo(commands.Cog):
         # Calculate total width needed
         total_width = len(cards_to_show) * (card_width + spacing) - spacing
         
-        # Center the cards horizontally if there are fewer than 5
-        if len(cards_to_show) < 5:
-            start_x = (width - total_width) // 2
-        
-        # Current x position
+        # Always start from the left edge
         card_x = start_x
         
         # Draw each card
