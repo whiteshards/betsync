@@ -118,13 +118,16 @@ class PokerView(discord.ui.View):
         # Store message reference for replace_cards function
         if not self.message:
             self.message = interaction.message
+        
+        # Make sure we have the message for the replace_cards function
+        self.message = interaction.message
             
+        # Call replace_cards to handle the game result
+        await self.cog.replace_cards(self.ctx, self.cards, self.held_cards, self.bet_amount, self.message)
+        
         # Remove from ongoing games after handling the deal action
         if self.user_id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.user_id]
-
-        # Replace unheld cards
-        await self.cog.replace_cards(self.ctx, self.cards, self.held_cards, self.bet_amount, self.message)
 
     async def on_timeout(self):
         
@@ -563,16 +566,24 @@ class Poker(commands.Cog):
         # Get the ongoing game data
         game_data = self.ongoing_games.get(ctx.author.id)
         if not game_data:
-            return
-
-        deck = game_data["deck"]
+            # If no game data is found, create a new deck as a fallback
+            deck = CardDeck()
+        else:
+            deck = game_data["deck"]
 
         # Replace the cards that are not held
         final_cards = cards.copy()
         for i, held in enumerate(held_cards):
             if not held:
-                new_card = deck.draw_cards(1)[0]
-                final_cards[i] = new_card
+                try:
+                    new_card = deck.draw_cards(1)[0]
+                    final_cards[i] = new_card
+                except Exception as e:
+                    print(f"Error drawing card: {e}")
+                    # If we can't draw a card, create a new deck and draw from it
+                    new_deck = CardDeck()
+                    new_card = new_deck.draw_cards(1)[0]
+                    final_cards[i] = new_card
 
         # Evaluate the final hand
         hand_type = self.evaluate_hand(final_cards)
