@@ -112,17 +112,17 @@ class HiLoView(discord.ui.View):
         # Create final game image showing cash out
         game_image = await self.cog.create_game_image(self.current_card, self.previous_cards, 
                                                      0, 0, winnings, self.currency_used, 
-                                                     cashed_out=True)
+                                                     cashed_out=True, current_winnings=self.current_winnings)
 
         # Get database connections
         from Cogs.utils.mongo import Users, Servers
         db = Users()
-        
+
         # Process winnings directly with mongo
         try:
             # Update user's balance
             update_success = db.update_balance(self.ctx.author.id, winnings, self.currency_used, "$inc")
-            
+
             if not update_success:
                 # Handle the error
                 error_embed = discord.Embed(
@@ -131,13 +131,13 @@ class HiLoView(discord.ui.View):
                     color=discord.Color.red()
                 )
                 return await interaction.response.edit_message(embed=error_embed)
-                
+
             # Update user stats
             db.collection.update_one(
                 {"discord_id": self.ctx.author.id},
                 {"$inc": {"total_won": 1, "total_earned": winnings}}
             )
-            
+
             # Update the embed
             embed = discord.Embed(
                 title="🃏 HiLo - CASHED OUT 💰",
@@ -156,7 +156,7 @@ class HiLoView(discord.ui.View):
                 value=f"{winnings:.2f} {self.currency_used}",
                 inline=True
             )
-            
+
             # Add card history field if we have previous cards
             if self.previous_cards:
                 # Format card history with newest cards first
@@ -167,7 +167,7 @@ class HiLoView(discord.ui.View):
                         card_history.append(f"**Start: {card_emoji}**")
                     else:
                         card_history.append(card_emoji)
-                
+
                 # Join the cards with arrows in between
                 card_history_text = " → ".join(card_history)
                 if len(card_history) > 0:
@@ -195,7 +195,7 @@ class HiLoView(discord.ui.View):
             view.message = self.message
 
             await interaction.response.edit_message(embed=embed, file=file, view=view)
-            
+
         except Exception as e:
             # Handle any unexpected errors
             print(f"Error processing HiLo cash out: {e}")
@@ -229,10 +229,10 @@ class HiLoView(discord.ui.View):
                 )
                 await interaction.response.send_message(embed=error_embed, ephemeral=True)
                 return
-                
+
             # Increment skip counter
             self.skips_used += 1
-            
+
             # Save current card to previous cards before updating
             self.previous_cards.append(self.current_card)
             # Keep only the last 5 previous cards to avoid crowding
@@ -247,7 +247,8 @@ class HiLoView(discord.ui.View):
             # Create game image
             game_image = await self.cog.create_game_image(self.current_card, self.previous_cards, 
                                                           self.high_profit, self.low_profit, 
-                                                          self.current_winnings, self.currency_used)
+                                                          self.current_winnings, self.currency_used,
+                                                          current_winnings=self.current_winnings)
 
             # Update the embed with the image
             embed = self.create_game_embed()
@@ -301,7 +302,8 @@ class HiLoView(discord.ui.View):
             # Create game image
             game_image = await self.cog.create_game_image(self.current_card, self.previous_cards, 
                                                           self.high_profit, self.low_profit, 
-                                                          self.current_winnings, self.currency_used)
+                                                          self.current_winnings, self.currency_used,
+                                                          current_winnings=self.current_winnings)
 
             # Update the embed with the image
             embed = self.create_game_embed(win=True)
@@ -326,7 +328,7 @@ class HiLoView(discord.ui.View):
             # Create final game image showing the losing card
             game_image = await self.cog.create_game_image(new_card, self.previous_cards, 
                                                           0, 0, 0, self.currency_used, 
-                                                          game_over=True, lost_choice=choice)
+                                                          game_over=True, lost_choice=choice, current_winnings=self.current_winnings)
 
             # Create losing embed
             embed = discord.Embed(
@@ -340,7 +342,7 @@ class HiLoView(discord.ui.View):
                 value=f"{self.current_winnings:.2f} {self.currency_used}",
                 inline=True
             )
-            
+
             # Add card history field 
             if self.previous_cards:
                 # Format card history
@@ -351,10 +353,10 @@ class HiLoView(discord.ui.View):
                         card_history.append(f"**Start: {card_emoji}**")
                     else:
                         card_history.append(card_emoji)
-                
+
                 # Add the final losing card
                 card_history.append(f"❌ {self.get_card_emoji(new_card)}")
-                
+
                 # Join the cards with arrows in between
                 card_history_text = " → ".join(card_history)
                 if len(card_history) > 0:
@@ -380,7 +382,7 @@ class HiLoView(discord.ui.View):
             # Create play again view
             view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
             view.message = self.message
-            
+
             # Update the message with the embed and play again button
             await interaction.response.edit_message(embed=embed, file=file, view=view)
 
@@ -410,14 +412,14 @@ class HiLoView(discord.ui.View):
             value=f"{self.current_winnings:.2f} {self.currency_used}",
             inline=True
         )
-        
+
         if self.skips_used > 0:
             embed.add_field(
                 name="Skip Used",
                 value=f"{self.skips_used}/1",
                 inline=True
             )
-        
+
         # Add card history field if we have previous cards
         if self.previous_cards:
             # Format card history with newest cards first
@@ -428,7 +430,7 @@ class HiLoView(discord.ui.View):
                     card_history.append(f"**Start: {card_emoji}**")
                 else:
                     card_history.append(card_emoji)
-            
+
             # Join the cards with arrows in between
             card_history_text = " → ".join(card_history)
             if len(card_history) > 0:
@@ -522,7 +524,7 @@ class HiLo(commands.Cog):
         self.card_cache = {}  # Cache for loaded card images
 
     async def create_game_image(self, current_card, previous_cards, high_profit, low_profit, total_profit, 
-                               currency, game_over=False, lost_choice=None, cashed_out=False):
+                               currency, game_over=False, lost_choice=None, cashed_out=False, current_winnings=0):
         """Generate the game image similar to the provided example"""
         # Create base canvas (dark blue background)
         width, height = 1000, 500  # Reduced height since we're not showing previous cards
@@ -553,7 +555,7 @@ class HiLo(commands.Cog):
         image.paste(current_card_img, current_card_pos, current_card_img.convert("RGBA"))
 
         # Draw profit information bar
-        self.draw_profit_bar(draw, width, height, high_profit, low_profit, total_profit, currency, small_font)
+        self.draw_profit_bar(draw, width, height, high_profit, low_profit, total_profit, currency, small_font, current_winnings)
 
         # Convert to bytes for Discord
         buffer = io.BytesIO()
@@ -567,12 +569,12 @@ class HiLo(commands.Cog):
         # Card guide styling
         guide_border_color = (30, 40, 50)
         guide_text_color = (120, 140, 150)
-        
+
         # Left side - K guide (larger and more visible)
         guide_width, guide_height = 120, 150
         left_x = 120
         guide_y = 150
-        
+
         # Draw rounded rectangle for K guide
         draw.rectangle(
             [left_x - guide_width//2, guide_y, left_x + guide_width//2, guide_y + guide_height], 
@@ -580,11 +582,11 @@ class HiLo(commands.Cog):
             outline=guide_border_color, 
             width=2
         )
-        
+
         # Draw K and arrow
         draw.text((left_x, guide_y + 40), "K", fill=guide_text_color, font=large_font, anchor="mm")
         #draw.text((left_x, guide_y + 80), "↑", fill=guide_text_color, font=large_font, anchor="mm")
-        
+
         # Draw explanation text below guide box
         draw.text(
             (left_x, guide_y + guide_height + 30), 
@@ -603,7 +605,7 @@ class HiLo(commands.Cog):
 
         # Right side - A guide (larger and more visible)
         right_x = width - 120
-        
+
         # Draw rounded rectangle for A guide
         draw.rectangle(
             [right_x - guide_width//2, guide_y, right_x + guide_width//2, guide_y + guide_height], 
@@ -611,11 +613,11 @@ class HiLo(commands.Cog):
             outline=guide_border_color, 
             width=2
         )
-        
+
         # Draw A and arrow
         draw.text((right_x, guide_y + 40), "A", fill=guide_text_color, font=large_font, anchor="mm")
         #draw.text((right_x, guide_y + 80), "↓", fill=guide_text_color, font=large_font, anchor="mm")
-        
+
         # Draw explanation text below guide box
         draw.text(
             (right_x, guide_y + guide_height + 30), 
@@ -632,7 +634,7 @@ class HiLo(commands.Cog):
             anchor="mm"
         )
 
-    def draw_profit_bar(self, draw, width, height, high_profit, low_profit, total_profit, currency, font):
+    def draw_profit_bar(self, draw, width, height, high_profit, low_profit, total_profit, currency, font, current_winnings):
         """Draw the profit information bar with improved styling matching reference"""
         # Draw profit bar background
         bar_y = 420
@@ -681,7 +683,7 @@ class HiLo(commands.Cog):
         )
 
         # Total profit section with current multiplier
-        current_mult = total_profit/self.current_winnings if self.current_winnings and total_profit != self.current_winnings else 1.0
+        current_mult = total_profit/current_winnings if current_winnings and total_profit != current_winnings else 1.0
         draw.text(
             (30 + 2*section_width + section_width//2, bar_y + 20), 
             f"Total Profit ({self.format_multiplier(current_mult)}×)", 
@@ -751,7 +753,7 @@ class HiLo(commands.Cog):
         """Synchronous version of get_card_image to use when drawing multiple cards"""
         value, suit = card
 
-        # Convert card value to filename format
+        # Convert card value to filenameformat
         value_map = {1: "A", 11: "J", 12: "Q", 13: "K"}
         card_value = value_map.get(value, str(value))
 
@@ -924,7 +926,7 @@ class HiLo(commands.Cog):
             # Generate the initial game image
             game_image = await self.create_game_image(current_card, [], 
                                                     view.high_profit, view.low_profit, 
-                                                    view.current_winnings, currency_used)
+                                                    view.current_winnings, currency_used, current_winnings=view.current_winnings)
 
             # Create initial game embed
             embed = view.create_game_embed()
