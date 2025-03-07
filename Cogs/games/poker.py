@@ -1,4 +1,3 @@
-
 import discord
 import random
 import os
@@ -31,7 +30,7 @@ class CardDeck:
         self.suits = ['hearts', 'diamonds', 'clubs', 'spades']
         self.deck = [(rank, suit) for suit in self.suits for rank in self.ranks]
         random.shuffle(self.deck)
-        
+
     def draw_cards(self, count):
         if len(self.deck) < count:
             return None
@@ -47,11 +46,11 @@ class HoldButton(discord.ui.Button):
         self.card_index = card_index
         self.card_info = card_info
         self.is_held = False
-        
+
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.view.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
         self.is_held = not self.is_held
         if self.is_held:
             self.style = discord.ButtonStyle.success
@@ -59,16 +58,16 @@ class HoldButton(discord.ui.Button):
         else:
             self.style = discord.ButtonStyle.secondary
             self.label = f"Card {self.card_index+1}"
-        
+
         self.view.held_cards[self.card_index] = self.is_held
-        
+
         # Generate new game image with updated held status
         image_bytes = await self.view.cog.generate_game_image(
             self.view.cards, 
             self.view.held_cards,
             is_final=False
         )
-        
+
         file = discord.File(image_bytes, filename="poker_game.png")
         embed = discord.Embed(
             title="🃏 Video Poker",
@@ -77,7 +76,7 @@ class HoldButton(discord.ui.Button):
         )
         embed.set_image(url="attachment://poker_game.png")
         embed.set_footer(text="BetSync Casino • Hold cards you want to keep")
-        
+
         await interaction.response.edit_message(attachments=[file], embed=embed, view=self.view)
 
 class PokerView(discord.ui.View):
@@ -90,11 +89,11 @@ class PokerView(discord.ui.View):
         self.bet_amount = bet_amount
         self.held_cards = [False, False, False, False, False]
         self.message = None
-        
+
         # Add hold buttons for each card
         for i, card in enumerate(cards):
             self.add_item(HoldButton(i, card))
-            
+
         # Add deal button
         deal_button = discord.ui.Button(
             style=discord.ButtonStyle.primary,
@@ -103,34 +102,34 @@ class PokerView(discord.ui.View):
         )
         deal_button.callback = self.deal_callback
         self.add_item(deal_button)
-        
+
     async def deal_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
-            
+
         # Update message
         await interaction.response.edit_message(view=self)
-        
+
         # Replace unheld cards
         await self.cog.replace_cards(self.ctx, self.cards, self.held_cards, self.bet_amount, self.message)
-        
+
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
-            
+
         try:
             await self.message.edit(view=self)
         except:
             pass
-        
+
         # Return the bet if the game timed out
         db = Users()
         db.update_balance(self.user_id, self.bet_amount, "credits", "$inc")
-        
+
         try:
             timeout_embed = discord.Embed(
                 title="⏰ Game Timed Out",
@@ -164,7 +163,7 @@ class PlayAgainView(discord.ui.View):
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
-            
+
         try:
             await self.message.edit(view=self)
         except:
@@ -174,14 +173,14 @@ class Poker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
-        
+
     async def generate_game_image(self, cards, held_cards, is_final=False, win_type=None):
         # Create background with modern gray
         width, height = 1000, 500
         bg_color = (40, 40, 40)  # Modern dark gray
         image = Image.new("RGB", (width, height), bg_color)
         draw = ImageDraw.Draw(image)
-        
+
         # Try to load font
         try:
             small_font = ImageFont.truetype("roboto.ttf", 24)
@@ -191,10 +190,10 @@ class Poker(commands.Cog):
             small_font = ImageFont.load_default()
             medium_font = ImageFont.load_default()
             large_font = ImageFont.load_default()
-        
+
         # Title at the top
         draw.text((width//2, 50), "BetRush Poker", font=large_font, fill=(200, 200, 200), anchor="mm")
-        
+
         # Load and place cards
         card_width = 150
         card_height = 220
@@ -202,7 +201,7 @@ class Poker(commands.Cog):
         total_width = (card_width * 5) + (card_spacing * 4)
         start_x = (width - total_width) // 2
         y_position = 150
-        
+
         for i, (rank, suit) in enumerate(cards):
             # Convert J, Q, K, A to their full names for file paths
             if rank == 'J':
@@ -215,13 +214,13 @@ class Poker(commands.Cog):
                 card_rank = 'A'
             else:
                 card_rank = rank
-                
+
             card_path = f"assests/{suit}_{card_rank}.png"
-            
+
             try:
                 card_img = Image.open(card_path)
                 card_img = card_img.resize((card_width, card_height), Image.Resampling.LANCZOS)
-                
+
                 # Create an outline
                 if is_final and win_type is not None:
                     # Green outline for winning cards
@@ -232,7 +231,7 @@ class Poker(commands.Cog):
                 else:
                     # No outline
                     outline_color = None
-                    
+
                 if outline_color:
                     # Create an outline by expanding the card and filling with outline color
                     outline_size = 5  # Thinner outline
@@ -256,7 +255,7 @@ class Poker(commands.Cog):
                     fill=(255, 255, 255),
                     anchor="mm"
                 )
-            
+
             # Add HOLD text overlay for held cards
             if held_cards[i]:
                 hold_pos = (start_x + (i * (card_width + card_spacing)) + card_width//2,
@@ -267,7 +266,7 @@ class Poker(commands.Cog):
                     fill=(50, 50, 50, 150)
                 )
                 draw.text(hold_pos, "HOLD", font=medium_font, fill=(255, 255, 255), anchor="mm")
-        
+
         # Add win type at the bottom if final
         if is_final and win_type is not None:
             if win_type != "High Card":
@@ -287,18 +286,18 @@ class Poker(commands.Cog):
                     fill=(255, 100, 100),
                     anchor="mm"
                 )
-        
+
         # Save image to bytes
         img_bytes = io.BytesIO()
         image.save(img_bytes, format="PNG")
         img_bytes.seek(0)
         return img_bytes
-        
+
     def evaluate_hand(self, cards):
         # Extract ranks and suits
         ranks = [card[0] for card in cards]
         suits = [card[1] for card in cards]
-        
+
         # Convert face cards to numbers for easier evaluation
         rank_values = []
         for rank in ranks:
@@ -312,7 +311,7 @@ class Poker(commands.Cog):
                 rank_values.append(11)
             else:
                 rank_values.append(int(rank))
-                
+
         # Count occurrences of each rank
         rank_counts = {}
         for r in rank_values:
@@ -320,64 +319,64 @@ class Poker(commands.Cog):
                 rank_counts[r] += 1
             else:
                 rank_counts[r] = 1
-                
+
         # Check for flush (all same suit)
         is_flush = len(set(suits)) == 1
-        
+
         # Check for straight (sequential ranks)
         sorted_values = sorted(rank_values)
         is_straight = False
-        
+
         # Regular straight
         if sorted_values == list(range(sorted_values[0], sorted_values[0] + 5)):
             is_straight = True
         # A-5 straight
         elif sorted_values == [2, 3, 4, 5, 14]:
             is_straight = True
-            
+
         # Royal flush
         if is_flush and sorted_values == [10, 11, 12, 13, 14]:
             return "Royal Flush"
-            
+
         # Straight flush
         if is_straight and is_flush:
             return "Straight Flush"
-            
+
         # Four of a kind
         if 4 in rank_counts.values():
             return "Four of a Kind"
-            
+
         # Full house (three of a kind and a pair)
         if 3 in rank_counts.values() and 2 in rank_counts.values():
             return "Full House"
-            
+
         # Flush
         if is_flush:
             return "Flush"
-            
+
         # Straight
         if is_straight:
             return "Straight"
-            
+
         # Three of a kind
         if 3 in rank_counts.values():
             return "Three of a Kind"
-            
+
         # Two pair
         if list(rank_counts.values()).count(2) == 2:
             return "Two Pair"
-            
+
         # One pair
         if 2 in rank_counts.values():
             return "One Pair"
-            
+
         # High card
         return "High Card"
-        
+
     def get_winning_cards(self, cards, hand_type):
         # Return indices of the cards that make up the winning hand
         ranks = [(i, card[0]) for i, card in enumerate(cards)]
-        
+
         # Convert face cards to numbers
         rank_values = []
         for i, rank in ranks:
@@ -391,7 +390,7 @@ class Poker(commands.Cog):
                 rank_values.append((i, 11))
             else:
                 rank_values.append((i, int(rank)))
-                
+
         # Count occurrences of each rank
         rank_counts = {}
         for i, r in rank_values:
@@ -399,15 +398,15 @@ class Poker(commands.Cog):
                 rank_counts[r].append(i)
             else:
                 rank_counts[r] = [i]
-                
+
         if hand_type == "Royal Flush" or hand_type == "Straight Flush" or hand_type == "Flush":
             # All cards are part of the winning hand
             return [True, True, True, True, True]
-            
+
         if hand_type == "Straight":
             # All cards are part of the winning hand
             return [True, True, True, True, True]
-            
+
         if hand_type == "Four of a Kind":
             winning_indices = []
             for r, indices in rank_counts.items():
@@ -418,7 +417,7 @@ class Poker(commands.Cog):
             for idx in winning_indices:
                 result[idx] = True
             return result
-            
+
         if hand_type == "Full House":
             three_kind = []
             pair = []
@@ -431,7 +430,7 @@ class Poker(commands.Cog):
             for idx in three_kind + pair:
                 result[idx] = True
             return result
-            
+
         if hand_type == "Three of a Kind":
             winning_indices = []
             for r, indices in rank_counts.items():
@@ -442,7 +441,7 @@ class Poker(commands.Cog):
             for idx in winning_indices:
                 result[idx] = True
             return result
-            
+
         if hand_type == "Two Pair":
             pairs = []
             for r, indices in rank_counts.items():
@@ -452,7 +451,7 @@ class Poker(commands.Cog):
             for idx in pairs:
                 result[idx] = True
             return result
-            
+
         if hand_type == "One Pair":
             winning_indices = []
             for r, indices in rank_counts.items():
@@ -463,10 +462,10 @@ class Poker(commands.Cog):
             for idx in winning_indices:
                 result[idx] = True
             return result
-            
+
         # High Card - no winning combination
         return [False, False, False, False, False]
-    
+
     @commands.command(aliases=["p"])
     async def poker(self, ctx, bet_amount: str = None, currency_type: str = None):
         """Play video poker - hold cards and try to make the best hand!"""
@@ -497,7 +496,7 @@ class Poker(commands.Cog):
             )
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
-            
+
         # Check if the user already has an ongoing game
         if ctx.author.id in self.ongoing_games:
             embed = discord.Embed(
@@ -506,18 +505,26 @@ class Poker(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Validate bet using the currency_helper
         try:
             from Cogs.utils.currency_helper import process_bet_amount
-            bet_result = await process_bet_amount(ctx, bet_amount, currency_type)
-            
-            if bet_result["status"] != "success":
-                return await ctx.reply(embed=bet_result["embed"])
-                
-            bet_amount = bet_result["bet_amount"]
-            selected_currency = bet_result["selected_currency"]
-            
+            loading_message = await ctx.reply("Processing bet...") #added loading message
+
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+            if not success:
+                await loading_message.delete()
+                return await ctx.reply(embed=error_embed)
+
+            tokens_used = bet_info["tokens_used"] if isinstance(bet_info, dict) else 0
+            credits_used = bet_info["credits_used"] if isinstance(bet_info, dict) else 0
+            bet_amount_value = bet_info["total_bet_amount"] if isinstance(bet_info, dict) else bet_amount
+            currency_used = bet_info["currency_type"] if isinstance(bet_info, dict) else "credits"
+
+            await loading_message.delete() # deleted loading message after processing
+
+
         except Exception as e:
             print(f"Error processing bet: {e}")
             embed = discord.Embed(
@@ -526,26 +533,26 @@ class Poker(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Create a new card deck and deal initial 5 cards
         deck = CardDeck()
         initial_cards = deck.draw_cards(5)
-        
+
         # Mark game as ongoing
         self.ongoing_games[ctx.author.id] = {
             "deck": deck,
             "cards": initial_cards,
-            "bet_amount": bet_amount,
-            "currency": selected_currency
+            "bet_amount": bet_amount_value, #Use processed bet amount
+            "currency": currency_used #Use processed currency type
         }
-        
+
         # Generate initial game image
         image_bytes = await self.generate_game_image(
             initial_cards,
             [False, False, False, False, False],
             is_final=False
         )
-        
+
         file = discord.File(image_bytes, filename="poker_game.png")
         embed = discord.Embed(
             title="🃏 Video Poker",
@@ -554,39 +561,39 @@ class Poker(commands.Cog):
         )
         embed.set_image(url="attachment://poker_game.png")
         embed.set_footer(text="BetSync Casino • Hold cards you want to keep")
-        
+
         # Create the view with hold buttons
-        view = PokerView(self, ctx, initial_cards, ctx.author.id, bet_amount)
+        view = PokerView(self, ctx, initial_cards, ctx.author.id, bet_amount_value) #Use processed bet amount
         message = await ctx.reply(file=file, embed=embed, view=view)
         view.message = message
-        
+
     async def replace_cards(self, ctx, cards, held_cards, bet_amount, message):
         # Get the ongoing game data
         game_data = self.ongoing_games.get(ctx.author.id)
         if not game_data:
             return
-            
+
         deck = game_data["deck"]
-        
+
         # Replace the cards that are not held
         final_cards = cards.copy()
         for i, held in enumerate(held_cards):
             if not held:
                 new_card = deck.draw_cards(1)[0]
                 final_cards[i] = new_card
-                
+
         # Evaluate the final hand
         hand_type = self.evaluate_hand(final_cards)
-        
+
         # Determine which cards make the winning hand
         winning_cards = self.get_winning_cards(final_cards, hand_type)
-        
+
         # Get the multiplier based on hand type
         multiplier = paytable.get(hand_type, 0)
-        
+
         # Calculate winnings
         winnings = bet_amount * multiplier
-        
+
         # Generate final game image
         image_bytes = await self.generate_game_image(
             final_cards, 
@@ -594,21 +601,21 @@ class Poker(commands.Cog):
             is_final=True,
             win_type=hand_type
         )
-        
+
         file = discord.File(image_bytes, filename="poker_result.png")
-        
+
         # Update database
         db = Users()
         server_db = Servers()
-        
+
         # Record the game result in history
         timestamp = int(time.time())
-        
+
         if multiplier > 0:
             # Win
             db.update_balance(ctx.author.id, winnings, "credits", "$inc")
             db.update_stats(ctx.author.id, bet_amount, winnings, "win")
-            
+
             # Add to history
             history_entry = {
                 "type": "win",
@@ -622,7 +629,7 @@ class Poker(commands.Cog):
                 {"discord_id": ctx.author.id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
-            
+
             # Update server stats
             server_entry = {
                 "type": "win",
@@ -634,12 +641,12 @@ class Poker(commands.Cog):
                 "multiplier": multiplier,
                 "timestamp": timestamp
             }
-            
+
             server_db.collection.update_one(
                 {"server_id": ctx.guild.id},
                 {"$push": {"server_bet_history": {"$each": [server_entry], "$slice": -100}}}
             )
-            
+
             embed = discord.Embed(
                 title="🏆 You Won!",
                 description=(
@@ -653,7 +660,7 @@ class Poker(commands.Cog):
         else:
             # Loss
             db.update_stats(ctx.author.id, bet_amount, 0, "loss")
-            
+
             # Add to history
             history_entry = {
                 "type": "loss",
@@ -665,7 +672,7 @@ class Poker(commands.Cog):
                 {"discord_id": ctx.author.id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
-            
+
             # Update server stats
             server_entry = {
                 "type": "loss",
@@ -675,12 +682,12 @@ class Poker(commands.Cog):
                 "bet": bet_amount,
                 "timestamp": timestamp
             }
-            
+
             server_db.collection.update_one(
                 {"server_id": ctx.guild.id},
                 {"$push": {"server_bet_history": {"$each": [server_entry], "$slice": -100}}}
             )
-            
+
             embed = discord.Embed(
                 title="❌ No Win",
                 description=(
@@ -689,15 +696,15 @@ class Poker(commands.Cog):
                 ),
                 color=0xFF0000
             )
-            
+
         embed.set_image(url="attachment://poker_result.png")
         embed.set_footer(text="BetSync Casino • Video Poker")
-        
+
         # Create play again view
         play_again_view = PlayAgainView(self, ctx, bet_amount)
         result_message = await ctx.reply(file=file, embed=embed, view=play_again_view)
         play_again_view.message = result_message
-        
+
         # Remove from ongoing games
         if ctx.author.id in self.ongoing_games:
             del self.ongoing_games[ctx.author.id]
