@@ -520,7 +520,7 @@ class Poker(commands.Cog):
             tokens_used = bet_info["tokens_used"] if isinstance(bet_info, dict) else 0
             credits_used = bet_info["credits_used"] if isinstance(bet_info, dict) else 0
             bet_amount_value = bet_info["total_bet_amount"] if isinstance(bet_info, dict) else bet_amount
-            currency_used = bet_info["currency_type"] if isinstance(bet_info, dict) else "credits"
+            #currency_used = bet_info["currency_type"] if isinstance(bet_info, dict) else "credits"
 
             await loading_message.delete() # deleted loading message after processing
 
@@ -543,7 +543,7 @@ class Poker(commands.Cog):
             "deck": deck,
             "cards": initial_cards,
             "bet_amount": bet_amount_value, #Use processed bet amount
-            "currency": currency_used #Use processed currency type
+            #"currency": currency_used #Use processed currency type
         }
 
         # Generate initial game image
