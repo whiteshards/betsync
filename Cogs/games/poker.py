@@ -221,25 +221,7 @@ class Poker(commands.Cog):
             try:
                 card_img = Image.open(card_path)
                 card_img = card_img.resize((card_width, card_height), Image.Resampling.LANCZOS)
-
-                # Create an outline
-                if is_final and win_type is not None:
-                    # Green outline for winning cards
-                    outline_color = (0, 255, 0, 255)  # Green
-                elif held_cards[i]:
-                    # Yellow outline for held cards
-                    outline_color = (255, 255, 0, 255)  # Yellow
-                else:
-                    # No outline
-                    outline_color = None
-
-                if outline_color:
-                    # Create an outline by expanding the card and filling with outline color
-                    outline_size = 5  # Thinner outline
-                    outline = ImageOps.expand(card_img, border=outline_size, fill=outline_color)
-                    image.paste(outline, (start_x + (i * (card_width + card_spacing)), y_position))
-                else:
-                    image.paste(card_img, (start_x + (i * (card_width + card_spacing)), y_position))
+                image.paste(card_img, (start_x + (i * (card_width + card_spacing)), y_position))
             except Exception as e:
                 print(f"Error loading card image: {e}")
                 # Draw placeholder if image not found
@@ -257,15 +239,10 @@ class Poker(commands.Cog):
                     anchor="mm"
                 )
 
-            # Add HOLD text overlay for held cards
+            # Add HOLD text below cards that are held
             if held_cards[i]:
                 hold_pos = (start_x + (i * (card_width + card_spacing)) + card_width//2,
-                           y_position + card_height - 40)
-                # Semi-transparent background for HOLD text
-                draw.rectangle(
-                    [(hold_pos[0] - 50, hold_pos[1] - 15), (hold_pos[0] + 50, hold_pos[1] + 15)],
-                    fill=(50, 50, 50, 150)
-                )
+                           y_position + card_height + 15)
                 draw.text(hold_pos, "HOLD", font=medium_font, fill=(255, 255, 255), anchor="mm")
 
         # Add win type at the bottom if final
