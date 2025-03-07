@@ -107,14 +107,21 @@ class PokerView(discord.ui.View):
     async def deal_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        del self.cog.ongoing_games[self.user_id]
-
+        
         # Disable all buttons
         for child in self.children:
             child.disabled = True
 
-        # Update message
+        # Update message with disabled buttons first
         await interaction.response.edit_message(view=self)
+        
+        # Store message reference for replace_cards function
+        if not self.message:
+            self.message = interaction.message
+            
+        # Remove from ongoing games after handling the deal action
+        if self.user_id in self.cog.ongoing_games:
+            del self.cog.ongoing_games[self.user_id]
 
         # Replace unheld cards
         await self.cog.replace_cards(self.ctx, self.cards, self.held_cards, self.bet_amount, self.message)
