@@ -419,7 +419,7 @@ class Lottery(commands.Cog):
             await ctx.reply(embed=embed)
 
     @commands.command(aliases=["lh"])
-    async def loteryhistory(self, ctx):
+    async def loterryhistory(self, ctx):
         """View lottery history"""
         # Get the last 5 completed lotteries
         history = list(self.lottery_collection.find(
