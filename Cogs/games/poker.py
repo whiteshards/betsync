@@ -13,14 +13,14 @@ from Cogs.utils.emojis import emoji
 # Define the paytable with multipliers for each hand type
 paytable = {
     "Royal Flush": 100,
-    "Straight Flush": 75,
-    "Four of a Kind": 45,
-    "Full House": 25,
-    "Flush": 20,
-    "Straight": 15,
-    "Three of a Kind": 8,
-    "Two Pair": 3.5,
-    "One Pair": 0.96,
+    "Straight Flush": 50,
+    "Four of a Kind": 30,
+    "Full House": 15,
+    "Flush": 10,
+    "Straight": 5,
+    "Three of a Kind": 3,
+    "Two Pair": 2,
+    "One Pair": 0.5,
     "High Card": 0
 }
 
@@ -478,14 +478,14 @@ class Poker(commands.Cog):
                     "4. Your final hand determines your winnings\n\n"
                     "**Payouts:**\n"
                     "- Royal Flush: 100x\n"
-                    "- Straight Flush: 75x\n" 
-                    "- Four of a Kind: 45x\n"
-                    "- Full House: 25x\n"
-                    "- Flush: 20x\n"
-                    "- Straight: 15x\n"
-                    "- Three of a Kind: 8x\n"
-                    "- Two Pair: 3.5x\n"
-                    "- One Pair: 0.96x\n"
+                    "- Straight Flush: 50x\n" 
+                    "- Four of a Kind: 30xx\n"
+                    "- Full House: 15x\n"
+                    "- Flush: 10x\n"
+                    "- Straight: 5x\n"
+                    "- Three of a Kind: 3x\n"
+                    "- Two Pair: 2x\n"
+                    "- One Pair: 0.5x\n"
                 ),
                 color=0x00FFAE
             )
