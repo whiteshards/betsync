@@ -31,19 +31,33 @@ class PlayAgainView(discord.ui.View):
             item.disabled = True
         await interaction.message.edit(view=self)
 
-        # Get the context for the new game
-        ctx = await self.cog.bot.get_context(self.message)
+        # Show processing message
+        await interaction.response.send_message("Starting a new game...", ephemeral=True)
 
-        # Import the currency helper
-        from Cogs.utils.currency_helper import process_bet_amount
+        try:
+            # Get the context for the new game
+            ctx = await self.cog.bot.get_context(self.message)
 
-        # Process bet using currency helper
-        success, bet_info, error_embed = await process_bet_amount(ctx, self.bet_amount, self.currency_used, None)
-        if not success:
-            return await interaction.followup.send(embed=error_embed)
+            # Import the currency helper
+            from Cogs.utils.currency_helper import process_bet_amount
 
-        # Launch a new game
-        await self.cog.hilo(ctx, bet_info["amount"], bet_info["currency"])
+            # Process bet using currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, self.bet_amount, self.currency_used, None)
+            if not success:
+                return await interaction.followup.send(embed=error_embed)
+
+            # Launch a new game
+            await self.cog.hilo(ctx, bet_info["amount"], bet_info["currency"])
+            
+        except Exception as e:
+            # Handle any errors
+            print(f"Error in Play Again: {e}")
+            error_embed = discord.Embed(
+                title="❌ Error Starting New Game",
+                description=f"There was a problem starting a new HiLo game. Please try again later.",
+                color=0xFF0000
+            )
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
 
 class HiLoView(discord.ui.View):
     def __init__(self, cog, ctx, bet_amount, currency_used, deck, current_card, current_multiplier=1.0, timeout=60):
@@ -691,63 +705,105 @@ class HiLo(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        # Send loading message
-        loading_emoji = emoji()["loading"]
-        loading_embed = discord.Embed(
-            title=f"{loading_emoji} | Preparing HiLo Game...",
-            description="Please wait while we set up your game.",
-            color=0x00FFAE
-        )
-        loading_message = await ctx.reply(embed=loading_embed)
-
-        # Import the currency helper
-        from Cogs.utils.currency_helper import process_bet_amount
-
-        # Process the bet amount using the currency helper
-        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-        if not success:
-            return await ctx.reply(embed=error_embed)
-            
-        # Set up the game
-        bet_amount = bet_info["amount"]
-        currency_used = bet_info["currency"]
-        
-        # Create a shuffled deck of cards
-        deck = self.create_deck()
-        
-        # Draw the first card
-        current_card = deck.pop(0)
-        
-        # Create game view
-        view = HiLoView(self, ctx, bet_amount, currency_used, deck, current_card)
-        
-        # Calculate initial potential profits
-        view.calculate_potential_profits()
-        
-        # Generate the initial game image
-        game_image = await self.create_game_image(current_card, [], 
-                                                view.high_profit, view.low_profit, 
-                                                view.current_winnings, currency_used)
-        
-        # Create initial game embed
-        embed = view.create_game_embed()
-        
-        # Add the image to the embed
-        file = discord.File(fp=game_image, filename="hilo_game.png")
-        embed.set_image(url="attachment://hilo_game.png")
-        
-        # Mark user as having an ongoing game
-        self.ongoing_games[ctx.author.id] = "hilo"
-        
-        # Send the game message
-        message = await ctx.reply(embed=embed, file=file, view=view)
-        view.message = message
-        
-        # Delete loading message
         try:
-            await loading_message.delete()
-        except:
-            pass
+            # Send loading message
+            loading_emoji = emoji()["loading"]
+            loading_embed = discord.Embed(
+                title=f"{loading_emoji} | Preparing HiLo Game...",
+                description="Please wait while we set up your game.",
+                color=0x00FFAE
+            )
+            loading_message = await ctx.reply(embed=loading_embed)
+
+            # Import the currency helper
+            from Cogs.utils.currency_helper import process_bet_amount
+
+            # Process the bet amount using the currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+            if not success:
+                try:
+                    await loading_message.delete()
+                except:
+                    pass
+                return await ctx.reply(embed=error_embed)
+                
+            # Set up the game
+            bet_amount = bet_info["amount"]
+            currency_used = bet_info["currency"]
+            
+            # Update loading message to indicate progress
+            await loading_message.edit(embed=discord.Embed(
+                title=f"{loading_emoji} | Setting Up Game...",
+                description=f"Placing bet of {bet_amount} {currency_used}...",
+                color=0x00FFAE
+            ))
+            
+            # Create a shuffled deck of cards
+            deck = self.create_deck()
+            
+            # Draw the first card
+            current_card = deck.pop(0)
+            
+            # Create game view
+            view = HiLoView(self, ctx, bet_amount, currency_used, deck, current_card)
+            
+            # Calculate initial potential profits
+            view.calculate_potential_profits()
+            
+            # Update loading message again
+            await loading_message.edit(embed=discord.Embed(
+                title=f"{loading_emoji} | Generating Game...",
+                description=f"Creating game display...",
+                color=0x00FFAE
+            ))
+            
+            # Generate the initial game image
+            game_image = await self.create_game_image(current_card, [], 
+                                                    view.high_profit, view.low_profit, 
+                                                    view.current_winnings, currency_used)
+            
+            # Create initial game embed
+            embed = view.create_game_embed()
+            
+            # Add the image to the embed
+            file = discord.File(fp=game_image, filename="hilo_game.png")
+            embed.set_image(url="attachment://hilo_game.png")
+            
+            # Mark user as having an ongoing game
+            self.ongoing_games[ctx.author.id] = "hilo"
+            
+            # Send the game message
+            message = await ctx.reply(embed=embed, file=file, view=view)
+            view.message = message
+            
+            # Delete loading message
+            try:
+                await loading_message.delete()
+            except:
+                pass
+                
+        except Exception as e:
+            # Handle any unexpected errors
+            print(f"Error in HiLo game: {e}")
+            error_embed = discord.Embed(
+                title="❌ Error Starting Game",
+                description=f"There was a problem starting your HiLo game. Please try again later.",
+                color=0xFF0000
+            )
+            error_embed.set_footer(text="If this issue persists, please contact a server admin.")
+            
+            # Clean up ongoing game entry if it was created
+            if ctx.author.id in self.ongoing_games:
+                del self.ongoing_games[ctx.author.id]
+                
+            # Try to delete loading message if it exists
+            try:
+                if 'loading_message' in locals():
+                    await loading_message.delete()
+            except:
+                pass
+                
+            await ctx.reply(embed=error_embed)
 
 def setup(bot):
     bot.add_cog(HiLo(bot))
