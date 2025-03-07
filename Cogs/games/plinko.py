@@ -147,9 +147,8 @@ class PlinkoGame:
                 await self.end_game()
                 return
                 
-            # Deduct bet amount 
-            new_balance = current_balance - self.bet_amount
-            db.update_balance(self.user_id, new_balance, self.currency_type)
+            # Deduct bet amount using $inc operation
+            db.update_balance(self.user_id, -self.bet_amount, self.currency_type, "$inc")
             
             # Update stats
             db.collection.update_one(
@@ -174,9 +173,7 @@ class PlinkoGame:
             
             # Update user balance with winnings
             if winnings > 0:
-                user_after_game = db.fetch_user(self.user_id)
-                updated_balance = user_after_game.get(self.currency_type, 0) + winnings
-                db.update_balance(self.user_id, updated_balance, self.currency_type)
+                db.update_balance(self.user_id, winnings, self.currency_type, "$inc")
                 db.collection.update_one(
                     {"discord_id": self.user_id},
                     {"$inc": {"total_earned": winnings, "total_won": 1}}
@@ -237,27 +234,35 @@ class PlinkoGame:
         Returns the path (list of positions at each row) and final landing position
         """
         path = []
+        num_slots = len(self.multiplier_table)
         
-        # Calculate path only for display purposes
-        # Start at the center (use the number of multipliers to determine starting position)
-        position = len(self.multiplier_table) // 2
+        # Start at the center for the first row
+        position = (num_slots - self.rows) // 2
         
-        # For each row, the ball can go left or right
-        for _ in range(self.rows):
-            # True physics-based Plinko has roughly 50/50 chance at each peg
-            # Add slight bias toward center for realism (real balls tend to center slightly)
-            center_bias = 0.02 * abs(position - (len(self.multiplier_table) // 2))
+        # For each row, the ball can go left or right at each peg
+        for row in range(self.rows):
+            # Calculate how many pegs are in this row
+            # In our new arrangement, last row has num_slots - 1 pegs
+            current_row_pegs = num_slots - row - 1
             
-            if random.random() < 0.5 - center_bias:
-                # Go left
-                if position > 0:
-                    position -= 1
-            else:
-                # Go right
-                if position < len(self.multiplier_table) - 1:
-                    position += 1
-                    
+            # Add current position to path
             path.append(position)
+            
+            # True physics-based Plinko has roughly 50/50 chance at each peg
+            # Add slight bias toward center for realism
+            center = current_row_pegs / 2
+            center_bias = 0.02 * abs(position - center)
+            
+            # Decide direction (left or right)
+            if random.random() < 0.5 - center_bias:
+                # Ball goes to the right gap (stay at same position)
+                pass
+            else:
+                # Ball goes to the left gap (position + 1)
+                position += 1
+                
+            # Ensure position stays within bounds for next row
+            position = max(0, min(position, current_row_pegs))
         
         # Final landing position is the last position in the path
         final_pos = position
@@ -300,7 +305,11 @@ class PlinkoGame:
         
         # Draw pegs
         for row in range(self.rows):
-            num_pegs = row + 1
+            # Each row should have (number of multipliers - row) pegs to ensure proper alignment
+            # For the bottom row, we need (num_slots - 1) pegs to create num_slots gaps
+            num_pegs = num_slots - row
+            
+            # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
             y = vertical_spacing * (row + 1)
             
@@ -312,7 +321,8 @@ class PlinkoGame:
         # Draw multiplier buckets at the bottom - one for each multiplier
         bucket_width = horizontal_spacing * 0.9
         bucket_height = multiplier_height * 0.8
-        bucket_y = board_height + (multiplier_height - bucket_height) / 2
+        # Move buckets closer to the pegs
+        bucket_y = board_height - bucket_height/2
         
         # Color mapping for multipliers
         def get_multiplier_color(multiplier):
@@ -364,20 +374,20 @@ class PlinkoGame:
         draw.text((bottom_watermark_x, bottom_watermark_y), bottom_watermark, 
                   font=multiplier_font, fill=(255, 255, 255, 180))
         
-        # Draw only the final ball position for each drop
-        for i, path in enumerate(self.ball_paths):
-            if len(path) > 0:
-                final_pos = path[-1]
-                final_x = horizontal_spacing * (final_pos + 1)
-                final_y = board_height
-                
-                # Draw the ball
-                draw.ellipse(
-                    (final_x - ball_radius, final_y - ball_radius, 
-                     final_x + ball_radius, final_y + ball_radius),
-                    fill=(255, 255, 255, 255),  # White ball
-                    outline=(255, 0, 0, 255)    # Red outline
-                )
+        # Draw only the most recent ball
+        if self.ball_paths and len(self.ball_paths[-1]) > 0:
+            final_pos = self.ball_paths[-1][-1]
+            # Align with the gaps between pegs
+            final_x = horizontal_spacing * (final_pos + 1)
+            final_y = board_height - ball_radius
+            
+            # Draw the ball
+            draw.ellipse(
+                (final_x - ball_radius, final_y - ball_radius, 
+                 final_x + ball_radius, final_y + ball_radius),
+                fill=(255, 255, 255, 255),  # White ball
+                outline=(255, 0, 0, 255)    # Red outline
+            )
         
         # Save to a BytesIO object
         img_buffer = io.BytesIO()
@@ -511,14 +521,27 @@ class PlinkoView(discord.ui.View):
             
             self.last_drop_time = current_time
             
-            # Acknowledge the interaction immediately to prevent timeouts
-            await interaction.response.defer(ephemeral=False)
+            # Disable buttons during ball drop to prevent spam
+            self.drop_button.disabled = True
+            self.stop_button.disabled = True
+            
+            # Update the view with disabled buttons
+            await interaction.response.edit_message(view=self)
             
             # Drop the ball
             await self.game.drop_ball()
+            
+            # Re-enable buttons after drop is complete
+            self.drop_button.disabled = False
+            self.stop_button.disabled = False
+            
+            # View will be updated by the drop_ball method
         except Exception as e:
             print(f"Error in drop_callback: {e}")
-            await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
+            # Re-enable buttons if there's an error
+            self.drop_button.disabled = False
+            self.stop_button.disabled = False
+            await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
 
     async def stop_callback(self, interaction: discord.Interaction):
         try:
