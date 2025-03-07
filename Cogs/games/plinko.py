@@ -120,7 +120,7 @@ class PlinkoGame:
         try:
             # Increase drop counter
             self.drops += 1
-            
+
             # Clear previous ball path if any
             if self.ball_paths:
                 # Keep only the most recent path
@@ -276,7 +276,7 @@ class PlinkoGame:
         # Calculate spacing to ensure the number of slots at the bottom matches the number of multipliers
         num_slots = len(self.multiplier_table)
         horizontal_spacing = board_width / (num_slots + 1)
-        
+
         # Calculate vertical spacing with more space at the top
         vertical_spacing = board_height / (self.rows + 3)  # +3 for top and bottom margins
 
@@ -284,11 +284,11 @@ class PlinkoGame:
         for row in range(self.rows):
             # Calculate number of pegs for this row (increasing from top to bottom)
             num_pegs = row + 1  
-            
+
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
             y = vertical_spacing * (row + 2)  # Start drawing pegs a bit lower to leave space at top
-            
+
             for peg in range(num_pegs):
                 x = start_x + peg * horizontal_spacing
                 draw.ellipse((x - peg_radius, y - peg_radius, x + peg_radius, y + peg_radius), 
@@ -297,7 +297,7 @@ class PlinkoGame:
         # Draw multiplier buckets at the bottom - one for each multiplier
         bucket_width = horizontal_spacing * 0.9
         bucket_height = multiplier_height * 0.8
-        
+
         # Position buckets just below the last row of pegs
         bucket_y = vertical_spacing * (self.rows + 2)
 
@@ -480,51 +480,54 @@ class PlinkoView(discord.ui.View):
         # Add a cooldown to prevent spam
         self.last_drop_time = 0
         self.cooldown = 1.5  # 1.5 seconds cooldown between drops
+        self.is_dropping = False # Added to track ball drop status
 
     async def drop_callback(self, interaction: discord.Interaction):
+        """Drop a ball on the Plinko board"""
+        # Cooldown check to prevent spam
+        current_time = time.time()
+        if hasattr(self, 'last_drop_time') and current_time - self.last_drop_time < self.cooldown:  # 2 second cooldown
+            await interaction.response.send_message("Please wait before dropping another ball.", ephemeral=True)
+            return
+
         try:
-            # Check if the interaction is from the game owner
-            if interaction.user.id != self.game.user_id:
-                return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
-            # Check for cooldown
-            current_time = time.time()
-            if current_time - self.last_drop_time < self.cooldown:
-                remaining = round(self.cooldown - (current_time - self.last_drop_time), 1)
-                return await interaction.response.send_message(
-                    f"Please wait {remaining} seconds before dropping another ball.", 
-                    ephemeral=True
-                )
-
             self.last_drop_time = current_time
 
+            # Flag to track that we're actively dropping a ball
+            self.is_dropping = True
+
             # Disable buttons during ball drop to prevent spam
-            self.drop_button.disabled = True
-            self.stop_button.disabled = True
+            for child in self.children:
+                child.disabled = True
 
             # Update the view with disabled buttons first
             await interaction.response.edit_message(view=self)
 
-            # Drop the ball
+            # Perform the ball drop
             await self.game.drop_ball()
 
             # Re-enable buttons after drop is complete
-            self.drop_button.disabled = False
-            self.stop_button.disabled = False
+            for child in self.children:
+                child.disabled = False
+
+            self.is_dropping = False
 
             # Update the view with enabled buttons
-            await self.game.message.edit(view=self)
+            # Make sure the game is still running before trying to update the view
+            if self.game.running and self.game.message:
+                await self.game.message.edit(view=self)
         except Exception as e:
             print(f"Error in drop_callback: {e}")
             # Re-enable buttons if there's an error
-            self.drop_button.disabled = False
-            self.stop_button.disabled = False
+            for child in self.children:
+                child.disabled = False
+            self.is_dropping = False
             try:
-                await self.game.message.edit(view=self)
+                if self.game.message:
+                    await self.game.message.edit(view=self)
                 await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
-            except:
-                # If we can't edit the original message, try to send a new one
-                await interaction.followup.send("An error occurred. Please try again.", ephemeral=True)
+            except Exception as inner_e:
+                print(f"Error updating view after error: {inner_e}")
 
     async def stop_callback(self, interaction: discord.Interaction):
         try:
