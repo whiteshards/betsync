@@ -135,6 +135,26 @@ class HiLoView(discord.ui.View):
             value=f"{winnings:.2f} {self.currency_used}",
             inline=True
         )
+        
+        # Add card history field if we have previous cards
+        if self.previous_cards:
+            # Format card history with newest cards first
+            card_history = []
+            for i, card in enumerate(self.previous_cards):
+                card_emoji = self.get_card_emoji(card)
+                if i == 0 and len(self.previous_cards) == len(card_history) + 1:
+                    card_history.append(f"**Start: {card_emoji}**")
+                else:
+                    card_history.append(card_emoji)
+            
+            # Join the cards with arrows in between
+            card_history_text = " → ".join(card_history)
+            if len(card_history) > 0:
+                embed.add_field(
+                    name="Card History",
+                    value=card_history_text,
+                    inline=False
+                )
 
         embed.set_footer(text=f"BetSync Casino • {len(self.deck)} cards left in deck")
 
@@ -288,6 +308,29 @@ class HiLoView(discord.ui.View):
                 value=f"{self.current_winnings:.2f} {self.currency_used}",
                 inline=True
             )
+            
+            # Add card history field 
+            if self.previous_cards:
+                # Format card history
+                card_history = []
+                for i, card in enumerate(self.previous_cards):
+                    card_emoji = self.get_card_emoji(card)
+                    if i == 0 and len(self.previous_cards) == len(card_history) + 1:
+                        card_history.append(f"**Start: {card_emoji}**")
+                    else:
+                        card_history.append(card_emoji)
+                
+                # Add the final losing card
+                card_history.append(f"❌ {self.get_card_emoji(new_card)}")
+                
+                # Join the cards with arrows in between
+                card_history_text = " → ".join(card_history)
+                if len(card_history) > 0:
+                    embed.add_field(
+                        name="Card History",
+                        value=card_history_text,
+                        inline=False
+                    )
 
             embed.set_footer(text="BetSync Casino • Better luck next time!")
 
@@ -339,6 +382,26 @@ class HiLoView(discord.ui.View):
             value=f"{self.current_winnings:.2f} {self.currency_used}",
             inline=True
         )
+        
+        # Add card history field if we have previous cards
+        if self.previous_cards:
+            # Format card history with newest cards first
+            card_history = []
+            for i, card in enumerate(self.previous_cards):
+                card_emoji = self.get_card_emoji(card)
+                if i == 0 and len(self.previous_cards) == len(card_history) + 1:
+                    card_history.append(f"**Start: {card_emoji}**")
+                else:
+                    card_history.append(card_emoji)
+            
+            # Join the cards with arrows in between
+            card_history_text = " → ".join(card_history)
+            if len(card_history) > 0:
+                embed.add_field(
+                    name="Card History",
+                    value=card_history_text,
+                    inline=False
+                )
 
         embed.set_footer(text=f"BetSync Casino • {len(self.deck)} cards left in deck")
         return embed
@@ -427,7 +490,7 @@ class HiLo(commands.Cog):
                                currency, game_over=False, lost_choice=None, cashed_out=False):
         """Generate the game image similar to the provided example"""
         # Create base canvas (dark blue background)
-        width, height = 1000, 600
+        width, height = 1000, 500  # Reduced height since we're not showing previous cards
         bg_color = (12, 26, 38)  # Darker blue background matching reference
         image = Image.new("RGB", (width, height), bg_color)
         draw = ImageDraw.Draw(image)
@@ -456,48 +519,6 @@ class HiLo(commands.Cog):
 
         # Draw profit information bar
         self.draw_profit_bar(draw, width, height, high_profit, low_profit, total_profit, currency, small_font)
-
-        # Draw previous cards in reverse order (newest first) - smaller with better spacing
-        if previous_cards:
-            self.draw_previous_cards(image, previous_cards, width, height)
-
-        # Add start card label to the first card in the sequence
-        if previous_cards:
-            # Calculate position for the first card in the list
-            if len(previous_cards) <= 5:
-                start_card_index = 0
-            else:
-                start_card_index = len(previous_cards) - 5
-
-            first_card_pos_x = 30
-            first_card_pos_y = height - 180  # Adjusted position to match new card position
-            
-            # Get smaller label width that matches the card width
-            label_width = 70
-            
-            # Position label at the bottom of the card with some margin
-            label_y = first_card_pos_y + 95
-            
-            # Draw green label with rounded corners (increased radius)
-            draw.rounded_rectangle(
-                [first_card_pos_x, label_y, first_card_pos_x + label_width, label_y + 20], 
-                radius=8,  # More rounded corners
-                fill=(0, 255, 0)
-            )
-            
-            # Use smaller font size for the text
-            try:
-                label_font = ImageFont.truetype("roboto.ttf", 13)  # Smaller font
-            except Exception:
-                label_font = small_font
-                
-            draw.text(
-                (first_card_pos_x + label_width//2, label_y + 10), 
-                "Start Card", 
-                fill=(0, 0, 0), 
-                font=label_font,
-                anchor="mm"
-            )
 
         # Convert to bytes for Discord
         buffer = io.BytesIO()
@@ -646,41 +667,7 @@ class HiLo(commands.Cog):
             return f"{value:.2f}"
         return "0.00"
 
-    def draw_previous_cards(self, image, previous_cards, width, height):
-        """Draw the previous cards in sequence - smaller with better spacing"""
-        # Start position for the first card in history - always start from left
-        start_x = 30
-        # Adjust card position to have proper margin from bottom
-        card_y = height - 180  
-        
-        # Calculate card size (make them smaller)
-        card_width, card_height = 80, 120  # Smaller size (66% of original size)
-        
-        # Spacing between cards
-        spacing = 20
-        
-        # We'll show at most 5 previous cards
-        cards_to_show = previous_cards[-5:] if len(previous_cards) > 5 else previous_cards
-        
-        # Calculate total width needed
-        total_width = len(cards_to_show) * (card_width + spacing) - spacing
-        
-        # Always start from the left edge
-        card_x = start_x
-        
-        # Draw each card
-        for card in cards_to_show:
-            # Get the card image
-            card_img = self.get_card_image_sync(card)
-            
-            # Resize to smaller size
-            card_img = card_img.resize((card_width, card_height))
-            
-            # Paste onto main image
-            image.paste(card_img, (card_x, card_y), card_img.convert("RGBA"))
-            
-            # Move to the next position
-            card_x += card_width + spacing
+    # Previous cards drawing method removed as requested - now displaying in embed
 
     async def get_card_image(self, card):
         """Get the card image from assets folder or cache"""
