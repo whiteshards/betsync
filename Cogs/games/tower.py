@@ -522,7 +522,7 @@ class TowerCog(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
 
-    @commands.command(aliases=["twr", "climb"])
+    @commands.command(aliases=["twr", "climb", "towers"])
     async def tower(self, ctx, bet_amount: str = None, difficulty: str = None, currency_type: str = None):
         """Play Tower - climb the tower by finding diamonds to multiply your winnings!"""
         if not bet_amount:
