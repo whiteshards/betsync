@@ -12,7 +12,7 @@ from Cogs.utils.emojis import emoji
 
 class PlayAgainView(discord.ui.View):
     def __init__(self, cog, ctx, bet_amount, currency_used="credits"):
-        super().__init__(timeout=60)
+        super().__init__(timeout=240)
         self.cog = cog
         self.ctx = ctx
         self.bet_amount = bet_amount
@@ -59,7 +59,7 @@ class PlayAgainView(discord.ui.View):
             await interaction.followup.send(embed=error_embed, ephemeral=True)
 
 class HiLoView(discord.ui.View):
-    def __init__(self, cog, ctx, bet_amount, currency_used, deck, current_card, current_multiplier=1.0, timeout=60):
+    def __init__(self, cog, ctx, bet_amount, currency_used, deck, current_card, current_multiplier=1.0, timeout=240):
         super().__init__(timeout=timeout)
         self.cog = cog
         self.ctx = ctx
@@ -75,6 +75,48 @@ class HiLoView(discord.ui.View):
         self.high_profit = 0      # Track potential high profit
         self.low_profit = 0       # Track potential low profit
         self.skips_used = 0       # Track how many skips have been used
+        
+    async def on_timeout(self):
+        """Handle timeout - refund the bet and notify the user"""
+        if self.game_over:
+            return  # Game already ended, no need for timeout handling
+            
+        # Get database
+        from Cogs.utils.mongo import Users
+        db = Users()
+        
+        # Refund the bet amount in the appropriate currency
+        try:
+            # Process refund
+            db.update_balance(self.ctx.author.id, self.bet_amount, self.currency_used, "$inc")
+            
+            # Create timeout message
+            embed = discord.Embed(
+                title="⏱️ HiLo Game Timeout",
+                description=f"Your HiLo game has timed out and your bet of **{self.bet_amount} {self.currency_used}** has been refunded.",
+                color=discord.Color.orange()
+            )
+            embed.set_footer(text="BetSync Casino • Game expired due to inactivity")
+            
+            # Disable all buttons
+            for child in self.children:
+                child.disabled = True
+            
+            # Send timeout notification and update the game message
+            await self.message.edit(embed=embed, view=self)
+            await self.ctx.channel.send(f"{self.ctx.author.mention} Your HiLo game has timed out and your bet has been refunded.")
+            
+            # Remove from ongoing games
+            if self.ctx.author.id in self.cog.ongoing_games:
+                del self.cog.ongoing_games[self.ctx.author.id]
+                
+        except Exception as e:
+            print(f"Error handling HiLo timeout: {e}")
+            # Try to send error notification
+            try:
+                await self.ctx.channel.send(f"{self.ctx.author.mention} Your HiLo game has timed out. Error processing refund.")
+            except:
+                pass
 
     @discord.ui.button(label="HIGHER", style=discord.ButtonStyle.primary, emoji="⬆️")
     async def higher_button(self, button, interaction):
@@ -647,6 +689,15 @@ class HiLo(commands.Cog):
         # Helper function to format profit values
         def format_profit(value):
             return f"{value:.2f}"  # Always 2 decimal places
+            
+        # Try to load arial font for profit bar text
+        try:
+            profit_font_small = ImageFont.truetype("arial.ttf", 16)
+            profit_font_large = ImageFont.truetype("arial.ttf", 18)
+        except Exception:
+            # Fallback to default/provided font if arial.ttf can't be loaded
+            profit_font_small = font
+            profit_font_large = font
 
         # Higher profit section
         high_multiplier = high_profit/total_profit if total_profit else 0
@@ -654,14 +705,14 @@ class HiLo(commands.Cog):
             (30 + section_width//2, bar_y + 20), 
             f"Profit Higher ({self.format_multiplier(high_multiplier)}×)", 
             fill=(180, 200, 220), 
-            font=font, 
+            font=profit_font_small, 
             anchor="mm"
         )
         draw.text(
             (30 + section_width//2, bar_y + 50), 
             f"{format_profit(high_profit)} {currency}", 
             fill=(255, 255, 255), 
-            font=font, 
+            font=profit_font_large, 
             anchor="mm"
         )
 
@@ -671,14 +722,14 @@ class HiLo(commands.Cog):
             (30 + section_width + section_width//2, bar_y + 20), 
             f"Profit Lower ({self.format_multiplier(low_multiplier)}×)", 
             fill=(180, 200, 220), 
-            font=font, 
+            font=profit_font_small, 
             anchor="mm"
         )
         draw.text(
             (30 + section_width + section_width//2, bar_y + 50), 
             f"{format_profit(low_profit)} {currency}", 
             fill=(255, 255, 255), 
-            font=font, 
+            font=profit_font_large, 
             anchor="mm"
         )
 
@@ -688,14 +739,14 @@ class HiLo(commands.Cog):
             (30 + 2*section_width + section_width//2, bar_y + 20), 
             f"Total Profit ({self.format_multiplier(current_mult)}×)", 
             fill=(180, 200, 220), 
-            font=font, 
+            font=profit_font_small, 
             anchor="mm"
         )
         draw.text(
             (30 + 2*section_width + section_width//2, bar_y + 50), 
             f"{format_profit(total_profit)} {currency}", 
             fill=(255, 255, 255), 
-            font=font, 
+            font=profit_font_large, 
             anchor="mm"
         )
 
