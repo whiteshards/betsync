@@ -74,6 +74,7 @@ class HiLoView(discord.ui.View):
         self.previous_cards = []  # Track previous cards for display
         self.high_profit = 0      # Track potential high profit
         self.low_profit = 0       # Track potential low profit
+        self.skips_used = 0       # Track how many skips have been used
 
     @discord.ui.button(label="HIGHER", style=discord.ButtonStyle.primary, emoji="⬆️")
     async def higher_button(self, button, interaction):
@@ -219,6 +220,19 @@ class HiLoView(discord.ui.View):
 
         # Skip just changes the card without affecting winnings
         if choice == "skip":
+            # Check if the player has already used their skip
+            if self.skips_used >= 1:
+                error_embed = discord.Embed(
+                    title="❌ Skip Limit Reached",
+                    description="You can only skip one round per game!",
+                    color=discord.Color.red()
+                )
+                await interaction.response.send_message(embed=error_embed, ephemeral=True)
+                return
+                
+            # Increment skip counter
+            self.skips_used += 1
+            
             # Save current card to previous cards before updating
             self.previous_cards.append(self.current_card)
             # Keep only the last 5 previous cards to avoid crowding
@@ -396,6 +410,13 @@ class HiLoView(discord.ui.View):
             value=f"{self.current_winnings:.2f} {self.currency_used}",
             inline=True
         )
+        
+        if self.skips_used > 0:
+            embed.add_field(
+                name="Skip Used",
+                value=f"{self.skips_used}/1",
+                inline=True
+            )
         
         # Add card history field if we have previous cards
         if self.previous_cards:
@@ -659,10 +680,11 @@ class HiLo(commands.Cog):
             anchor="mm"
         )
 
-        # Total profit section
+        # Total profit section with current multiplier
+        current_mult = total_profit/self.current_winnings if self.current_winnings and total_profit != self.current_winnings else 1.0
         draw.text(
             (30 + 2*section_width + section_width//2, bar_y + 20), 
-            f"Total Profit ({self.format_multiplier(1.0)}×)", 
+            f"Total Profit ({self.format_multiplier(current_mult)}×)", 
             fill=(180, 200, 220), 
             font=font, 
             anchor="mm"
