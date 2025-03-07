@@ -734,10 +734,10 @@ class HiLo(commands.Cog):
         )
 
         # Total profit section with current multiplier
-        current_mult = total_profit/current_winnings if current_winnings and total_profit != current_winnings else 1.0
+        #current_mult = total_profit/current_winnings if current_winnings and total_profit != current_winnings else 1.0
         draw.text(
             (30 + 2*section_width + section_width//2, bar_y + 20), 
-            f"Total Profit ({self.format_multiplier(current_mult)}×)", 
+            "Current Winnings", 
             fill=(180, 200, 220), 
             font=profit_font_small, 
             anchor="mm"
