@@ -284,16 +284,12 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with no pegs at top (2 gaps), then add pegs below
+        # Draw pegs - Start with fewer pegs at top, increasing as we go down
         for row in range(actual_rows):
-            # Skip drawing pegs for the first row
-            if row == 0:
-                continue
-                
-            # For other rows, calculate number of pegs (increasing from top to bottom)
-            # Second row starts with 2 pegs, increasing by 1 each row after
-            num_pegs = row
-            
+            # Calculate number of pegs for this row (increasing from top to bottom)
+            # First row has fewest pegs, increasing by 1 each row
+            num_pegs = row + 1
+
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
