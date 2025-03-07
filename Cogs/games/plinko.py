@@ -218,8 +218,8 @@ class PlinkoGame:
         # For each row, the ball can go left or right at each peg
         for row in range(actual_rows):
             # Calculate how many pegs are in this row
-            # First row has most pegs, decreasing as we go down
-            current_row_pegs = actual_rows - row
+            # First row has fewest pegs, increasing as we go down
+            current_row_pegs = row + 1
 
             # Add current position to path
             path.append(position)
@@ -282,11 +282,11 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with many pegs at top, decreasing as we go down
+        # Draw pegs - Start with fewer pegs at top, increasing as we go down
         for row in range(actual_rows):
-            # Calculate number of pegs for this row (decreasing from top to bottom)
-            # First row has most pegs, decreasing by 1 each row
-            num_pegs = actual_rows - row
+            # Calculate number of pegs for this row (increasing from top to bottom)
+            # First row has fewest pegs, increasing by 1 each row
+            num_pegs = row + 1
             
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
