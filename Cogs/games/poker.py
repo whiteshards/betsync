@@ -44,7 +44,7 @@ class HoldButton(discord.ui.Button):
             custom_id=f"hold_{card_index}"
         )
         self.card_index = card_index
-        self.card_info = card_info
+        self.card_info = card_info  # Just store the tuple directly
         self.is_held = False
 
     async def callback(self, interaction: discord.Interaction):
