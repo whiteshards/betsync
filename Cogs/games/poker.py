@@ -655,6 +655,9 @@ class Poker(commands.Cog):
                 {"$push": {"server_bet_history": {"$each": [server_entry], "$slice": -100}}}
             )
 
+            # Use red color for One Pair, green for other winning hands
+            embed_color = 0xFF0000 if hand_type == "One Pair" else 0x00FF00
+            
             embed = discord.Embed(
                 title="🏆 You Won!",
                 description=(
@@ -663,7 +666,7 @@ class Poker(commands.Cog):
                     f"**Bet:** {bet_amount}\n"
                     f"**Won:** {winnings} credits"
                 ),
-                color=0x00FF00
+                color=embed_color
             )
         else:
             # Loss
