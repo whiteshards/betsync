@@ -21,6 +21,13 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         print(f"{Fore.RED}[-] {Fore.WHITE} Some dude {Fore.BLACK}{ctx.message.author}{Fore.WHITE} tried to use a non existsent command 💔💔💔")
 
+# Load Plinko cog
+try:
+    bot.load_extension("Cogs.games.plinko")
+    print(f"{Fore.GREEN}[+] {Fore.WHITE}Loaded Plinko game")
+except Exception as e:
+    print(f"{Fore.RED}[-] {Fore.WHITE}Failed to load Plinko game: {e}")
+
 @bot.event
 async def on_guild_join(guild):
     db = Servers()
