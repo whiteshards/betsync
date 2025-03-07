@@ -120,7 +120,7 @@ class PlinkoGame:
         try:
             # Increase drop counter
             self.drops += 1
-            
+
             # Clear previous ball path if any
             if self.ball_paths:
                 # Keep only the most recent path
@@ -139,11 +139,13 @@ class PlinkoGame:
 
             # Update database for the user's balance
             db = Users()
-            db_update = db.update_balance(self.user_id, self.bet_amount, self.currency_type, "$inc", -1)
+            # Correct way to use update_balance for deduction:
+            # For $inc operation, we pass the negative amount directly
+            db_update = db.update_balance(self.user_id, -self.bet_amount, self.currency_type, "$inc")
 
             # Update database for the win amount if applicable
             if multiplier > 0:
-                win_update = db.update_balance(self.user_id, win_for_this_ball, self.currency_type, "$inc", 1)
+                win_update = db.update_balance(self.user_id, win_for_this_ball, self.currency_type, "$inc")
 
             # Add to history
             total_profit = self.win_amount - (self.drops * self.bet_amount)
@@ -273,12 +275,12 @@ class PlinkoGame:
 
         # Calculate the actual display rows (user_rows + 2)
         actual_rows = self.rows + 2
-        
+
         # The number of slots/gaps at the bottom should be actual_rows - 1
         # This ensures we have one more multiplier than the user-specified rows
         num_slots = len(self.multiplier_table)
         horizontal_spacing = board_width / (num_slots + 1)
-        
+
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
@@ -287,11 +289,11 @@ class PlinkoGame:
             # Calculate number of pegs for this row (increasing from top to bottom)
             # First row has fewest pegs, increasing by 1 each row
             num_pegs = row + 1
-            
+
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
-            
+
             for peg in range(num_pegs):
                 x = start_x + peg * horizontal_spacing
                 draw.ellipse((x - peg_radius, y - peg_radius, x + peg_radius, y + peg_radius), 
@@ -300,7 +302,7 @@ class PlinkoGame:
         # Draw multiplier buckets at the bottom - one for each multiplier
         bucket_width = horizontal_spacing * 0.9
         bucket_height = multiplier_height * 0.8
-        
+
         # Position buckets just below the last row of pegs
         bucket_y = vertical_spacing * (actual_rows + 0.5)
 
