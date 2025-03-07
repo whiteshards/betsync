@@ -614,7 +614,7 @@ class Poker(commands.Cog):
         # Record the game result in history
         timestamp = int(time.time())
 
-        if multiplier > 0:
+        if multiplier > 1:
             # Win
             db.update_balance(ctx.author.id, winnings, "credits", "$inc")
             
