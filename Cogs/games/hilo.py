@@ -105,10 +105,6 @@ class HiLoView(discord.ui.View):
 
     async def cash_out(self, interaction):
         """Cash out current winnings"""
-        # Disable all buttons
-        for child in self.children:
-            child.disabled = True
-
         self.game_over = True
         winnings = self.current_winnings
 
@@ -156,13 +152,11 @@ class HiLoView(discord.ui.View):
                     inline=False
                 )
 
-        embed.set_footer(text=f"BetSync Casino • {len(self.deck)} cards left in deck")
+        embed.set_footer(text=f"BetSync Casino • Play again with the button below")
 
         # Set the game image
         file = discord.File(fp=game_image, filename="hilo_game.png")
         embed.set_image(url="attachment://hilo_game.png")
-
-        await interaction.response.edit_message(embed=embed, file=file, view=self)
 
         # Process winnings using the currency helper
         from Cogs.utils.currency_helper import process_win
@@ -175,14 +169,11 @@ class HiLoView(discord.ui.View):
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
 
-        # Add play again button
+        # Create a new view with just the Play Again button
         view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
         view.message = self.message
 
-        await interaction.followup.send(
-            f"Would you like to play again with {self.bet_amount} {self.currency_used}?",
-            view=view
-        )
+        await interaction.response.edit_message(embed=embed, file=file, view=view)
 
     async def process_round(self, interaction, choice):
         """Process a round of HiLo"""
@@ -282,10 +273,6 @@ class HiLoView(discord.ui.View):
             # Game over - player lost
             self.game_over = True
 
-            # Disable all buttons
-            for child in self.children:
-                child.disabled = True
-
             # Add the last card to previous cards for the final image
             self.previous_cards.append(self.current_card)
             if len(self.previous_cards) > 5:
@@ -332,13 +319,11 @@ class HiLoView(discord.ui.View):
                         inline=False
                     )
 
-            embed.set_footer(text="BetSync Casino • Better luck next time!")
+            embed.set_footer(text="BetSync Casino • Play again with the button below")
 
             # Set the game image
             file = discord.File(fp=game_image, filename="hilo_game.png")
             embed.set_image(url="attachment://hilo_game.png")
-
-            await interaction.response.edit_message(embed=embed, file=file, view=self)
 
             # Add to history
             self.cog.add_to_history(self.ctx.author.id, self.ctx.guild.id, 0, self.bet_amount, "loss", "hilo")
@@ -347,14 +332,12 @@ class HiLoView(discord.ui.View):
             if self.ctx.author.id in self.cog.ongoing_games:
                 del self.cog.ongoing_games[self.ctx.author.id]
 
-            # Add play again button
+            # Create play again view
             view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
             view.message = self.message
-
-            await interaction.followup.send(
-                f"Would you like to play again with {self.bet_amount} {self.currency_used}?",
-                view=view
-            )
+            
+            # Update the message with the embed and play again button
+            await interaction.response.edit_message(embed=embed, file=file, view=view)
 
     def create_game_embed(self, win=False):
         """Create the game embed"""
