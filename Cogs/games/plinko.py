@@ -118,11 +118,9 @@ class PlinkoGame:
     async def drop_ball(self):
         """Drop a ball and update the game state"""
         try:
-            # Disable buttons during ball drop to prevent spam
-            for item in self.view.children:
-                item.disabled = True
-            await self.message.edit(view=self.view)
-
+            # Increase drop counter
+            self.drops += 1
+            
             # Clear previous ball path if any
             if self.ball_paths:
                 # Keep only the most recent path
@@ -136,10 +134,8 @@ class PlinkoGame:
 
             # Get multiplier based on landing position
             multiplier = self.multiplier_table[landing_pos]
-            self.win_amount += self.bet_amount * multiplier
-
-            # Update the embed with the new ball drop
-            await self.update_game_embed()
+            win_for_this_ball = self.bet_amount * multiplier
+            self.win_amount += win_for_this_ball
 
             # Update database for the user's balance
             db = Users()
@@ -147,10 +143,10 @@ class PlinkoGame:
 
             # Update database for the win amount if applicable
             if multiplier > 0:
-                win_update = db.update_balance(self.user_id, self.bet_amount * multiplier, self.currency_type, "$inc", 1)
+                win_update = db.update_balance(self.user_id, win_for_this_ball, self.currency_type, "$inc", 1)
 
             # Add to history
-            total_profit = self.win_amount - (len(self.ball_paths) * self.bet_amount)
+            total_profit = self.win_amount - (self.drops * self.bet_amount)
 
             history_entry = {
                 "game": "plinko",
@@ -161,7 +157,7 @@ class PlinkoGame:
                 "details": {
                     "difficulty": self.difficulty,
                     "rows": self.rows,
-                    "balls_dropped": len(self.ball_paths),
+                    "balls_dropped": self.drops,
                     "multipliers": [self.multiplier_table[p[-1]] for p in self.ball_paths]
                 }
             }
@@ -176,17 +172,11 @@ class PlinkoGame:
             server_profit = -total_profit  # Server profits when player loses
             servers_db.update_server_profit(self.server_id, server_profit)
 
-            # Re-enable buttons after processing is complete
-            for item in self.view.children:
-                item.disabled = False
-            await self.message.edit(view=self.view)
+            # Update the embed with the new ball drop
+            await self.update_game_embed()
 
         except Exception as e:
             print(f"Error in drop_ball: {e}")
-            # Re-enable buttons in case of error
-            for item in self.view.children:
-                item.disabled = False
-            await self.message.edit(view=self.view)
 
     async def update_game_embed(self):
         """Update the game embed with the latest information"""
@@ -222,32 +212,32 @@ class PlinkoGame:
         num_slots = len(self.multiplier_table)
 
         # Start at the center for the first row
-        position = (num_slots - self.rows) // 2
+        position = num_slots // 2
 
         # For each row, the ball can go left or right at each peg
         for row in range(self.rows):
             # Calculate how many pegs are in this row
-            # In our new arrangement, last row has num_slots - 1 pegs
-            current_row_pegs = num_slots - row -1
+            # First row has fewest pegs, last row has num_slots - 1 pegs
+            current_row_pegs = row + 1
 
             # Add current position to path
             path.append(position)
 
             # True physics-based Plinko has roughly 50/50 chance at each peg
             # Add slight bias toward center for realism
-            center = current_row_pegs / 2
+            center = num_slots / 2
             center_bias = 0.02 * abs(position - center)
 
             # Decide direction (left or right)
             if random.random() < 0.5 - center_bias:
-                # Ball goes to the right gap (stay at same position)
-                pass
+                # Ball goes to the left
+                position -= 1
             else:
-                # Ball goes to the left gap (position + 1)
+                # Ball goes to the right
                 position += 1
 
             # Ensure position stays within bounds for next row
-            position = max(0, min(position, current_row_pegs))
+            position = max(0, min(position, num_slots - 1))
 
         # Final landing position is the last position in the path
         final_pos = position
@@ -286,18 +276,19 @@ class PlinkoGame:
         # Calculate spacing to ensure the number of slots at the bottom matches the number of multipliers
         num_slots = len(self.multiplier_table)
         horizontal_spacing = board_width / (num_slots + 1)
-        vertical_spacing = board_height / (self.rows + 2)  # +2 for top and bottom margins
+        
+        # Calculate vertical spacing with more space at the top
+        vertical_spacing = board_height / (self.rows + 3)  # +3 for top and bottom margins
 
-        # Draw pegs
+        # Draw pegs - Start with few pegs at top, increasing as we go down
         for row in range(self.rows):
-            # Each row should have (number of multipliers - row) pegs to ensure proper alignment
-            # For the bottom row, we need (num_slots - 1) pegs to create num_slots gaps
-            num_pegs = num_slots - row
-
+            # Calculate number of pegs for this row (increasing from top to bottom)
+            num_pegs = row + 1  
+            
             # Calculate starting x position to center the pegs
-            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
-            y = vertical_spacing * (row + 1)
-
+            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
+            y = vertical_spacing * (row + 2)  # Start drawing pegs a bit lower to leave space at top
+            
             for peg in range(num_pegs):
                 x = start_x + peg * horizontal_spacing
                 draw.ellipse((x - peg_radius, y - peg_radius, x + peg_radius, y + peg_radius), 
@@ -306,8 +297,9 @@ class PlinkoGame:
         # Draw multiplier buckets at the bottom - one for each multiplier
         bucket_width = horizontal_spacing * 0.9
         bucket_height = multiplier_height * 0.8
-        # Move buckets closer to the pegs
-        bucket_y = board_height - bucket_height/2
+        
+        # Position buckets just below the last row of pegs
+        bucket_y = vertical_spacing * (self.rows + 2)
 
         # Color mapping for multipliers
         def get_multiplier_color(multiplier):
@@ -320,7 +312,7 @@ class PlinkoGame:
             else:
                 return (158, 158, 158, 255)  # Grey for low multipliers
 
-        # Draw multiplier buckets
+        # Draw multiplier buckets - there should be num_slots buckets
         for i, multiplier in enumerate(self.multiplier_table):
             x = horizontal_spacing * (i + 1)
 
@@ -362,9 +354,9 @@ class PlinkoGame:
         # Draw only the most recent ball
         if self.ball_paths and len(self.ball_paths[-1]) > 0:
             final_pos = self.ball_paths[-1][-1]
-            # Align with the gaps between pegs
+            # Align with the multiplier buckets
             final_x = horizontal_spacing * (final_pos + 1)
-            final_y = board_height - ball_radius
+            final_y = bucket_y - ball_radius
 
             # Draw the ball
             draw.ellipse(
@@ -510,7 +502,7 @@ class PlinkoView(discord.ui.View):
             self.drop_button.disabled = True
             self.stop_button.disabled = True
 
-            # Update the view with disabled buttons
+            # Update the view with disabled buttons first
             await interaction.response.edit_message(view=self)
 
             # Drop the ball
@@ -520,13 +512,19 @@ class PlinkoView(discord.ui.View):
             self.drop_button.disabled = False
             self.stop_button.disabled = False
 
-            # View will be updated by the drop_ball method
+            # Update the view with enabled buttons
+            await self.game.message.edit(view=self)
         except Exception as e:
             print(f"Error in drop_callback: {e}")
             # Re-enable buttons if there's an error
             self.drop_button.disabled = False
             self.stop_button.disabled = False
-            await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
+            try:
+                await self.game.message.edit(view=self)
+                await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
+            except:
+                # If we can't edit the original message, try to send a new one
+                await interaction.followup.send("An error occurred. Please try again.", ephemeral=True)
 
     async def stop_callback(self, interaction: discord.Interaction):
         try:
