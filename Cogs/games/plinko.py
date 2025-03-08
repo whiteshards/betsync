@@ -217,44 +217,44 @@ class PlinkoGame:
         # Start randomly at one of the 2 gaps at the top
         position = random.randint(0, 1)
         path.append(position)
-        
+
         # Track the current position as we move down through the rows
         current_position = position
-        
+
         # For each row after the first, determine path based on pegs
         for row in range(1, actual_rows):
             # Each row has row+1 pegs, creating row+2 possible positions
             # When the ball hits a peg, it has a 50/50 chance to go left or right
-            
+
             # Slight center bias for realism (real physics has this tendency)
             center = (row + 2) / 2
             center_bias = 0.03 * abs(current_position - center)
-            
+
             if random.random() < 0.5 - center_bias:
                 # Ball goes left
                 current_position = current_position
             else:
                 # Ball goes right
                 current_position = current_position + 1
-                
+
             # Make sure we don't go out of bounds
             current_position = max(0, min(current_position, row + 1))
-            
+
             # Add this position to our path
             path.append(current_position)
-        
+
         # The final position maps to the multiplier index
         # For the last row, there are num_slots possible positions
         # Need to map from range [0, actual_rows] to [0, num_slots-1]
         final_row_positions = actual_rows + 1
-        
+
         # Scale the position to match the multiplier table indices
         scaled_position = int(current_position * (num_slots - 1) / (final_row_positions - 1) + 0.5)
         final_pos = max(0, min(scaled_position, num_slots - 1))
-        
+
         # Replace the last position with the scaled position for correct display
         path[-1] = final_pos
-        
+
         return path, final_pos
 
     def generate_board_image(self) -> io.BytesIO:
@@ -300,7 +300,7 @@ class PlinkoGame:
         for row in range(actual_rows):
             # First row has 1 peg (2 gaps), then each row adds 1 more peg
             num_pegs = row + 1
-            
+
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
@@ -640,10 +640,10 @@ class Plinko(commands.Cog):
             credits_used = bet_info.get("credits_used", 0)
             bet_amount_value = bet_info.get("total_bet_amount", 0)
             currency_used = bet_info.get("currency_type", "tokens")  # Default to tokens if not specified
-            
+
             # Update bet_amount with the processed value
             bet_amount = bet_amount_value
-            
+
             await loading_message.delete()  # Delete loading message after processing
         except Exception as e:
             await loading_message.delete()
@@ -699,7 +699,7 @@ class Plinko(commands.Cog):
                 difficulty=difficulty,
                 rows=rows,
                 user_id=ctx.author.id,
-                currency_type=currency_db_field
+                currency_type=currency_used
             )
 
             # Store the game
