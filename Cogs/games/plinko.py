@@ -145,7 +145,6 @@ class PlinkoGame:
 
             # Update database for the win amount if applicable
             if multiplier > 0:
-                # Make sure we use the correct currency type for winnings
                 win_update = db.update_balance(self.user_id, win_for_this_ball, self.currency_type, "$inc")
 
             # Add to history
@@ -542,7 +541,7 @@ class PlinkoView(discord.ui.View):
             db = Users()
             user_data = db.fetch_user(self.game.user_id)
             user_balance = user_data.get(self.game.currency_type, 0)
-
+            
             if user_balance < self.game.bet_amount:
                 # Not enough balance for another drop
                 error_embed = discord.Embed(
@@ -551,13 +550,13 @@ class PlinkoView(discord.ui.View):
                     color=0xFF0000
                 )
                 await interaction.followup.send(embed=error_embed, ephemeral=True, delete_after=5)
-
+                
                 # Re-enable buttons but only the stop button if drops > 0
                 self.drop_button.disabled = True  # Disable drop button
                 self.stop_button.disabled = False if self.game.drops >= 1 else True
                 await self.game.message.edit(view=self)
                 return
-
+                
             # Drop the ball
             await self.game.drop_ball()
 
@@ -741,7 +740,7 @@ class Plinko(commands.Cog):
                 difficulty=difficulty,
                 rows=rows,
                 user_id=ctx.author.id,
-                currency_type=currency_used  # This ensures we use the same currency for payouts
+                currency_type=currency_used
             )
 
             # Store the game
