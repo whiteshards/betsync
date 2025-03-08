@@ -214,31 +214,47 @@ class PlinkoGame:
         num_slots = len(self.multiplier_table)
         actual_rows = self.rows + 2  # User rows + 2 as per requirement
 
-        # Start with one of the 2 gaps at the top (random choice between positions)
+        # Start randomly at one of the 2 gaps at the top
         position = random.randint(0, 1)
-
-        # For each row, the ball can go left or right at each peg
-        for row in range(actual_rows):
-            # Add current position to path
-            path.append(position)
-
-            # True physics-based Plinko has roughly 50/50 chance at each peg
-            # Add slight bias toward center for realism
-            center = num_slots / 2
-            center_bias = 0.02 * abs(position - center)
-
-            # Decide direction (left or right)
+        path.append(position)
+        
+        # Track the current position as we move down through the rows
+        current_position = position
+        
+        # For each row after the first, determine path based on pegs
+        for row in range(1, actual_rows):
+            # Each row has row+1 pegs, creating row+2 possible positions
+            # When the ball hits a peg, it has a 50/50 chance to go left or right
+            
+            # Slight center bias for realism (real physics has this tendency)
+            center = (row + 2) / 2
+            center_bias = 0.03 * abs(current_position - center)
+            
             if random.random() < 0.5 - center_bias:
-                # Ball goes to the left
-                position = max(0, position - 1)
+                # Ball goes left
+                current_position = current_position
             else:
-                # Ball goes to the right
-                position = min(position + 1, num_slots - 1)
-
-        # Final landing position is the last position in the path
-        final_pos = position
-
-        # Return the path and final landing position
+                # Ball goes right
+                current_position = current_position + 1
+                
+            # Make sure we don't go out of bounds
+            current_position = max(0, min(current_position, row + 1))
+            
+            # Add this position to our path
+            path.append(current_position)
+        
+        # The final position maps to the multiplier index
+        # For the last row, there are num_slots possible positions
+        # Need to map from range [0, actual_rows] to [0, num_slots-1]
+        final_row_positions = actual_rows + 1
+        
+        # Scale the position to match the multiplier table indices
+        scaled_position = int(current_position * (num_slots - 1) / (final_row_positions - 1) + 0.5)
+        final_pos = max(0, min(scaled_position, num_slots - 1))
+        
+        # Replace the last position with the scaled position for correct display
+        path[-1] = final_pos
+        
         return path, final_pos
 
     def generate_board_image(self) -> io.BytesIO:
@@ -280,12 +296,11 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with 2 gaps at top (3 pegs), increasing as we go down
+        # Draw pegs - Start with 2 gaps at top (1 peg), increasing as we go down
         for row in range(actual_rows):
-            # For row 0, we start with 3 pegs (2 gaps), then for subsequent rows we add 1 peg
-            # This ensures for row 16, we have 16+3 = 19 pegs (18 gaps)
-            num_pegs = row + 3
-
+            # First row has 1 peg (2 gaps), then each row adds 1 more peg
+            num_pegs = row + 1
+            
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
