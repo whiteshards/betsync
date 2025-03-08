@@ -572,7 +572,7 @@ class Plinko(commands.Cog):
         self.ongoing_games = {}  # Store ongoing games for each user
 
     @commands.command(aliases=["plk"])
-    async def plinko(self, ctx, bet_amount: float = None, difficulty: str = None, rows: int = None, currency_type: str = "tokens"):
+    async def plinko(self, ctx, bet_amount: str = None, difficulty: str = None, rows: str = None, currency_type: str = "tokens"):
         """
         Play a game of Plinko
 
@@ -592,19 +592,59 @@ class Plinko(commands.Cog):
             )
             return await ctx.reply(embed=embed)
 
-        # Validate bet amount
-        if bet_amount is None or bet_amount <= 0:
+        # Import currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
+
+        # Handle missing parameters
+        if bet_amount is None:
             embed = discord.Embed(
-                title="❌ Invalid Bet Amount",
-                description="Please provide a valid bet amount greater than 0.",
-                color=0xFF0000
+                title="📊 How to Play Plinko",
+                description=(
+                    "**Plinko** is a game where a ball falls through pegs and lands in one of several prize buckets!\n\n"
+                    "**Usage:** `!plinko <bet amount> <difficulty> <rows> [currency_type]`\n"
+                    "**Example:** `!plinko 100 medium 12` or `!plinko all high 16 credits`\n\n"
+                    "**Difficulty:**\n"
+                    "- `low`: Lower risk, smaller payouts\n"
+                    "- `medium`: Balanced risk and reward\n"
+                    "- `high`: Higher risk, bigger potential payouts\n\n"
+                    "**Rows:** Choose between 8-16 rows\n"
+                    "**Currency:** tokens (default) or credits"
+                ),
+                color=0x00FFAE
             )
-            embed.add_field(
-                name="Usage",
-                value="!plinko <bet amount> <difficulty> <rows> <currency_type>",
-                inline=False
-            )
+            embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
+
+        # Process currency type first (needed for bet amount validation)
+        if currency_type:
+            currency_type = currency_type.lower()
+            if currency_type not in ["token", "tokens", "credit", "credits"]:
+                embed = discord.Embed(
+                    title="❌ Invalid Currency",
+                    description="Please specify either 'tokens' or 'credits'.",
+                    color=0xFF0000
+                )
+                embed.add_field(
+                    name="Usage",
+                    value="!plinko <bet amount> <difficulty> <rows> <currency_type>",
+                    inline=False
+                )
+                return await ctx.reply(embed=embed)
+        else:
+            currency_type = "tokens"  # Default
+
+        # Normalize currency type
+        if currency_type in ["token", "tokens"]:
+            currency_db_field = "tokens"
+        else:
+            currency_db_field = "credits"
+
+        # Process bet amount using the helper
+        bet_result = await process_bet_amount(ctx, bet_amount, currency_db_field)
+        if not bet_result["success"]:
+            return await ctx.reply(embed=bet_result["embed"])
+        
+        bet_amount = bet_result["amount"]
 
         # Validate difficulty
         if difficulty is None or difficulty.lower() not in ["low", "medium", "high"]:
@@ -624,7 +664,11 @@ class Plinko(commands.Cog):
         difficulty = difficulty.lower()
 
         # Validate rows
-        if rows is None or rows < 8 or rows > 16:
+        try:
+            rows = int(rows)
+            if rows < 8 or rows > 16:
+                raise ValueError()
+        except:
             embed = discord.Embed(
                 title="❌ Invalid Rows",
                 description="Please choose a number of rows between 8 and 16.",
@@ -634,50 +678,6 @@ class Plinko(commands.Cog):
                 name="Usage",
                 value="!plinko <bet amount> <difficulty> <rows> <currency_type>",
                 inline=False
-            )
-            return await ctx.reply(embed=embed)
-
-        # Validate currency type
-        currency_type = currency_type.lower()
-        if currency_type not in ["token", "tokens", "credit", "credits"]:
-            embed = discord.Embed(
-                title="❌ Invalid Currency",
-                description="Please specify either 'tokens' or 'credits'.",
-                color=0xFF0000
-            )
-            embed.add_field(
-                name="Usage",
-                value="!plinko <bet amount> <difficulty> <rows> <currency_type>",
-                inline=False
-            )
-            return await ctx.reply(embed=embed)
-
-        # Normalize currency type
-        if currency_type in ["token", "tokens"]:
-            currency_db_field = "tokens"
-        else:
-            currency_db_field = "credits"
-
-        # Check if the user exists in the database
-        db = Users()
-        user_data = db.fetch_user(ctx.author.id)
-
-        if not user_data:
-            embed = discord.Embed(
-                title="❌ Account Not Found",
-                description="You need to have an account to play. Please register first.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Check if the user has enough balance
-        user_balance = user_data.get(currency_db_field, 0)
-
-        if user_balance < bet_amount:
-            embed = discord.Embed(
-                title="❌ Insufficient Balance",
-                description=f"You don't have enough {currency_db_field} to place this bet. Your balance: **{user_balance:.2f} {currency_db_field}**",
-                color=0xFF0000
             )
             return await ctx.reply(embed=embed)
 
