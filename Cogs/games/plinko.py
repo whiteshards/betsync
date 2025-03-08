@@ -260,11 +260,11 @@ class PlinkoGame:
     def generate_board_image(self) -> io.BytesIO:
         """Generate a visual representation of the Plinko board"""
         # Constants for board rendering - Adjust size based on row count
-        width = 900 if self.rows >= 13 else 800
-        height = 1100 if self.rows >= 13 else 1000
-        peg_radius = 7 if self.rows >= 13 else 8  # Slightly smaller pegs for larger boards
+        width = 1100 if self.rows >= 16 else 900 if self.rows >= 13 else 800
+        height = 1300 if self.rows >= 16 else 1100 if self.rows >= 13 else 1000
+        peg_radius = 6 if self.rows >= 16 else 7 if self.rows >= 13 else 8  # Smaller pegs for larger boards
         ball_radius = 12
-        multiplier_height = 80
+        multiplier_height = 100 if self.rows >= 16 else 80  # Taller multiplier area for more rows
 
         # Calculate board dimensions
         board_width = width
@@ -277,7 +277,7 @@ class PlinkoGame:
         try:
             # Try to load custom fonts
             title_font = ImageFont.truetype("roboto.ttf", 36)
-            multiplier_font = ImageFont.truetype("roboto.ttf", 20)
+            multiplier_font = ImageFont.truetype("roboto.ttf", 22 if self.rows >= 16 else 20)  # Slightly larger font for 16+ rows
             watermark_font = ImageFont.truetype("roboto.ttf", 36)
         except:
             # Fallback to default font if custom font fails
@@ -331,16 +331,19 @@ class PlinkoGame:
         # Draw multiplier buckets - there should be num_slots buckets
         for i, multiplier in enumerate(self.multiplier_table):
             x = horizontal_spacing * (i + 1)
-
-            # Draw bucket
+            
+            # Adjust bucket width for more spacing between buckets when there are many slots
+            bucket_width_adjusted = bucket_width * (0.85 if self.rows >= 16 else 0.9)
+            
+            # Draw bucket with slightly better spacing
             bucket_color = get_multiplier_color(multiplier)
             draw.rectangle(
-                (x - bucket_width/2, bucket_y, x + bucket_width/2, bucket_y + bucket_height),
+                (x - bucket_width_adjusted/2, bucket_y, x + bucket_width_adjusted/2, bucket_y + bucket_height),
                 fill=bucket_color,
-                outline=(255, 255, 255, 100)
+                outline=(255, 255, 255, 150)  # Slightly more visible outline
             )
 
-            # Draw multiplier text
+            # Draw multiplier text with black outline for better visibility
             text_color = (255, 255, 255, 255)  # White text
             multiplier_text = f"{multiplier}x"
             text_bbox = draw.textbbox((0, 0), multiplier_text, font=multiplier_font)
@@ -348,6 +351,16 @@ class PlinkoGame:
             text_height = text_bbox[3] - text_bbox[1]
             text_x = x - text_width / 2
             text_y = bucket_y + (bucket_height - text_height) / 2
+            
+            # Draw text outline (thin black border) by drawing the text multiple times with small offsets
+            outline_color = (0, 0, 0, 255)  # Black outline
+            outline_thickness = 1
+            
+            # Draw outline by offsetting text in 4 directions
+            for dx, dy in [(outline_thickness, 0), (-outline_thickness, 0), (0, outline_thickness), (0, -outline_thickness)]:
+                draw.text((text_x + dx, text_y + dy), multiplier_text, font=multiplier_font, fill=outline_color)
+                
+            # Draw the main text on top
             draw.text((text_x, text_y), multiplier_text, font=multiplier_font, fill=text_color)
 
         # Add subtle BetSync watermark in the middle
