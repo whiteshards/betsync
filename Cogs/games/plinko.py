@@ -537,6 +537,26 @@ class PlinkoView(discord.ui.View):
             # Update the view with disabled buttons first
             await interaction.response.edit_message(view=self)
 
+            # Check if user has enough balance for another bet
+            db = Users()
+            user_data = db.fetch_user(self.game.user_id)
+            user_balance = user_data.get(self.game.currency_type, 0)
+            
+            if user_balance < self.game.bet_amount:
+                # Not enough balance for another drop
+                error_embed = discord.Embed(
+                    title="❌ Insufficient Balance",
+                    description=f"You don't have enough {self.game.currency_type} for another ball drop!",
+                    color=0xFF0000
+                )
+                await interaction.followup.send(embed=error_embed, ephemeral=True, delete_after=5)
+                
+                # Re-enable buttons but only the stop button if drops > 0
+                self.drop_button.disabled = True  # Disable drop button
+                self.stop_button.disabled = False if self.game.drops >= 1 else True
+                await self.game.message.edit(view=self)
+                return
+                
             # Drop the ball
             await self.game.drop_ball()
 
@@ -578,7 +598,7 @@ class PlinkoView(discord.ui.View):
             print(f"Error in stop_callback: {e}")
             await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
-    async def on_timeout((self):
+    async def on_timeout(self):
         """Handle view timeout - auto-end the game after timeout period"""
         if self.game.running:
             try:
