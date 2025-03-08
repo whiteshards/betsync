@@ -1,3 +1,4 @@
+
 import discord
 from discord.ext import commands
 from Cogs.utils.mongo import Users
@@ -55,7 +56,8 @@ class HistoryView(discord.ui.View):
             filtered = [item for item in self.history_data if item.get("type") == self.category]
 
         # Sort by timestamp (most recent first)
-        filtered.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        # Make sure we have a valid timestamp and it's a number
+        filtered.sort(key=lambda x: int(x.get("timestamp", 0)) if isinstance(x.get("timestamp"), (int, float, str)) and str(x.get("timestamp", "0")).isdigit() else 0, reverse=True)
 
         # Limit to 20 items if not requesting full list
         if not full:
@@ -82,7 +84,7 @@ class HistoryView(discord.ui.View):
         else:
             for item in filtered_data:
                 timestamp = item.get("timestamp", "Unknown")
-                if isinstance(timestamp, (int, float)):
+                if isinstance(timestamp, (int, float)) or (isinstance(timestamp, str) and timestamp.isdigit()):
                     # Convert timestamp to readable date
                     date_str = f"<t:{int(timestamp)}:R>"
                 else:
@@ -112,7 +114,7 @@ class HistoryView(discord.ui.View):
 
         # Add page info
         embed.set_footer(text=f"Page {self.page + 1}/{self.max_pages} • BetSync Casino", icon_url=self.bot.user.avatar.url)
-        embed.set_thumbnail(url=self.user.avatar.url)
+        embed.set_thumbnail(url=self.user.avatar.url if self.user.avatar else None)
 
         return embed
 
@@ -210,9 +212,6 @@ class History(commands.Cog):
             if not isinstance(history_data, list):
                 history_data = []
                 
-            # Check if we have a valid user avatar URL
-            user_avatar_url = user.avatar.url if user.avatar else None
-
             # Create view with buttons
             view = HistoryView(self.bot, user, history_data, ctx.author.id)
 
