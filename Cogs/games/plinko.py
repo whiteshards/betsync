@@ -214,15 +214,11 @@ class PlinkoGame:
         num_slots = len(self.multiplier_table)
         actual_rows = self.rows + 2  # User rows + 2 as per requirement
 
-        # Start at the center for the first row (topmost row)
-        position = num_slots // 2
+        # Start with one of the 2 gaps at the top (random choice between positions)
+        position = random.randint(0, 1)
 
         # For each row, the ball can go left or right at each peg
         for row in range(actual_rows):
-            # Calculate how many pegs are in this row
-            # First row has fewest pegs, increasing as we go down
-            current_row_pegs = row + 1
-
             # Add current position to path
             path.append(position)
 
@@ -247,10 +243,10 @@ class PlinkoGame:
 
     def generate_board_image(self) -> io.BytesIO:
         """Generate a visual representation of the Plinko board"""
-        # Constants for board rendering
-        width = 800
-        height = 1000
-        peg_radius = 8
+        # Constants for board rendering - Adjust size based on row count
+        width = 900 if self.rows >= 13 else 800
+        height = 1100 if self.rows >= 13 else 1000
+        peg_radius = 7 if self.rows >= 13 else 8  # Slightly smaller pegs for larger boards
         ball_radius = 12
         multiplier_height = 80
 
@@ -284,14 +280,14 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with fewer pegs at top, increasing as we go down
+        # Draw pegs - Start with 2 gaps at top (3 pegs), increasing as we go down
         for row in range(actual_rows):
-            # Calculate number of pegs for this row (increasing from top to bottom)
-            # First row has fewest pegs, increasing by 1 each row
-            num_pegs = row + 1
+            # For row 0, we start with 3 pegs (2 gaps), then for subsequent rows we add 1 peg
+            # This ensures for row 16, we have 16+3 = 19 pegs (18 gaps)
+            num_pegs = row + 3
 
             # Calculate starting x position to center the pegs
-            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2 if num_pegs > 1 else board_width / 2
+            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
 
             for peg in range(num_pegs):
