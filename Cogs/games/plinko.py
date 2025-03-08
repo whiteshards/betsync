@@ -68,8 +68,8 @@ class PlinkoGame:
         self.drops = 0
         self.ball_paths = []
         self.ball_results = []
-        self.win_amount = 0 #added
-        self.server_id = ctx.guild.id #added
+        self.win_amount = 0
+        self.server_id = ctx.guild.id
 
         # Set colors based on difficulty
         if difficulty == "low":
@@ -95,7 +95,7 @@ class PlinkoGame:
                     f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Drops:** 0\n"
-                    f"**Total Winnings:** 0 {self.currency_type}\n\n"
+                    f"**Total Winnings:** 0 credits\n\n"
                     "Click **Drop Ball** to start playing!"
                 ),
                 color=self.color
@@ -145,7 +145,7 @@ class PlinkoGame:
 
             # Update database for the win amount if applicable
             if multiplier > 0:
-                win_update = db.update_balance(self.user_id, win_for_this_ball, self.currency_type, "$inc")
+                win_update = db.update_balance(self.user_id, win_for_this_ball, "credits", "$inc")
 
             # Add to history
             total_profit = self.win_amount - (self.drops * self.bet_amount)
@@ -192,7 +192,7 @@ class PlinkoGame:
                     f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Drops:** {self.drops}\n"
-                    f"**Total Winnings:** {self.win_amount:.2f} {self.currency_type}\n"
+                    f"**Total Winnings:** {self.win_amount:.2f} credits\n"
                     f"**Net Profit:** {profit_display} {self.currency_type}\n\n"
                     f"**Last Drop:** {self.multiplier_table[self.ball_paths[-1][-1]]}x multiplier → {self.bet_amount * self.multiplier_table[self.ball_paths[-1][-1]]:.2f} {self.currency_type}"
                 ),
@@ -425,8 +425,7 @@ class PlinkoGame:
                         f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                         f"**Rows:** {self.rows}\n"
                         f"**Total Drops:** {self.drops}\n"
-                        f"**Total Winnings:** {self.win_amount:.2f} {self.currency_type}\n"
-                        f"**Net Profit:** {profit_display} {self.currency_type}\n\n"
+                        f"**Total Winnings:** {self.win_amount:.2f} credits\n\n"
                         "Thanks for playing Plinko!"
                     ),
                     color=self.color
@@ -460,7 +459,7 @@ class PlinkoGame:
                     f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Total Drops:** {self.drops}\n"
-                    f"**Total Winnings:** {self.win_amount:.2f} {self.currency_type}\n\n"
+                    f"**Total Winnings:** {self.win_amount:.2f} credits\n\n"
                     "Game timed out due to inactivity."
                 ),
                 color=discord.Color.dark_gray()
@@ -541,7 +540,7 @@ class PlinkoView(discord.ui.View):
             db = Users()
             user_data = db.fetch_user(self.game.user_id)
             user_balance = user_data.get(self.game.currency_type, 0)
-            
+
             if user_balance < self.game.bet_amount:
                 # Not enough balance for another drop
                 error_embed = discord.Embed(
@@ -550,13 +549,13 @@ class PlinkoView(discord.ui.View):
                     color=0xFF0000
                 )
                 await interaction.followup.send(embed=error_embed, ephemeral=True, delete_after=5)
-                
+
                 # Re-enable buttons but only the stop button if drops > 0
                 self.drop_button.disabled = True  # Disable drop button
                 self.stop_button.disabled = False if self.game.drops >= 1 else True
                 await self.game.message.edit(view=self)
                 return
-                
+
             # Drop the ball
             await self.game.drop_ball()
 
