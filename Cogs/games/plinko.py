@@ -615,34 +615,41 @@ class Plinko(commands.Cog):
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
 
-        # Process currency type first (needed for bet amount validation)
-        if currency_type:
-            currency_type = currency_type.lower()
-            if currency_type not in ["token", "tokens", "credit", "credits"]:
-                embed = discord.Embed(
-                    title="❌ Invalid Currency",
-                    description="Please specify either 'tokens' or 'credits'.",
-                    color=0xFF0000
-                )
-                embed.add_field(
-                    name="Usage",
-                    value="!plinko <bet amount> <difficulty> <rows> <currency_type>",
-                    inline=False
-                )
-                return await ctx.reply(embed=embed)
-        else:
-            currency_type = "tokens"  # Default
+        # Create loading embed
+        loading_embed = discord.Embed(
+            title="🎮 Setting up Plinko...",
+            description="Processing your bet...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
 
-        # Normalize currency type
-        if currency_type in ["token", "tokens"]:
-            currency_db_field = "tokens"
-        else:
-            currency_db_field = "credits"
+        # Import the currency helper
+        from Cogs.utils.currency_helper import process_bet_amount
 
-        # Process bet amount using the helper
-        bet_result = await process_bet_amount(ctx, bet_amount, currency_db_field)
-        if not bet_result["success"]:
-            return await ctx.reply(embed=bet_result["embed"])
+        try:
+            # Process the bet amount using the currency helper
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+
+            # If processing failed, return the error
+            if not success:
+                await loading_message.delete()
+                return await ctx.reply(embed=error_embed)
+
+            # Successful bet processing - extract relevant information
+            tokens_used = bet_info.get("tokens_used", 0)
+            credits_used = bet_info.get("credits_used", 0)
+            bet_amount_value = bet_info.get("total_bet_amount", 0)
+            currency_used = bet_info.get("currency_type", "tokens")  # Default to tokens if not specified
+            
+            await loading_message.delete()  # Delete loading message after processing
+        except Exception as e:
+            await loading_message.delete()
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"An error occurred while processing your bet: {str(e)}",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=error_embed)
         
         bet_amount = bet_result["amount"]
 
