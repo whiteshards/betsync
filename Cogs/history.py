@@ -121,8 +121,43 @@ class HistoryView(discord.ui.View):
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("This is not your command. Type `!history` to view your own history.", ephemeral=True)
             return False
-        return True
-
+            
+        # Get the custom_id from the interaction
+        custom_id = interaction.data.get("custom_id")
+        
+        # Handle the different button actions
+        if custom_id == "all":
+            self.category = "all"
+            self.page = 0
+        elif custom_id == "deposit":
+            self.category = "deposit"
+            self.page = 0
+        elif custom_id == "withdraw":
+            self.category = "withdraw"
+            self.page = 0
+        elif custom_id == "win":
+            self.category = "win"
+            self.page = 0
+        elif custom_id == "loss":
+            self.category = "loss"
+            self.page = 0
+        elif custom_id == "prev":
+            if self.page > 0:
+                self.page -= 1
+        elif custom_id == "next":
+            if self.page < self.max_pages - 1:
+                self.page += 1
+                
+        # Recalculate max pages
+        self._calculate_max_pages()
+        
+        # Update buttons
+        self._update_buttons()
+        
+        # Update the message
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        return False  # Return False to prevent default handling
+        
     async def on_timeout(self):
         """Disable all buttons when view times out"""
         for child in self.children:
@@ -131,90 +166,9 @@ class HistoryView(discord.ui.View):
         # Try to update the message with disabled buttons
         try:
             await self.message.edit(view=self)
-        except:
+        except Exception as e:
+            print(f"Error updating message on timeout: {e}")
             pass
-
-    async def interaction_check(self, interaction):
-        """Check if the person clicking is the same as the command author"""
-        if interaction.user.id != self.author_id:
-            await interaction.response.send_message("This is not your command. Type `!history` to view your own history.", ephemeral=True)
-            return False
-
-        # Handle the button click
-        await self.button_callback(interaction)
-        return False  # Return False to prevent the default handling
-
-    async def button_callback(self, interaction):
-        """Handle button interactions"""
-        custom_id = interaction.data.get("custom_id")
-
-        if custom_id == "all":
-            self.category = "all"
-            self.page = 0
-        elif custom_id == "deposit":
-            self.category = "deposit"
-            self.page = 0
-        elif custom_id == "withdraw":
-            self.category = "withdraw"
-            self.page = 0
-        elif custom_id == "win":
-            self.category = "win"
-            self.page = 0
-        elif custom_id == "loss":
-            self.category = "loss"
-            self.page = 0
-        elif custom_id == "prev":
-            if self.page > 0:
-                self.page -= 1
-        elif custom_id == "next":
-            if self.page < self.max_pages - 1:
-                self.page += 1
-
-        # Recalculate max pages
-        self._calculate_max_pages()
-
-        # Update buttons
-        self._update_buttons()
-
-        # Update the message
-        await interaction.response.edit_message(embed=self.create_embed(), view=self)
-
-    async def on_interaction(self, interaction):
-        if interaction.user.id != self.author_id:
-            await interaction.response.send_message("This is not your command. Type `!history` to view your own history.", ephemeral=True)
-            return
-
-        custom_id = interaction.data.get("custom_id")
-
-        if custom_id == "all":
-            self.category = "all"
-            self.page = 0
-        elif custom_id == "deposit":
-            self.category = "deposit"
-            self.page = 0
-        elif custom_id == "withdraw":
-            self.category = "withdraw"
-            self.page = 0
-        elif custom_id == "win":
-            self.category = "win"
-            self.page = 0
-        elif custom_id == "loss":
-            self.category = "loss"
-            self.page = 0
-        elif custom_id == "prev":
-            if self.page > 0:
-                self.page -= 1
-        elif custom_id == "next":
-            if self.page < self.max_pages - 1:
-                self.page += 1
-
-        # Remove old buttons and create fresh ones
-        self.clear_items()
-        self.add_category_buttons()
-        self.add_pagination_buttons()
-
-        # Update the message
-        await interaction.response.edit_message(embed=self.create_embed(), view=self)
 
 
 class History(commands.Cog):
@@ -224,45 +178,72 @@ class History(commands.Cog):
     @commands.command(aliases=["transactions", "logs"])
     async def history(self, ctx, user: discord.Member = None):
         """View your transaction history with filtering by category and pagination"""
-        # Send loading embed first
-        loading_emoji = emoji()["loading"]
-        loading_embed = discord.Embed(
-            title=f"{loading_emoji} | Loading Transaction History...",
-            description="Please wait while we fetch your transaction history.",
-            color=0x00FFAE
-        )
-        loading_message = await ctx.reply(embed=loading_embed)
-        
-        if user is None:
-            user = ctx.author
+        try:
+            # Send loading embed first
+            loading_emoji = emoji()["loading"]
+            loading_embed = discord.Embed(
+                title=f"{loading_emoji} | Loading Transaction History...",
+                description="Please wait while we fetch your transaction history.",
+                color=0x00FFAE
+            )
+            loading_message = await ctx.reply(embed=loading_embed)
+            
+            if user is None:
+                user = ctx.author
 
-        db = Users()
-        user_data = db.fetch_user(user.id)
+            db = Users()
+            user_data = db.fetch_user(user.id)
 
-        if user_data == False:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="This user doesn't have an account. Please wait for auto-registration or use `!signup`.",
+            if user_data == False:
+                embed = discord.Embed(
+                    title="<:no:1344252518305234987> | User Not Found",
+                    description="This user doesn't have an account. Please wait for auto-registration or use `!signup`.",
+                    color=0xFF0000
+                )
+                await loading_message.delete()
+                return await ctx.reply(embed=embed)
+
+            # Get history from user data
+            history_data = user_data.get("history", [])
+            
+            # Ensure history_data is a list
+            if not isinstance(history_data, list):
+                history_data = []
+                
+            # Check if we have a valid user avatar URL
+            user_avatar_url = user.avatar.url if user.avatar else None
+
+            # Create view with buttons
+            view = HistoryView(self.bot, user, history_data, ctx.author.id)
+
+            # Send initial embed
+            embed = view.create_embed()
+            
+            # Delete the loading message
+            await loading_message.delete()
+            
+            # Send the history embed with buttons
+            message = await ctx.reply(embed=embed, view=view)
+
+            # Store the message for later reference in the view
+            view.message = message
+            
+        except Exception as e:
+            # Handle any errors and provide feedback to the user
+            print(f"Error in history command: {e}")
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error Fetching History",
+                description="There was an error fetching your transaction history. Please try again later.",
                 color=0xFF0000
             )
-            return await ctx.reply(embed=embed)
-
-        # Get history from user data
-        history_data = user_data.get("history", [])
-
-        # Create view with buttons
-        view = HistoryView(self.bot, user, history_data, ctx.author.id)
-
-        # Send initial embed
-        embed = view.create_embed()
-        
-        # Delete the loading message
-        await loading_message.delete()
-        
-        message = await ctx.reply(embed=embed, view=view)
-
-        # Store the message for later reference in the view
-        view.message = message
+            
+            # Try to delete the loading message if it exists
+            try:
+                await loading_message.delete()
+            except:
+                pass
+                
+            await ctx.reply(embed=error_embed)
 
 
 def setup(bot):
