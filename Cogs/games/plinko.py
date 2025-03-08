@@ -7,7 +7,6 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 from Cogs.utils.mongo import Users, Servers
 import datetime
-from io import BytesIO
 
 # Define multiplier tables from the provided data
 MULTIPLIER_TABLES = {
@@ -69,8 +68,8 @@ class PlinkoGame:
         self.drops = 0
         self.ball_paths = []
         self.ball_results = []
-        self.win_amount = 0
-        self.server_id = ctx.guild.id
+        self.win_amount = 0 #added
+        self.server_id = ctx.guild.id #added
 
         # Set colors based on difficulty
         if difficulty == "low":
@@ -258,144 +257,137 @@ class PlinkoGame:
 
         return path, final_pos
 
-    def generate_board_image(self):
+    def generate_board_image(self) -> io.BytesIO:
         """Generate a visual representation of the Plinko board"""
+        # Constants for board rendering - Adjust size based on row count
+        width = 900 if self.rows >= 13 else 800
+        height = 1100 if self.rows >= 13 else 1000
+        peg_radius = 7 if self.rows >= 13 else 8  # Slightly smaller pegs for larger boards
+        ball_radius = 12
+        multiplier_height = 80
+
+        # Calculate board dimensions
+        board_width = width
+        board_height = height - multiplier_height
+
+        # Create a new image
+        img = Image.new('RGBA', (width, height), (40, 44, 52, 255))  # Dark background
+        draw = ImageDraw.Draw(img)
+
         try:
-            num_slots = len(self.multiplier_table)
-            actual_rows = self.rows + 2  # User rows + 2 as per
+            # Try to load custom fonts
+            title_font = ImageFont.truetype("roboto.ttf", 36)
+            multiplier_font = ImageFont.truetype("roboto.ttf", 20)
+            watermark_font = ImageFont.truetype("roboto.ttf", 36)
+        except:
+            # Fallback to default font if custom font fails
+            title_font = ImageFont.load_default()
+            multiplier_font = ImageFont.load_default()
+            watermark_font = ImageFont.load_default()
 
-            # Increase image size for better visibility, especially for 16 rows
-            board_width = max(800, 50 * num_slots)
-            board_height = max(800, 100 + 50 * actual_rows)
+        # Calculate the actual display rows (user_rows + 2)
+        actual_rows = self.rows + 2
 
-            # Create a larger image with a black background
-            board_image = Image.new("RGBA", (board_width, board_height), (30, 30, 30, 255))
-            draw = ImageDraw.Draw(board_image)
+        # The number of slots/gaps at the bottom should be actual_rows - 1
+        # This ensures we have one more multiplier than the user-specified rows
+        num_slots = len(self.multiplier_table)
+        horizontal_spacing = board_width / (num_slots + 1)
 
-            # Calculate peg positions
-            peg_radius = 5
-            peg_spacing_x = board_width / (num_slots + 1)
-            peg_spacing_y = (board_height - 100) / (actual_rows + 1)
+        # Calculate vertical spacing with appropriate margins
+        vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-            # Draw pegs
-            for row in range(actual_rows):
-                offset = peg_spacing_x / 2 if row % 2 else 0
-                num_pegs = num_slots if row % 2 else num_slots + 1
+        # Draw pegs - Start with 2 gaps at top (1 peg), increasing as we go down
+        for row in range(actual_rows):
+            # First row has 1 peg (2 gaps), then each row adds 1 more peg
+            num_pegs = row + 1
 
-                for col in range(num_pegs):
-                    x = offset + peg_spacing_x * (col + 1)
-                    y = 50 + peg_spacing_y * (row + 1)
-                    draw.ellipse(
-                        [(x - peg_radius, y - peg_radius), (x + peg_radius, y + peg_radius)],
-                        fill=(200, 200, 200)
-                    )
+            # Calculate starting x position to center the pegs
+            start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
+            y = vertical_spacing * (row + 1)  # Proper spacing from top
 
-            # Draw buckets with multipliers at the bottom
-            bucket_width = peg_spacing_x
-            bucket_height = 60
-            bucket_y = board_height - bucket_height
+            for peg in range(num_pegs):
+                x = start_x + peg * horizontal_spacing
+                draw.ellipse((x - peg_radius, y - peg_radius, x + peg_radius, y + peg_radius), 
+                             fill=(230, 230, 230, 255))  # White pegs
 
-            # Load font for multiplier text
-            try:
-                font = ImageFont.truetype("arial.ttf", 20)
-            except:
-                font = ImageFont.load_default()
+        # Draw multiplier buckets at the bottom - one for each multiplier
+        bucket_width = horizontal_spacing * 0.9
+        bucket_height = multiplier_height * 0.8
 
-            # Draw buckets with enhanced multiplier visibility
-            for i, multiplier in enumerate(self.multiplier_table):
-                x = peg_spacing_x * (i + 1)
+        # Position buckets just below the last row of pegs
+        bucket_y = vertical_spacing * (actual_rows + 0.5)
 
-                # Bucket color based on multiplier value
-                if multiplier >= 10:
-                    color = (255, 215, 0)  # Gold for high multipliers
-                elif multiplier >= 5:
-                    color = (255, 165, 0)  # Orange for medium-high multipliers
-                elif multiplier >= 2:
-                    color = (0, 191, 255)  # Light blue for medium multipliers
-                elif multiplier >= 1:
-                    color = (50, 205, 50)  # Green for low multipliers
-                else:
-                    color = (169, 169, 169)  # Grey for multipliers < 1
+        # Color mapping for multipliers
+        def get_multiplier_color(multiplier):
+            if multiplier >= 10:
+                return (255, 0, 102, 255)  # Bright pink for high multipliers
+            elif multiplier >= 3:
+                return (255, 165, 0, 255)  # Orange for medium multipliers
+            elif multiplier >= 1:
+                return (0, 191, 255, 255)  # Blue for neutral multipliers
+            else:
+                return (158, 158, 158, 255)  # Grey for low multipliers
 
-                # Draw the bucket with some spacing
-                draw.rectangle(
-                    [(x - bucket_width/2 + 2, bucket_y), (x + bucket_width/2 - 2, board_height)],
-                    fill=color
-                )
+        # Draw multiplier buckets - there should be num_slots buckets
+        for i, multiplier in enumerate(self.multiplier_table):
+            x = horizontal_spacing * (i + 1)
 
-                # Prepare multiplier text with enhanced visibility
-                text = f"{multiplier}x"
-                text_bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = text_bbox[2] - text_bbox[0]
-                text_height = text_bbox[3] - text_bbox[1]
+            # Draw bucket
+            bucket_color = get_multiplier_color(multiplier)
+            draw.rectangle(
+                (x - bucket_width/2, bucket_y, x + bucket_width/2, bucket_y + bucket_height),
+                fill=bucket_color,
+                outline=(255, 255, 255, 100)
+            )
 
-                text_x = x - text_width / 2
-                text_y = bucket_y + (bucket_height - text_height) / 2
+            # Draw multiplier text
+            text_color = (255, 255, 255, 255)  # White text
+            multiplier_text = f"{multiplier}x"
+            text_bbox = draw.textbbox((0, 0), multiplier_text, font=multiplier_font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            text_x = x - text_width / 2
+            text_y = bucket_y + (bucket_height - text_height) / 2
+            draw.text((text_x, text_y), multiplier_text, font=multiplier_font, fill=text_color)
 
-                # Draw text outline (black border)
-                for offset_x, offset_y in [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, -1), (0, 1), (-1, 0), (1, 0)]:
-                    draw.text(
-                        (text_x + offset_x, text_y + offset_y),
-                        text,
-                        font=font,
-                        fill=(0, 0, 0)  # Black outline
-                    )
+        # Add subtle BetSync watermark in the middle
+        watermark_text = "BetSync"
+        watermark_bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
+        watermark_width = watermark_bbox[2] - watermark_bbox[0]
+        watermark_x = (width - watermark_width) / 2
+        watermark_y = board_height / 2 - 20
+        draw.text((watermark_x, watermark_y), watermark_text, font=watermark_font, fill=(255, 255, 255, 40))
 
-                # Draw the actual text
-                draw.text(
-                    (text_x, text_y),
-                    text,
-                    font=font,
-                    fill=(255, 255, 255)  # White text
-                )
+        # Add more visible BetSync watermark at the bottom right
+        bottom_watermark = "BetSync"
+        bottom_watermark_bbox = draw.textbbox((0, 0), bottom_watermark, font=multiplier_font)
+        bottom_watermark_width = bottom_watermark_bbox[2] - bottom_watermark_bbox[0]
+        bottom_watermark_x = width - bottom_watermark_width - 10
+        bottom_watermark_y = height - 25
+        draw.text((bottom_watermark_x, bottom_watermark_y), bottom_watermark, 
+                  font=multiplier_font, fill=(255, 255, 255, 180))
 
-            # Draw ball paths if any
-            if self.ball_paths:
-                last_path = self.ball_paths[-1]
+        # Draw only the most recent ball
+        if self.ball_paths and len(self.ball_paths[-1]) > 0:
+            final_pos = self.ball_paths[-1][-1]
+            # Align with the multiplier buckets
+            final_x = horizontal_spacing * (final_pos + 1)
+            final_y = bucket_y - ball_radius
 
-                # Draw the path
-                for i in range(len(last_path) - 1):
-                    row = i
-                    col = last_path[i]
-                    next_col = last_path[i + 1]
+            # Draw the ball
+            draw.ellipse(
+                (final_x - ball_radius, final_y - ball_radius, 
+                 final_x + ball_radius, final_y + ball_radius),
+                fill=(255, 255, 255, 255),  # White ball
+                outline=(255, 0, 0, 255)    # Red outline
+            )
 
-                    # Calculate current position
-                    offset_current = peg_spacing_x / 2 if row % 2 else 0
-                    x1 = offset_current + peg_spacing_x * (col + 1)
-                    y1 = 50 + peg_spacing_y * (row + 1)
+        # Save to a BytesIO object
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
 
-                    # Calculate next position
-                    offset_next = peg_spacing_x / 2 if (row + 1) % 2 else 0
-                    x2 = offset_next + peg_spacing_x * (next_col + 1)
-                    y2 = 50 + peg_spacing_y * (row + 2)
-
-                    # Draw line segment of path
-                    draw.line([(x1, y1), (x2, y2)], fill=(255, 0, 0), width=3)
-
-                # Draw red circle at final position
-                final_row = len(last_path) - 1
-                final_col = last_path[-1]
-                final_x = peg_spacing_x * (final_col + 1)
-                final_y = bucket_y + bucket_height / 2
-
-                draw.ellipse(
-                    [(final_x - 10, final_y - 10), (final_x + 10, final_y + 10)],
-                    fill=(255, 0, 0)
-                )
-
-            # Convert to BytesIO for discord attachment
-            buffer = BytesIO()
-            board_image.save(buffer, "PNG")
-            buffer.seek(0)
-            return buffer
-
-        except Exception as e:
-            print(f"Error generating Plinko board image: {e}")
-            # Return a fallback image or raise the exception
-            fallback = BytesIO()
-            Image.new("RGB", (500, 500), (30, 30, 30)).save(fallback, "PNG")
-            fallback.seek(0)
-            return fallback
+        return img_buffer
 
     async def end_game(self, interaction=None):
         """End the Plinko game normally"""
