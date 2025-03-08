@@ -641,6 +641,9 @@ class Plinko(commands.Cog):
             bet_amount_value = bet_info.get("total_bet_amount", 0)
             currency_used = bet_info.get("currency_type", "tokens")  # Default to tokens if not specified
             
+            # Update bet_amount with the processed value
+            bet_amount = bet_amount_value
+            
             await loading_message.delete()  # Delete loading message after processing
         except Exception as e:
             await loading_message.delete()
@@ -650,8 +653,6 @@ class Plinko(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=error_embed)
-        
-        bet_amount = bet_result["amount"]
 
         # Validate difficulty
         if difficulty is None or difficulty.lower() not in ["low", "medium", "high"]:
