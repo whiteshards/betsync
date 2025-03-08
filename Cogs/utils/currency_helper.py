@@ -40,9 +40,23 @@ async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=Non
         if isinstance(bet_amount, str) and bet_amount.lower() in ["all", "max"]:
             if currency_type:
                 if currency_type.lower() in ["tokens", "t"]:
+                    if tokens_balance <= 0:
+                        error_embed = discord.Embed(
+                            title="<:no:1344252518305234987> | Insufficient Tokens",
+                            description=f"{user.mention} doesn't have any tokens to bet.",
+                            color=0xFF0000
+                        )
+                        return False, None, error_embed
                     bet_amount_value = tokens_balance
                     currency_specified = "tokens"
                 elif currency_type.lower() in ["credits", "c"]:
+                    if credits_balance <= 0:
+                        error_embed = discord.Embed(
+                            title="<:no:1344252518305234987> | Insufficient Credits",
+                            description=f"{user.mention} doesn't have any credits to bet.",
+                            color=0xFF0000
+                        )
+                        return False, None, error_embed
                     bet_amount_value = credits_balance
                     currency_specified = "credits"
                 else:
@@ -53,6 +67,15 @@ async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=Non
                     )
                     return False, None, error_embed
             else:
+                # If no currency specified with all/max, check if user has any balance
+                if tokens_balance <= 0 and credits_balance <= 0:
+                    error_embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Insufficient Balance",
+                        description=f"{user.mention} doesn't have any tokens or credits to bet.",
+                        color=0xFF0000
+                    )
+                    return False, None, error_embed
+                    
                 # If no currency specified with all/max, use the currency with higher balance
                 if tokens_balance >= credits_balance:
                     bet_amount_value = tokens_balance
