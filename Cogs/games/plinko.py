@@ -5,8 +5,15 @@ import time
 from typing import List, Tuple
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
-from Cogs.utils.mongo import Users, Servers
+from Cogs.utils.mongo import Users, Servers # Assuming this imports the Users class
 import datetime
+
+# Placeholder for currency_helper - REPLACE THIS WITH YOUR ACTUAL IMPLEMENTATION
+def process_transaction(user_id, amount, currency_type, transaction_type, reason, metadata):
+    # This is a placeholder, replace with your actual currency helper logic
+    print(f"Processing transaction: user_id={user_id}, amount={amount}, type={transaction_type}, reason={reason}, metadata={metadata}")
+    return {'success': True, 'message': 'Transaction successful (placeholder)'}
+
 
 # Define multiplier tables from the provided data
 MULTIPLIER_TABLES = {
@@ -68,8 +75,8 @@ class PlinkoGame:
         self.drops = 0
         self.ball_paths = []
         self.ball_results = []
-        self.win_amount = 0 #added
-        self.server_id = ctx.guild.id #added
+        self.win_amount = 0
+        self.server_id = ctx.guild.id
 
         # Set colors based on difficulty
         if difficulty == "low":
@@ -137,17 +144,40 @@ class PlinkoGame:
             win_for_this_ball = self.bet_amount * multiplier
             self.win_amount += win_for_this_ball
 
-            # Update database for the user's balance
-            db = Users()
-            # Correct way to use update_balance for deduction:
-            # For $inc operation, we pass the negative amount directly
-            db_update = db.update_balance(self.user_id, -self.bet_amount, self.currency_type, "$inc")
+            # Update database using currency_helper for deduction
+            transaction_result = process_transaction(
+                user_id=self.user_id,
+                amount=-self.bet_amount,
+                currency_type=self.currency_type,
+                transaction_type="withdrawal",
+                reason="plinko_bet",
+                metadata={"bet_amount": self.bet_amount}
+            )
+            if not transaction_result['success']:
+                print(f"Error processing bet deduction: {transaction_result['message']}")
+                return await self.end_game() # End game if deduction fails
 
-            # Update database for the win amount if applicable
+
+            # Update database using currency_helper for win amount if applicable
             if multiplier > 0:
-                win_update = db.update_balance(self.user_id, win_for_this_ball, self.currency_type, "$inc")
+                transaction_result = process_transaction(
+                    user_id=self.user_id,
+                    amount=win_for_this_ball,
+                    currency_type=self.currency_type,
+                    transaction_type="deposit",
+                    reason="plinko_win",
+                    metadata={
+                        "bet_amount": self.bet_amount,
+                        "multiplier": multiplier,
+                        "ball_position": landing_pos
+                    }
+                )
+                if not transaction_result['success']:
+                    print(f"Error processing winnings: {transaction_result['message']}")
+                    return await self.end_game() # End game if win processing fails
 
-            # Add to history
+
+            # Add to history (simplified - consider moving to currency_helper)
             total_profit = self.win_amount - (self.drops * self.bet_amount)
 
             history_entry = {
@@ -164,6 +194,8 @@ class PlinkoGame:
                 }
             }
 
+            #Simplified history update - Consider moving to currency helper
+            db = Users()
             db.update_history(self.user_id, history_entry)
 
             # Also update server history
@@ -217,44 +249,44 @@ class PlinkoGame:
         # Start randomly at one of the 2 gaps at the top
         position = random.randint(0, 1)
         path.append(position)
-        
+
         # Track the current position as we move down through the rows
         current_position = position
-        
+
         # For each row after the first, determine path based on pegs
         for row in range(1, actual_rows):
             # Each row has row+1 pegs, creating row+2 possible positions
             # When the ball hits a peg, it has a 50/50 chance to go left or right
-            
+
             # Slight center bias for realism (real physics has this tendency)
             center = (row + 2) / 2
             center_bias = 0.03 * abs(current_position - center)
-            
+
             if random.random() < 0.5 - center_bias:
                 # Ball goes left
                 current_position = current_position
             else:
                 # Ball goes right
                 current_position = current_position + 1
-                
+
             # Make sure we don't go out of bounds
             current_position = max(0, min(current_position, row + 1))
-            
+
             # Add this position to our path
             path.append(current_position)
-        
+
         # The final position maps to the multiplier index
         # For the last row, there are num_slots possible positions
         # Need to map from range [0, actual_rows] to [0, num_slots-1]
         final_row_positions = actual_rows + 1
-        
+
         # Scale the position to match the multiplier table indices
         scaled_position = int(current_position * (num_slots - 1) / (final_row_positions - 1) + 0.5)
         final_pos = max(0, min(scaled_position, num_slots - 1))
-        
+
         # Replace the last position with the scaled position for correct display
         path[-1] = final_pos
-        
+
         return path, final_pos
 
     def generate_board_image(self) -> io.BytesIO:
@@ -300,7 +332,7 @@ class PlinkoGame:
         for row in range(actual_rows):
             # First row has 1 peg (2 gaps), then each row adds 1 more peg
             num_pegs = row + 1
-            
+
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
             y = vertical_spacing * (row + 1)  # Proper spacing from top
