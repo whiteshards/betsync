@@ -340,31 +340,15 @@ class PlinkoGame:
                 outline=(255, 255, 255, 100)
             )
 
-            # Draw multiplier text with improved visibility
-            font = ImageFont.truetype("arial.ttf", 32)  # Larger font size
+            # Draw multiplier text
+            text_color = (255, 255, 255, 255)  # White text
             multiplier_text = f"{multiplier}x"
-            text_bbox = draw.textbbox((0, 0), multiplier_text, font=font)
+            text_bbox = draw.textbbox((0, 0), multiplier_text, font=multiplier_font)
             text_width = text_bbox[2] - text_bbox[0]
             text_height = text_bbox[3] - text_bbox[1]
-            text_x = x - text_width // 2
-            text_y = bucket_y + 20  # More space below buckets
-
-            # Draw a background box for better visibility
-            padding = 8
-            draw.rectangle(
-                (text_x - padding, text_y - padding, 
-                 text_x + text_width + padding, text_y + text_height + padding),
-                fill=(40, 40, 40, 230),  # Dark background
-                outline=(255, 255, 255, 100),  # White outline
-                width=2
-            )
-
-            # Draw text with a shadow for better visibility
-            draw.text((text_x + 2, text_y + 2), multiplier_text, 
-                      font=font, fill=(0, 0, 0, 180))  # Shadow
-            draw.text((text_x, text_y), multiplier_text, 
-                      font=font, fill=(255, 255, 255, 255))  # Text
-
+            text_x = x - text_width / 2
+            text_y = bucket_y + (bucket_height - text_height) / 2
+            draw.text((text_x, text_y), multiplier_text, font=multiplier_font, fill=text_color)
 
         # Add subtle BetSync watermark in the middle
         watermark_text = "BetSync"
