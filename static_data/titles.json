@@ -1,0 +1,20 @@
+{
+  "titles": {
+    "Beginner": {
+      "wagered": 0,
+      "description": "Start of your journey",
+    },
+    "Amateur": {
+      "wagered": 100,
+      "description": "Getting to know the game huh",
+    },
+    "Professional": {
+      "wagered": 500,
+      "description": "🤑🤑",
+    },
+    "GOAT": {
+      "wagered": 10000,
+      "description": "Sorry, I wasn't familliar with your game gng",
+    }
+  }
+}
