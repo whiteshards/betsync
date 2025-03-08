@@ -260,7 +260,7 @@ class PlinkoGame:
     def generate_board_image(self) -> io.BytesIO:
         """Generate a visual representation of the Plinko board"""
         # Constants for board rendering - Adjust size based on row count
-        width = 900 if self.rows >= 13 else 800
+        width = 1100 if self.rows >= 14 else 900 if self.rows >= 13 else 800
         height = 1100 if self.rows >= 13 else 1000
         peg_radius = 7 if self.rows >= 13 else 8  # Slightly smaller pegs for larger boards
         ball_radius = 12
@@ -296,10 +296,14 @@ class PlinkoGame:
         # Calculate vertical spacing with appropriate margins
         vertical_spacing = board_height / (actual_rows + 1)  # +1 for margins
 
-        # Draw pegs - Start with 2 gaps at top (1 peg), increasing as we go down
+        # Draw pegs - Start with no pegs at top, increasing as we go down
         for row in range(actual_rows):
-            # First row has 1 peg (2 gaps), then each row adds 1 more peg
-            num_pegs = row + 1
+            # Skip the first row entirely (no pegs at top)
+            if row == 0:
+                continue
+                
+            # Second row starts with 1 peg, then each row adds 1 more peg
+            num_pegs = row
             
             # Calculate starting x position to center the pegs
             start_x = (board_width - (num_pegs - 1) * horizontal_spacing) / 2
