@@ -331,10 +331,10 @@ class PlinkoGame:
         # Draw multiplier buckets - there should be num_slots buckets
         for i, multiplier in enumerate(self.multiplier_table):
             x = horizontal_spacing * (i + 1)
-            
+
             # Adjust bucket width for more spacing between buckets when there are many slots
             bucket_width_adjusted = bucket_width * (0.85 if self.rows >= 16 else 0.9)
-            
+
             # Draw bucket with slightly better spacing
             bucket_color = get_multiplier_color(multiplier)
             draw.rectangle(
@@ -351,15 +351,15 @@ class PlinkoGame:
             text_height = text_bbox[3] - text_bbox[1]
             text_x = x - text_width / 2
             text_y = bucket_y + (bucket_height - text_height) / 2
-            
+
             # Draw text outline (thin black border) by drawing the text multiple times with small offsets
             outline_color = (0, 0, 0, 255)  # Black outline
             outline_thickness = 1
-            
+
             # Draw outline by offsetting text in 4 directions
             for dx, dy in [(outline_thickness, 0), (-outline_thickness, 0), (0, outline_thickness), (0, -outline_thickness)]:
                 draw.text((text_x + dx, text_y + dy), multiplier_text, font=multiplier_font, fill=outline_color)
-                
+
             # Draw the main text on top
             draw.text((text_x, text_y), multiplier_text, font=multiplier_font, fill=text_color)
 
@@ -488,6 +488,7 @@ class PlinkoView(discord.ui.View):
     def __init__(self, game):
         super().__init__(timeout=180)  # 3 minute timeout
         self.game = game
+        # Add drop ball button
         self.drop_button = discord.ui.Button(
             style=discord.ButtonStyle.success,
             label="Drop Ball",
@@ -497,11 +498,13 @@ class PlinkoView(discord.ui.View):
         self.drop_button.callback = self.drop_callback
         self.add_item(self.drop_button)
 
+        # Stop button - initially disabled until first drop
         self.stop_button = discord.ui.Button(
             style=discord.ButtonStyle.danger,
             label="Stop",
             emoji="🛑",
-            custom_id="stop_game"
+            custom_id="stop_game",
+            disabled=True  # Disabled until first drop
         )
         self.stop_button.callback = self.stop_callback
         self.add_item(self.stop_button)
@@ -541,6 +544,11 @@ class PlinkoView(discord.ui.View):
             self.drop_button.disabled = False
             self.stop_button.disabled = False
 
+            # Enable stop button after the first drop
+            if self.game.drops >= 1:
+                self.stop_button.disabled = False
+                await self.game.message.edit(view=self)
+
             # Update the view with enabled buttons
             await self.game.message.edit(view=self)
         except Exception as e:
@@ -570,7 +578,7 @@ class PlinkoView(discord.ui.View):
             print(f"Error in stop_callback: {e}")
             await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
-    async def on_timeout(self):
+    async def on_timeout((self):
         """Handle view timeout - auto-end the game after timeout period"""
         if self.game.running:
             try:
