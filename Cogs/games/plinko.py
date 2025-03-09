@@ -89,13 +89,10 @@ class PlinkoGame:
             self.view = PlinkoView(self)
 
             # Create initial game embed
-            # Set the currency display based on currency_type
-            currency_display = "credits" if self.currency_type == "credits" else "tokens"
-            
             embed = discord.Embed(
                 title=f"🎮 Plinko Game - {self.difficulty.capitalize()} Risk",
                 description=(
-                    f"**Bet Amount:** {self.bet_amount} {currency_display}\n"
+                    f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Drops:** 0\n"
                     f"**Total Winnings:** 0 credits\n\n"
@@ -221,13 +218,10 @@ class PlinkoGame:
             net_profit = self.win_amount - (self.bet_amount * self.drops)
             profit_display = f"**+{net_profit:.2f}**" if net_profit >= 0 else f"**{net_profit:.2f}**"
 
-            # Set the currency display based on currency_type
-            currency_display = "credits" if self.currency_type == "credits" else "tokens"
-            
             embed = discord.Embed(
                 title=f"🎮 Plinko Game - {self.difficulty.capitalize()} Risk",
                 description=(
-                    f"**Bet Amount:** {self.bet_amount} {currency_display}\n"
+                    f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Drops:** {self.drops}\n"
                     f"**Total Winnings:** {self.win_amount:.2f} credits\n"
@@ -457,13 +451,10 @@ class PlinkoGame:
                 net_profit = self.win_amount - (self.bet_amount * self.drops)
                 profit_display = f"**+{net_profit:.2f}**" if net_profit >= 0 else f"**{net_profit:.2f}**"
 
-                # Set the currency display based on currency_type
-                currency_display = "credits" if self.currency_type == "credits" else "tokens"
-                
                 embed = discord.Embed(
                     title=f"🎮 Plinko Game - Finished",
                     description=(
-                        f"**Bet Amount:** {self.bet_amount} {currency_display}\n"
+                        f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                         f"**Rows:** {self.rows}\n"
                         f"**Total Drops:** {self.drops}\n"
                         f"**Total Winnings:** {self.win_amount:.2f} credits\n\n"
@@ -494,13 +485,10 @@ class PlinkoGame:
 
         try:
             # Final timeout message
-            # Set the currency display based on currency_type
-            currency_display = "credits" if self.currency_type == "credits" else "tokens"
-            
             embed = discord.Embed(
                 title=f"🎮 Plinko Game - Timed Out",
                 description=(
-                    f"**Bet Amount:** {self.bet_amount} {currency_display}\n"
+                    f"**Bet Amount:** {self.bet_amount} {self.currency_type}\n"
                     f"**Rows:** {self.rows}\n"
                     f"**Total Drops:** {self.drops}\n"
                     f"**Total Winnings:** {self.win_amount:.2f} credits\n\n"
