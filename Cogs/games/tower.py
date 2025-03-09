@@ -478,22 +478,24 @@ class TowerGameView(discord.ui.View):
         )
 
         # Update server stats if in a guild
-        #if isinstance(self.ctx.channel, discord.TextChannel):
-        server_db = Servers()
-
-            # Update server profit directly
-        server_db.collection.update_one(
-                {"server_id": self.ctx.guild.id},
-                {"$inc": {"profit": self.bet_amount}}
-            )
-
+        try:
+            server_db = Servers()
+            # Update server profit using the proper method
+            server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
+            
             # Add to server history
-           
-        
-        
+            server_bet_entry = loss_entry.copy()
+            server_bet_entry.update({
+                "user_id": self.ctx.author.id,
+                "user_name": self.ctx.author.name,
+            })
+            server_db.update_history(self.ctx.guild.id, server_bet_entry)
+        except Exception as e:
+            print(f"Error updating server profit: {e}")
+            
         server_bet_entry = loss_entry.copy()
         server_bet_entry.update({
-                "user_id": self.ctx.author.id,
+                "user_id": self.ctx.author.idelf.ctx.author.id,
                 "user_name": self.ctx.author.name
             })
 
