@@ -107,30 +107,30 @@ class PokerView(discord.ui.View):
     async def deal_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
 
         # Update message with disabled buttons first
         await interaction.response.edit_message(view=self)
-        
+
         # Store message reference for replace_cards function
         if not self.message:
             self.message = interaction.message
-        
+
         # Make sure we have the message for the replace_cards function
         self.message = interaction.message
-            
+
         # Call replace_cards to handle the game result
         await self.cog.replace_cards(self.ctx, self.cards, self.held_cards, self.bet_amount, self.message)
-        
+
         # Remove from ongoing games after handling the deal action
         if self.user_id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.user_id]
 
     async def on_timeout(self):
-        
+
         for child in self.children:
             child.disabled = True
 
@@ -140,7 +140,7 @@ class PokerView(discord.ui.View):
             pass
 
         # Return the bet if the game timed out
-        
+
         #db = Users()
         #db.update_balance(self.user_id, self.bet_amount, "credits", "$inc")
 
@@ -613,11 +613,25 @@ class Poker(commands.Cog):
 
         # Record the game result in history
         timestamp = int(time.time())
+        win_entry = {
+            "type": "win",
+            "game": "poker",
+            "bet": bet_amount,
+            "amount": winnings,
+            "multiplier": multiplier,
+            "timestamp": timestamp
+        }
+        loss_entry = {
+            "type": "loss",
+            "game": "poker",
+            "amount": bet_amount,
+            "timestamp": timestamp
+        }
 
         if multiplier > 1:
             # Win
             db.update_balance(ctx.author.id, winnings, "credits", "$inc")
-            
+
             # Update stats directly in the collection
             db.collection.update_one(
                 {"discord_id": ctx.author.id},
@@ -625,39 +639,30 @@ class Poker(commands.Cog):
             )
 
             # Add to history
-            history_entry = {
-                "type": "win",
-                "game": "poker",
-                "bet": bet_amount,
-                "amount": winnings,
-                "multiplier": multiplier,
-                "timestamp": timestamp
-            }
+            history_entry = win_entry.copy()
             db.collection.update_one(
                 {"discord_id": ctx.author.id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
 
-            # Update server stats
-            server_entry = {
-                "type": "win",
-                "user_id": ctx.author.id,
-                "user_name": ctx.author.name,
-                "game": "poker",
-                "bet": bet_amount,
-                "amount": winnings,
-                "multiplier": multiplier,
-                "timestamp": timestamp
-            }
+            # Update server profit (negative because server loses when player wins)
+            try:
+                profit = bet_amount - winnings  # Server profit is negative when player wins
+                server_db.update_server_profit(ctx.guild.id, profit)
 
-            server_db.collection.update_one(
-                {"server_id": ctx.guild.id},
-                {"$push": {"server_bet_history": {"$each": [server_entry], "$slice": -100}}}
-            )
+                # Add to server history
+                server_win_entry = win_entry.copy()
+                server_win_entry.update({
+                    "user_id": ctx.author.id,
+                    "user_name": ctx.author.name
+                })
+                server_db.update_history(ctx.guild.id, server_win_entry)
+            except Exception as e:
+                print(f"Error updating server profit for win: {e}")
 
             # Use red color for One Pair, green for other winning hands
             embed_color = 0xFF0000 if hand_type == "One Pair" else 0x00FF00
-            
+
             embed = discord.Embed(
                 title="🏆 You Won!",
                 description=(
@@ -677,31 +682,25 @@ class Poker(commands.Cog):
             )
 
             # Add to history
-            history_entry = {
-                "type": "loss",
-                "game": "poker",
-                "amount": bet_amount,
-                "timestamp": timestamp
-            }
+            history_entry = loss_entry.copy()
             db.collection.update_one(
                 {"discord_id": ctx.author.id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
 
-            # Update server stats
-            server_entry = {
-                "type": "loss",
-                "user_id": ctx.author.id,
-                "user_name": ctx.author.name,
-                "game": "poker",
-                "bet": bet_amount,
-                "timestamp": timestamp
-            }
+            # Update server profit for loss (positive for server when player loses)
+            try:
+                server_db.update_server_profit(ctx.guild.id, bet_amount)
 
-            server_db.collection.update_one(
-                {"server_id": ctx.guild.id},
-                {"$push": {"server_bet_history": {"$each": [server_entry], "$slice": -100}}}
-            )
+                # Add to server history
+                server_loss_entry = loss_entry.copy()
+                server_loss_entry.update({
+                    "user_id": ctx.author.id,
+                    "user_name": ctx.author.name
+                })
+                server_db.update_history(ctx.guild.id, server_loss_entry)
+            except Exception as e:
+                print(f"Error updating server profit for loss: {e}")
 
             embed = discord.Embed(
                 title="❌ No Win",
