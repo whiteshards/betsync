@@ -738,15 +738,8 @@ class Plinko(commands.Cog):
         from Cogs.utils.currency_helper import process_bet_amount
 
         try:
-            # Handle max/all bets with specific currency type
-            if bet_amount.lower() in ['max', 'all'] and currency_type:
-                # User specified a currency type with max/all
-                max_specific_currency = True
-            else:
-                max_specific_currency = False
-            
             # Process the bet amount using the currency helper
-            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message, max_specific_currency=max_specific_currency)
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
             # If processing failed, return the error
             if not success:
