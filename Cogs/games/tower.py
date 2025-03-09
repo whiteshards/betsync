@@ -369,6 +369,12 @@ class TowerGameView(discord.ui.View):
         except:
             pass
 
+        if not self.game_over:
+            self.game_over = True
+            if hasattr(self.ctx.author, 'id') and self.ctx.author.id in self.cog.ongoing_games:
+                del self.cog.ongoing_games[self.ctx.author.id]
+
+
     async def process_cashout(self, interaction):
         """Process cashout - update database and end game"""
         payout = self.calculate_payout()
@@ -451,75 +457,54 @@ class TowerGameView(discord.ui.View):
 
     async def process_loss(self):
         """Process loss - update database and end game"""
-        db = Users()
-
-        # Create loss history entry
+        # Create loss entry
         loss_entry = {
-            "type": "loss",
             "game": "tower",
+            "type": "loss",
             "bet": self.bet_amount,
             "amount": self.bet_amount,
-            "multiplier": 0,
-            "level": self.current_level,
+            "level": self.current_level + 1,
+            "difficulty": self.difficulty,
             "timestamp": int(time.time())
         }
 
-        # Update user history and stats directly in one operation
+        # Update user history
+        db = Users()
+        db.update_history(self.ctx.author.id, loss_entry)
+
+        # Update user stats
         db.collection.update_one(
             {"discord_id": self.ctx.author.id},
-            {
-                "$push": {"history": {"$each": [loss_entry], "$slice": -100}},
-                "$inc": {
-                    "total_played": 1,
-                    "total_lost": 1,
-                    "total_spent": self.bet_amount
-                }
-            }
+            {"$inc": {
+                "total_lost": 1,
+            }}
         )
 
         # Update server stats if in a guild
         try:
             server_db = Servers()
-            # Update server profit using the proper method
+            # Update server profit using the correct method
             server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
-            
+
             # Add to server history
             server_bet_entry = loss_entry.copy()
             server_bet_entry.update({
                 "user_id": self.ctx.author.id,
-                "user_name": self.ctx.author.name,
+                "user_name": self.ctx.author.name
             })
             server_db.update_history(self.ctx.guild.id, server_bet_entry)
         except Exception as e:
             print(f"Error updating server profit: {e}")
-            
+
+        # Remove from ongoing games
+        if hasattr(self.ctx.author, 'id') and self.ctx.author.id in self.cog.ongoing_games:
+            del self.cog.ongoing_games[self.ctx.author.id]
+
         server_bet_entry = loss_entry.copy()
         server_bet_entry.update({
-                "user_id": self.ctx.author.idelf.ctx.author.id,
+                "user_id": self.ctx.author.id,
                 "user_name": self.ctx.author.name
             })
-
-            # Update server history directly
-        server_db.collection.update_one(
-                {"server_id": self.ctx.guild.id},
-                {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
-            )
-
-        play_again_view = PlayAgainView(
-            self.cog, 
-            self.ctx, 
-            self.bet_amount, 
-            self.difficulty, 
-            self.currency_type,
-            timeout=15
-        )
-        await self.message.edit(view=play_again_view)
-        play_again_view.message = self.message
-
-        #if self.ctx.author.id in self.cog.ongoing_games:
-        del self.cog.ongoing_games[self.ctx.author.id]
-
-        return True
 
 
 class TowerCog(commands.Cog):
@@ -589,7 +574,7 @@ class TowerCog(commands.Cog):
         bet_amount_value = total_bet
 
         # Validate difficulty
-       
+
 
         # Record game stats
         db = Users()
