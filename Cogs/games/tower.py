@@ -404,25 +404,25 @@ class TowerGameView(discord.ui.View):
             )
 
             # Update server stats if in a guild
-            if isinstance(self.ctx.channel, discord.TextChannel):
-                server_db = Servers()
-                server_profit = self.bet_amount - payout
+            #if isinstance(self.ctx.channel, discord.TextChannel):
+            server_db = Servers()
+            server_profit = self.bet_amount - payout
 
                 # Update server profit directly
-                server_db.collection.update_one(
+            server_db.collection.update_one(
                     {"server_id": self.ctx.guild.id},
                     {"$inc": {"profit": server_profit}}
                 )
 
                 # Add to server history
-                server_bet_entry = win_entry.copy()
-                server_bet_entry.update({
+            server_bet_entry = win_entry.copy()
+            server_bet_entry.update({
                     "user_id": self.ctx.author.id,
                     "user_name": self.ctx.author.name
                 })
 
                 # Update server history directly
-                server_db.collection.update_one(
+            server_db.collection.update_one(
                     {"server_id": self.ctx.guild.id},
                     {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
                 )
@@ -478,24 +478,27 @@ class TowerGameView(discord.ui.View):
         )
 
         # Update server stats if in a guild
-        if isinstance(self.ctx.channel, discord.TextChannel):
-            server_db = Servers()
+        #if isinstance(self.ctx.channel, discord.TextChannel):
+        server_db = Servers()
 
             # Update server profit directly
-            server_db.collection.update_one(
+        server_db.collection.update_one(
                 {"server_id": self.ctx.guild.id},
                 {"$inc": {"profit": self.bet_amount}}
             )
 
             # Add to server history
-            server_bet_entry = loss_entry.copy()
-            server_bet_entry.update({
+           
+        
+        
+        server_bet_entry = loss_entry.copy()
+        server_bet_entry.update({
                 "user_id": self.ctx.author.id,
                 "user_name": self.ctx.author.name
             })
 
             # Update server history directly
-            server_db.collection.update_one(
+        server_db.collection.update_one(
                 {"server_id": self.ctx.guild.id},
                 {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
             )
