@@ -209,49 +209,52 @@ class PlinkoGame:
 
 
     def simulate_ball_path(self) -> Tuple[List[int], int]:
-        """Simulate a ball's path through the Plinko board - optimized for speed"""
+        """Simulate a ball's path through the Plinko board"""
+        path = []
         num_slots = len(self.multiplier_table)
         actual_rows = self.rows + 2  # User rows + 2 as per requirement
-        
-        # Simplified path simulation - only calculate final position
-        # This makes the simulation much faster
-        
-        # For realistic randomness, we'll use a simplified approach that mimics
-        # the ball's behavior without simulating every step
-        
-        # The distribution should be somewhat bell-shaped with higher chances in the middle
-        # and lower chances at the edges, with some randomness
-        
-        # We'll use a weighted random approach
-        center_idx = (num_slots - 1) / 2
-        weights = []
-        
-        # Create weights with higher values in center, lower at edges
-        # This creates a more realistic distribution pattern
-        for i in range(num_slots):
-            # Distance from center (0.0 to 1.0)
-            distance = abs(i - center_idx) / center_idx
-            
-            # Calculate weight - higher in center, lower at edges
-            if self.difficulty == "low":
-                # More even distribution for low risk
-                weight = 1.0 - (distance * 0.5)
-            elif self.difficulty == "medium":
-                # More center-weighted for medium risk
-                weight = 1.0 - (distance * 0.7)
-            else:  # high
-                # Highly center-weighted for high risk, but still chance for edges
-                weight = 1.0 - (distance * 0.85)
-                
-            weights.append(weight)
-        
-        # Choose final position using weights
-        final_pos = random.choices(range(num_slots), weights=weights, k=1)[0]
-        
-        # For display, we'll create a simplified path
-        # Just the starting and ending positions
-        path = [0, final_pos]  # Simplified path
-        
+
+        # Start randomly at one of the 2 gaps at the top
+        position = random.randint(0, 1)
+        path.append(position)
+
+        # Track the current position as we move down through the rows
+        current_position = position
+
+        # For each row after the first, determine path based on pegs
+        for row in range(1, actual_rows):
+            # Each row has row+1 pegs, creating row+2 possible positions
+            # When the ball hits a peg, it has a 50/50 chance to go left or right
+
+            # Slight center bias for realism (real physics has this tendency)
+            center = (row + 2) / 2
+            center_bias = 0.03 * abs(current_position - center)
+
+            if random.random() < 0.5 - center_bias:
+                # Ball goes left
+                current_position = current_position
+            else:
+                # Ball goes right
+                current_position = current_position + 1
+
+            # Make sure we don't go out of bounds
+            current_position = max(0, min(current_position, row + 1))
+
+            # Add this position to our path
+            path.append(current_position)
+
+        # The final position maps to the multiplier index
+        # For the last row, there are num_slots possible positions
+        # Need to map from range [0, actual_rows] to [0, num_slots-1]
+        final_row_positions = actual_rows + 1
+
+        # Scale the position to match the multiplier table indices
+        scaled_position = int(current_position * (num_slots - 1) / (final_row_positions - 1) + 0.5)
+        final_pos = max(0, min(scaled_position, num_slots - 1))
+
+        # Replace the last position with the scaled position for correct display
+        path[-1] = final_pos
+
         return path, final_pos
 
     def generate_board_image(self) -> io.BytesIO:
@@ -377,7 +380,7 @@ class PlinkoGame:
         draw.text((bottom_watermark_x, bottom_watermark_y), bottom_watermark, 
                   font=multiplier_font, fill=(255, 255, 255, 180))
 
-        # Draw only the most recent ball (simplified for speed)
+        # Draw only the most recent ball
         if self.ball_paths and len(self.ball_paths[-1]) > 0:
             final_pos = self.ball_paths[-1][-1]
             # Align with the multiplier buckets
@@ -547,12 +550,10 @@ class PlinkoView(discord.ui.View):
                 )
                 await interaction.followup.send(embed=error_embed, ephemeral=True, delete_after=5)
 
-                # Clean up the game since user can't continue
-                if self.game.ctx.author.id in self.game.cog.ongoing_games:
-                    del self.game.cog.ongoing_games[self.game.ctx.author.id]
-                
-                # End the game properly
-                await self.game.end_game(interaction)
+                # Re-enable buttons but only the stop button if drops > 0
+                self.drop_button.disabled = True  # Disable drop button
+                self.stop_button.disabled = False if self.game.drops >= 1 else True
+                await self.game.message.edit(view=self)
                 return
 
             # Drop the ball
@@ -601,14 +602,8 @@ class PlinkoView(discord.ui.View):
         if self.game.running:
             try:
                 await self.game.timeout_game()
-                # Ensure game is removed from ongoing games
-                if self.game.ctx.author.id in self.game.cog.ongoing_games:
-                    del self.game.cog.ongoing_games[self.game.ctx.author.id]
             except Exception as e:
                 print(f"Error in Plinko timeout handler: {e}")
-                # Try to clean up anyway
-                if self.game.ctx.author.id in self.game.cog.ongoing_games:
-                    del self.game.cog.ongoing_games[self.game.ctx.author.id]
 
 
 class Plinko(commands.Cog):
