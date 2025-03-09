@@ -481,24 +481,8 @@ class CasesCog(commands.Cog):
         server_data = server_db.fetch_server(ctx.guild.id)
 
         if server_data:
-            # Calculate server profit
-            if tokens_used > 0:
-                # For tokens used, the server profit is the token amount
-                server_profit = tokens_used
 
-                # If credits were also used, add their contribution to profit minus any winnings
-                if credits_used > 0:
-                    if user_won:
-                        # Only subtract winnings from the credits portion
-                        credits_portion = min(credits_used, win_amount)
-                        server_profit += (credits_used - credits_portion)
-                    else:
-                        server_profit += credits_used
-            else:
-                # If only credits were used, profit is the bet minus any winnings
-                server_profit = bet_amount_value - win_amount if user_won else bet_amount_value
-
-            server_db.update_server_profit(ctx.guild.id, server_profit)
+            server_db.update_server_profit(ctx.guild.id, (bet_amount_value - win_amount))
 
             # Add to server history
             history_entry = {

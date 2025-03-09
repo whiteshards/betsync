@@ -870,7 +870,7 @@ class HiLo(commands.Cog):
 
             # Update server profit
             if result_type == "win":
-                server_db.update_server_profit(server_id, -amount)
+                server_db.update_server_profit(server_id, (bet_amount - amount))
             else:
                 server_db.update_server_profit(server_id, bet_amount)
 

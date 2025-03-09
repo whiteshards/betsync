@@ -26,7 +26,7 @@ class Profile(commands.Cog):
         
         return current_title, titles.get(current_title, {}).get("description", "")
 
-    @commands.command(aliases=["p", "prof"])
+    @commands.command(aliases=["prof"])
     async def profile(self, ctx, user: discord.Member = None):
         """View your or another user's profile with stats and title"""
         # Get emojis

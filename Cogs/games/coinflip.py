@@ -19,7 +19,7 @@ class PlayAgainView(discord.ui.View):
         self.author_id = ctx.author.id  # Added to match CasesPlayAgainView
 
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
-    async def play_again(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def play_again(self,button, interaction: discord.Interaction):
         if interaction.user.id != self.author_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
@@ -76,7 +76,7 @@ class CoinflipCog(commands.Cog):
         self.ongoing_games = {}
 
     @commands.command(aliases=["cf", "coin", "flip"])
-    async def coinflip(self, ctx, bet_amount: str = None, currency_type: str = None, side: str = None):
+    async def coinflip(self, ctx, bet_amount: str = None, side=None, currency_type: str = None):
         """Play coinflip - bet on heads or tails to win 1.95x your bet!"""
         if not bet_amount:
             embed = discord.Embed(
@@ -212,30 +212,20 @@ class CoinflipCog(commands.Cog):
             if user_won:
                 db = Users()  # Reinstantiate db to ensure we have a fresh connection
                 db.update_balance(ctx.author.id, win_amount, "credits", "$inc")
+                # Update server history and profit
+                server_db = Servers()
+                #server_data = server_db.fetch_server(ctx.guild.id)
+                server_db.update_server_profit(ctx.guild.id, (bet_amount_value - win_amount))
+            else:
+                server_db = Servers()
+                server_db.update_server_profit(ctx.guild.id, bet_amount_value)
+    
 
-            # Update server history and profit
-            server_db = Servers()
-            server_data = server_db.fetch_server(ctx.guild.id)
+            
 
-            if server_data:
-                # Calculate server profit
-                if tokens_used > 0:
-                    # For tokens used, the server profit is the token amount
-                    server_profit = tokens_used
+         
 
-                    # If credits were also used, add their contribution to profit minus any winnings
-                    if credits_used > 0:
-                        if user_won:
-                            # Only subtract winnings from the credits portion
-                            credits_portion = min(credits_used, win_amount)
-                            server_profit += (credits_used - credits_portion)
-                        else:
-                            server_profit += credits_used
-                else:
-                    # If only credits were used, profit is the bet minus any winnings
-                    server_profit = bet_amount_value - win_amount if user_won else bet_amount_value
-
-                server_db.update_server_profit(ctx.guild.id, server_profit)
+                
 
                 # Add to server history
                 history_entry = {

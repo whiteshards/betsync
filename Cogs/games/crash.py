@@ -578,10 +578,10 @@ class CrashCog(commands.Cog):
                     )
 
                     # Update server profit (negative value because server loses when player wins)
-                    from Cogs.utils.mongo import Servers
-                    servers_db = Servers()
-                    server_profit = -profit  # Server loses money when player wins
-                    servers_db.update_server_profit(ctx.guild.id, server_profit)
+                   # from Cogs.utils.mongo import Servers
+                    #servers_db = Servers()
+                   # server_profit = -profit  # Server loses money when player wins
+                   # servers_db.update_server_profit(ctx.guild.id, server_profit)
 
                     # Create Play Again view with button
                     play_again_view = discord.ui.View()

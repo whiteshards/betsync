@@ -61,16 +61,16 @@ class CrossTheRoadGame(discord.ui.View):
 
         # Set difficulty-specific parameters
         if self.difficulty == "easy":
-            self.hit_chance = 0.12  # 9% chance to hit a car
+            self.hit_chance = 0.16  # 9% chance to hit a car
             self.multiplier_increment = 1.10
         elif self.difficulty == "medium":
-            self.hit_chance = 0.19  # 17% chance to hit a car
+            self.hit_chance = 0.25  # 17% chance to hit a car
             self.multiplier_increment = 1.30
         elif self.difficulty == "hard":
-            self.hit_chance = 0.27  # 25% chance to hit a car
+            self.hit_chance = 0.37  # 25% chance to hit a car
             self.multiplier_increment = 1.50
         elif self.difficulty == "extreme":
-            self.hit_chance = 0.48  # 45% chance to hit a car
+            self.hit_chance = 0.47  # 45% chance to hit a car
             self.multiplier_increment = 1.70
 
         # Current multiplier (starts at 1.00x)
