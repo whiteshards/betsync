@@ -649,6 +649,7 @@ class Poker(commands.Cog):
             try:
                 profit = bet_amount - winnings  # Server profit is negative when player wins
                 server_db.update_server_profit(ctx.guild.id, profit)
+                print(profit)
 
                 # Add to server history
                 server_win_entry = win_entry.copy()
@@ -673,7 +674,53 @@ class Poker(commands.Cog):
                 ),
                 color=embed_color
             )
-        else:
+        elif multiplier==0.5:
+            db.update_balance(ctx.author.id, bet_amount*multiplier, "credits", "$inc")
+            db.collection.update_one(
+                {"discord_id": ctx.author.id},
+                {"$inc": {"total_lost": 1, "total_played": 1, "total_spent": bet_amount*multiplier}}
+            )
+
+            # Add to history
+            history_entry = loss_entry.copy()
+            db.collection.update_one(
+                {"discord_id": ctx.author.id},
+                {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+            )
+
+            # Update server profit for loss (positive for server when player loses)
+            try:
+                server_db.update_server_profit(ctx.guild.id, bet_amount*multiplier)
+
+                # Add to server history
+                server_loss_entry = loss_entry.copy()
+                server_loss_entry.update({
+                    "user_id": ctx.author.id,
+                    "user_name": ctx.author.name
+                })
+                server_db.update_history(ctx.guild.id, server_loss_entry)
+            except Exception as e:
+                print(f"Error updating server profit for loss: {e}")
+
+            embed = discord.Embed(
+                title="❌ No Win",
+                description=(
+                    f"**Hand:** {hand_type}\n"
+                    f"**Bet:** {bet_amount}"
+                    f"**Return: {bet_amount*multiplier} credits**"
+                ),
+                color=0xFF0000
+            )
+
+            #embed.set_image(url="attachment://poker_result.png")
+            #embed.set_footer(text="BetSync Casino • Video Poker")
+
+        # Create play again view
+            #play_again_view = PlayAgainView(self, ctx, bet_amount)
+            #result_message = await ctx.reply(file=file, embed=embed, view=play_again_view)
+            #play_again_view.message = result_message
+            
+        elif multiplier < 0.5:
             # Loss
             # Update stats directly in the collection
             db.collection.update_one(
