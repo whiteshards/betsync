@@ -684,12 +684,18 @@ class Plinko(commands.Cog):
                 # Game is marked as not running, remove it
                 del self.ongoing_games[ctx.author.id]
             else:
-                embed = discord.Embed(
-                    title="❌ Game Already Running",
-                    description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
+                # Check if the game is timed out due to insufficient balance
+                game = self.ongoing_games[ctx.author.id]
+                if not game.message or not game.running:
+                    # Game didn't fully initialize or is already ended
+                    del self.ongoing_games[ctx.author.id]
+                else:
+                    embed = discord.Embed(
+                        title="❌ Game Already Running",
+                        description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
 
         # Import currency helper
         from Cogs.utils.currency_helper import process_bet_amount
@@ -723,9 +729,9 @@ class Plinko(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Handle currency shortcuts
-        if currency_type.lower() in ["t", "token", "tokens"]:
+        if currency_type and currency_type.lower() in ["t", "token", "tokens"]:
             currency_type = "tokens"
-        elif currency_type.lower() in ["c", "credit", "credits"]:
+        elif currency_type and currency_type.lower() in ["c", "credit", "credits"]:
             currency_type = "credits"
 
         # Import the currency helper
