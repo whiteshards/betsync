@@ -139,9 +139,39 @@ class PlinkoGame:
 
             # Update database for the user's balance
             db = Users()
-            # Correct way to use update_balance for deduction:
-            # For $inc operation, we pass the negative amount directly
-            db_update = db.update_balance(self.user_id, -self.bet_amount, self.currency_type, "$inc")
+            user_data = db.fetch_user(self.user_id)
+            
+            # Handle bet deduction based on currency_type
+            tokens_used = 0
+            credits_used = 0
+            
+            if self.currency_type == "tokens":
+                tokens_used = self.bet_amount
+                db_update = db.update_balance(self.user_id, -tokens_used, "tokens", "$inc")
+            elif self.currency_type == "credits":
+                credits_used = self.bet_amount
+                db_update = db.update_balance(self.user_id, -credits_used, "credits", "$inc")
+            elif self.currency_type == "mixed":
+                # Calculate how to split the bet between tokens and credits
+                tokens_balance = user_data.get("tokens", 0)
+                credits_balance = user_data.get("credits", 0)
+                
+                if tokens_balance >= self.bet_amount:
+                    # Use tokens if available
+                    tokens_used = self.bet_amount
+                    db_update = db.update_balance(self.user_id, -tokens_used, "tokens", "$inc")
+                elif tokens_balance > 0:
+                    # Use available tokens + credits for remainder
+                    tokens_used = tokens_balance
+                    credits_used = self.bet_amount - tokens_balance
+                    
+                    # Update both balances
+                    db_update_tokens = db.update_balance(self.user_id, -tokens_used, "tokens", "$inc")
+                    db_update_credits = db.update_balance(self.user_id, -credits_used, "credits", "$inc")
+                else:
+                    # Use only credits
+                    credits_used = self.bet_amount
+                    db_update = db.update_balance(self.user_id, -credits_used, "credits", "$inc")
 
             # Update database for the win amount if applicable
             if multiplier > 0:
@@ -160,7 +190,9 @@ class PlinkoGame:
                     "difficulty": self.difficulty,
                     "rows": self.rows,
                     "balls_dropped": self.drops,
-                    "multipliers": [self.multiplier_table[p[-1]] for p in self.ball_paths]
+                    "multipliers": [self.multiplier_table[p[-1]] for p in self.ball_paths],
+                    "tokens_used": tokens_used,
+                    "credits_used": credits_used
                 }
             }
 
@@ -539,13 +571,25 @@ class PlinkoView(discord.ui.View):
             # Check if user has enough balance for another bet
             db = Users()
             user_data = db.fetch_user(self.game.user_id)
-            user_balance = user_data.get(self.game.currency_type, 0)
-
+            
+            # Calculate available balance across tokens and credits if needed
+            tokens_balance = user_data.get("tokens", 0)
+            credits_balance = user_data.get("credits", 0)
+            
+            # Check based on currency type
+            if self.game.currency_type == "tokens":
+                user_balance = tokens_balance
+            elif self.game.currency_type == "credits":
+                user_balance = credits_balance
+            else:
+                # For mixed currency - check both
+                user_balance = tokens_balance + credits_balance
+            
             if user_balance < self.game.bet_amount:
                 # Not enough balance for another drop
                 error_embed = discord.Embed(
                     title="❌ Insufficient Balance",
-                    description=f"You don't have enough {self.game.currency_type} for another ball drop!",
+                    description=f"You don't have enough balance for another ball drop!",
                     color=0xFF0000
                 )
                 await interaction.followup.send(embed=error_embed, ephemeral=True, delete_after=5)
@@ -554,6 +598,16 @@ class PlinkoView(discord.ui.View):
                 self.drop_button.disabled = True  # Disable drop button
                 self.stop_button.disabled = False if self.game.drops >= 1 else True
                 await self.game.message.edit(view=self)
+                
+                # End the game if insufficient balance, but player has dropped at least one ball
+                if self.game.drops >= 1:
+                    await self.game.end_game(interaction)
+                else:
+                    # Clean up the game if no drops happened
+                    if self.game.ctx.author.id in self.game.cog.ongoing_games:
+                        del self.game.cog.ongoing_games[self.game.ctx.author.id]
+                    self.game.running = False
+                
                 return
 
             # Drop the ball
@@ -621,16 +675,21 @@ class Plinko(commands.Cog):
 
         Difficulty: low, medium, high
         Rows: 8-16
-        Currency: tokens, credits
+        Currency: tokens/t, credits/c
         """
         # Check if user already has an ongoing game
         if ctx.author.id in self.ongoing_games:
-            embed = discord.Embed(
-                title="❌ Game Already Running",
-                description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+            # First check if the game is actually still running
+            if not self.ongoing_games[ctx.author.id].running:
+                # Game is marked as not running, remove it
+                del self.ongoing_games[ctx.author.id]
+            else:
+                embed = discord.Embed(
+                    title="❌ Game Already Running",
+                    description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
+                    color=0xFF0000
+                )
+                return await ctx.reply(embed=embed)
 
         # Import currency helper
         from Cogs.utils.currency_helper import process_bet_amount
@@ -642,13 +701,13 @@ class Plinko(commands.Cog):
                 description=(
                     "**Plinko** is a game where a ball falls through pegs and lands in one of several prize buckets!\n\n"
                     "**Usage:** `!plinko <bet amount> <difficulty> <rows> [currency_type]`\n"
-                    "**Example:** `!plinko 100 medium 12` or `!plinko all high 16 credits`\n\n"
+                    "**Example:** `!plinko 100 medium 12` or `!plinko all high 16 c`\n\n"
                     "**Difficulty:**\n"
                     "- `low`: Lower risk, smaller payouts\n"
                     "- `medium`: Balanced risk and reward\n"
                     "- `high`: Higher risk, bigger potential payouts\n\n"
                     "**Rows:** Choose between 8-16 rows\n"
-                    "**Currency:** tokens (default) or credits"
+                    "**Currency:** tokens/t (default) or credits/c"
                 ),
                 color=0x00FFAE
             )
@@ -662,6 +721,12 @@ class Plinko(commands.Cog):
             color=0x00FFAE
         )
         loading_message = await ctx.reply(embed=loading_embed)
+
+        # Handle currency shortcuts
+        if currency_type.lower() in ["t", "token", "tokens"]:
+            currency_type = "tokens"
+        elif currency_type.lower() in ["c", "credit", "credits"]:
+            currency_type = "credits"
 
         # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
