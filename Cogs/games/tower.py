@@ -516,8 +516,8 @@ class TowerGameView(discord.ui.View):
         await self.message.edit(view=play_again_view)
         play_again_view.message = self.message
 
-        if self.ctx.author.id in self.cog.ongoing_games:
-            del self.cog.ongoing_games[self.ctx.author.id]
+        #if self.ctx.author.id in self.cog.ongoing_games:
+        del self.cog.ongoing_games[self.ctx.author.id]
 
         return True
 
