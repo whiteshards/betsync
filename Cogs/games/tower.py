@@ -496,6 +496,20 @@ class TowerGameView(discord.ui.View):
         except Exception as e:
             print(f"Error updating server profit: {e}")
 
+        # Create play again view for loss scenario
+        play_again_view = PlayAgainView(
+            self.cog, 
+            self.ctx, 
+            self.bet_amount, 
+            self.difficulty, 
+            self.currency_type,
+            timeout=15
+        )
+        
+        # Update the message with play again button
+        await self.message.edit(view=play_again_view)
+        play_again_view.message = self.message
+
         # Remove from ongoing games
         if hasattr(self.ctx.author, 'id') and self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
