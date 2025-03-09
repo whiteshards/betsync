@@ -209,56 +209,52 @@ class PlinkoGame:
 
 
     def simulate_ball_path(self) -> Tuple[List[int], int]:
-        """Simulate a ball's path through the Plinko board - optimized version"""
+        """Simulate a ball's path through the Plinko board"""
+        path = []
         num_slots = len(self.multiplier_table)
         actual_rows = self.rows + 2  # User rows + 2 as per requirement
-        
-        # Faster algorithm: only calculate the final position
-        # This is much quicker than simulating each step
-        
-        # For display, we'll generate a simplified path
-        # Choose a final landing position with distribution
-        # that's triangular (more likely to land in the middle)
-        weights = []
-        for i in range(num_slots):
-            # Distance from center (0 to 1 scale)
-            center_idx = (num_slots - 1) / 2
-            distance = abs(i - center_idx) / center_idx
-            # Weight is higher for center positions
-            weight = 1.0 - (distance * 0.5)  # Adjust 0.5 to control center bias
-            weights.append(weight)
-            
-        # Normalize weights to sum to 1
-        total = sum(weights)
-        weights = [w/total for w in weights]
-        
-        # Choose landing position based on weights
-        final_pos = random.choices(range(num_slots), weights=weights)[0]
-        
-        # Create a simplified path for visualization
-        # We'll just interpolate a few points from start to finish
-        path = []
-        
+
         # Start randomly at one of the 2 gaps at the top
-        start_pos = random.randint(0, 1)
-        path.append(start_pos)
-        
-        # Generate a few intermediate points for visual effect
-        # Just enough to show movement without costly simulation
-        steps = min(5, actual_rows-1)  # Limit number of steps for efficiency
-        for i in range(1, steps):
-            row_position = i * (actual_rows / steps)
-            # Calculate position that gradually moves toward final position
-            progress = i / steps
-            interpolated_pos = int(start_pos + progress * (final_pos - start_pos))
-            # Add some randomness to make path look natural
-            jitter = random.uniform(-0.5, 0.5) * (1 - progress)
-            pos = max(0, min(round(interpolated_pos + jitter), num_slots - 1))
-            path.append(pos)
-            
-        # Add final position
-        path.append(final_pos)
-        
+        position = random.randint(0, 1)
+        path.append(position)
+
+        # Track the current position as we move down through the rows
+        current_position = position
+
+        # For each row after the first, determine path based on pegs
+        for row in range(1, actual_rows):
+            # Each row has row+1 pegs, creating row+2 possible positions
+            # When the ball hits a peg, it has a 50/50 chance to go left or right
+
+            # Slight center bias for realism (real physics has this tendency)
+            center = (row + 2) / 2
+            center_bias = 0.03 * abs(current_position - center)
+
+            if random.random() < 0.5 - center_bias:
+                # Ball goes left
+                current_position = current_position
+            else:
+                # Ball goes right
+                current_position = current_position + 1
+
+            # Make sure we don't go out of bounds
+            current_position = max(0, min(current_position, row + 1))
+
+            # Add this position to our path
+            path.append(current_position)
+
+        # The final position maps to the multiplier index
+        # For the last row, there are num_slots possible positions
+        # Need to map from range [0, actual_rows] to [0, num_slots-1]
+        final_row_positions = actual_rows + 1
+
+        # Scale the position to match the multiplier table indices
+        scaled_position = int(current_position * (num_slots - 1) / (final_row_positions - 1) + 0.5)
+        final_pos = max(0, min(scaled_position, num_slots - 1))
+
+        # Replace the last position with the scaled position for correct display
+        path[-1] = final_pos
+
         return path, final_pos
 
     def generate_board_image(self) -> io.BytesIO:
@@ -443,10 +439,10 @@ class PlinkoGame:
                 await self.message.edit(embed=embed, file=file, view=self.view)
         except Exception as e:
             print(f"Error ending Plinko game: {e}")
-        finally:
-            # Always clean up, regardless of whether the edit succeeded
-            if self.ctx.author.id in self.cog.ongoing_games:
-                del self.cog.ongoing_games[self.ctx.author.id]
+
+        # Clean up
+        if self.ctx.author.id in self.cog.ongoing_games:
+            del self.cog.ongoing_games[self.ctx.author.id]
 
     async def timeout_game(self):
         """Handle game timeout"""
@@ -481,10 +477,10 @@ class PlinkoGame:
             await self.message.edit(embed=embed, file=file, view=self.view)
         except Exception as e:
             print(f"Error handling Plinko timeout: {e}")
-        finally:
-            # Always clean up, regardless of whether the edit succeeded
-            if self.ctx.author.id in self.cog.ongoing_games:
-                del self.cog.ongoing_games[self.ctx.author.id]
+
+        # Clean up
+        if self.ctx.author.id in self.cog.ongoing_games:
+            del self.cog.ongoing_games[self.ctx.author.id]
 
 
 class PlinkoView(discord.ui.View):
@@ -554,36 +550,10 @@ class PlinkoView(discord.ui.View):
                 )
                 await interaction.followup.send(embed=error_embed, ephemeral=True, delete_after=5)
 
-                # End the game and clean up since player can't continue
-                if self.game.ctx.author.id in self.game.cog.ongoing_games:
-                    del self.game.cog.ongoing_games[self.game.ctx.author.id]
-                
-                # Update message to show game is over
-                game_over_embed = discord.Embed(
-                    title=f"🎮 Plinko Game - Ended",
-                    description=(
-                        f"**Bet Amount:** {self.game.bet_amount} {self.game.currency_type}\n"
-                        f"**Rows:** {self.game.rows}\n"
-                        f"**Total Drops:** {self.game.drops}\n"
-                        f"**Total Winnings:** {self.game.win_amount:.2f} credits\n\n"
-                        f"Game ended due to insufficient balance."
-                    ),
-                    color=discord.Color.red()
-                )
-                
-                # Mark the game as not running
-                self.game.running = False
-                
-                # Disable all buttons
-                for child in self.children:
-                    child.disabled = True
-                
-                board_image = self.game.generate_board_image()
-                file = discord.File(board_image, filename="plinko_board.png")
-                game_over_embed.set_image(url="attachment://plinko_board.png")
-                game_over_embed.set_footer(text=f"BetSync Casino • Game Ended")
-                
-                await self.game.message.edit(embed=game_over_embed, file=file, view=self)
+                # Re-enable buttons but only the stop button if drops > 0
+                self.drop_button.disabled = True  # Disable drop button
+                self.stop_button.disabled = False if self.game.drops >= 1 else True
+                await self.game.message.edit(view=self)
                 return
 
             # Drop the ball
@@ -654,16 +624,13 @@ class Plinko(commands.Cog):
         Currency: tokens, credits
         """
         # Check if user already has an ongoing game
-        if ctx.author.id in self.ongoing_games and self.ongoing_games[ctx.author.id].running:
+        if ctx.author.id in self.ongoing_games:
             embed = discord.Embed(
                 title="❌ Game Already Running",
                 description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-        # Clean up any existing game that might be in a bad state
-        elif ctx.author.id in self.ongoing_games:
-            del self.ongoing_games[ctx.author.id]
 
         # Import currency helper
         from Cogs.utils.currency_helper import process_bet_amount
@@ -687,17 +654,6 @@ class Plinko(commands.Cog):
             )
             embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
             return await ctx.reply(embed=embed)
-
-        # Normalize currency type to lowercase
-        if currency_type:
-            currency_type = currency_type.lower()
-            if currency_type not in ["tokens", "credits"]:
-                embed = discord.Embed(
-                    title="❌ Invalid Currency",
-                    description="Currency type must be either 'tokens' or 'credits'.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
 
         # Create loading embed
         loading_embed = discord.Embed(
