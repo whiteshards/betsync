@@ -867,7 +867,53 @@ class ServersCog(commands.Cog):
         """
         # If no arguments provided or incorrectly formatted, show usage
         if amount is None:
-            await self.show_airdrop_usage(ctx)
+            embed = discord.Embed(
+                title="🎁 Airdrop Command",
+                description="Create an airdrop to distribute tokens or credits to other server members!",
+                color=0x00FFAE
+            )
+            
+            embed.add_field(
+                name="📝 Usage",
+                value="`!airdrop <amount> [currency] [duration]`",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="📊 Parameters",
+                value=(
+                    "• `amount`: The amount to airdrop or 'all'/'max'\n"
+                    "• `currency`: 't' for tokens, 'c' for credits (optional)\n"
+                    "• `duration`: Duration in seconds (10-600), default: 60"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="💡 Examples",
+                value=(
+                    "• `!airdrop 100` - Airdrop 100 tokens for 60 seconds\n"
+                    "• `!airdrop 50 t 300` - Airdrop 50 tokens for 5 minutes\n"
+                    "• `!airdrop 200 c 120` - Airdrop 200 credits for 2 minutes\n"
+                    "• `!airdrop all` - Airdrop all your tokens\n"
+                    "• `!airdrop max c` - Airdrop all your credits"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name="ℹ️ Notes",
+                value=(
+                    "• A 1.5% service fee is applied to all airdrops\n"
+                    "• The amount is evenly distributed among participants\n"
+                    "• If no one joins, your amount will be refunded (minus fee)"
+                ),
+                inline=False
+            )
+            
+            embed.set_footer(text="BetSync Casino • Aliases: !ad, !gw, !giveaway")
+            
+            await ctx.reply(embed=embed)
             return
             
         # Send loading message
