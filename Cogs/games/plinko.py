@@ -225,8 +225,8 @@ class PlinkoGame:
                     f"**Rows:** {self.rows}\n"
                     f"**Drops:** {self.drops}\n"
                     f"**Total Winnings:** {self.win_amount:.2f} credits\n"
-                    f"**Net Profit:** {profit_display} {self.currency_type}\n\n"
-                    f"**Last Drop:** {self.multiplier_table[self.ball_paths[-1][-1]]}x multiplier → {self.bet_amount * self.multiplier_table[self.ball_paths[-1][-1]]:.2f} {self.currency_type}"
+                    f"**Net Profit:** {profit_display} credits\n\n"
+                    f"**Last Drop:** {self.multiplier_table[self.ball_paths[-1][-1]]}x multiplier → {self.bet_amount * self.multiplier_table[self.ball_paths[-1][-1]]:.2f} credits"
                 ),
                 color=self.color
             )
@@ -684,12 +684,18 @@ class Plinko(commands.Cog):
                 # Game is marked as not running, remove it
                 del self.ongoing_games[ctx.author.id]
             else:
-                embed = discord.Embed(
-                    title="❌ Game Already Running",
-                    description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
-                    color=0xFF0000
-                )
-                return await ctx.reply(embed=embed)
+                # Check if the game is timed out due to insufficient balance
+                game = self.ongoing_games[ctx.author.id]
+                if not game.message or not game.running:
+                    # Game didn't fully initialize or is already ended
+                    del self.ongoing_games[ctx.author.id]
+                else:
+                    embed = discord.Embed(
+                        title="❌ Game Already Running",
+                        description="You already have an ongoing Plinko game. Please finish it before starting a new one.",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
 
         # Import currency helper
         from Cogs.utils.currency_helper import process_bet_amount
@@ -723,17 +729,24 @@ class Plinko(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Handle currency shortcuts
-        if currency_type.lower() in ["t", "token", "tokens"]:
+        if currency_type and currency_type.lower() in ["t", "token", "tokens"]:
             currency_type = "tokens"
-        elif currency_type.lower() in ["c", "credit", "credits"]:
+        elif currency_type and currency_type.lower() in ["c", "credit", "credits"]:
             currency_type = "credits"
 
         # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
 
         try:
+            # Handle max/all bets with specific currency type
+            if bet_amount.lower() in ['max', 'all'] and currency_type:
+                # User specified a currency type with max/all
+                max_specific_currency = True
+            else:
+                max_specific_currency = False
+            
             # Process the bet amount using the currency helper
-            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
+            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message, max_specific_currency=max_specific_currency)
 
             # If processing failed, return the error
             if not success:
