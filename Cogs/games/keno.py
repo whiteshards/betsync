@@ -5,6 +5,7 @@ import random
 import discord
 import asyncio
 import datetime
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
@@ -24,6 +25,147 @@ PAYOUTS = {
     9: {1: 0.0, 2: 0.0, 3: 1.0, 4: 3.0, 5: 30.0},
     10: {1: 0.0, 2: 0.0, 3: 0.5, 4: 2.0, 5: 20.0}
 }
+
+def generate_paytable_image():
+    """Generate a visually appealing payout table image"""
+    # Image dimensions and settings
+    width, height = 1000, 700
+    bg_color = (25, 25, 25)  # Dark background
+    header_color = (40, 40, 40)  # Slightly lighter for header
+    cell_color = (34, 34, 34)
+    alt_cell_color = (30, 30, 30)
+    highlight_color = (255, 215, 0)  # Gold for highlights
+    text_color = (255, 255, 255)
+    
+    # Create image and draw object
+    image = Image.new('RGB', (width, height), bg_color)
+    draw = ImageDraw.Draw(image)
+    
+    try:
+        # Try to load fonts
+        title_font = ImageFont.truetype("arial.ttf", 42)
+        header_font = ImageFont.truetype("arial.ttf", 28)
+        cell_font = ImageFont.truetype("arial.ttf", 24)
+        subtitle_font = ImageFont.truetype("arial.ttf", 20)
+    except:
+        # Fallback fonts
+        title_font = ImageFont.load_default()
+        header_font = ImageFont.load_default()
+        cell_font = ImageFont.load_default()
+        subtitle_font = ImageFont.load_default()
+    
+    # Draw title
+    title = "BETSYNC CASINO"
+    title_width = draw.textlength(title, font=title_font)
+    draw.text(((width - title_width) // 2, 20), title, font=title_font, fill=highlight_color)
+    
+    # Draw subtitle
+    subtitle = "Payout Table"
+    subtitle_width = draw.textlength(subtitle, font=subtitle_font)
+    draw.text(((width - subtitle_width) // 2, 80), subtitle, font=subtitle_font, fill=text_color)
+    
+    # Table layout
+    table_margin = 50
+    start_y = 130
+    table_width = width - (2 * table_margin)
+    rows = 11  # Header + 10 rows
+    cols = 11  # First column is for picks, then 0-10 hits
+    
+    cell_width = table_width // cols
+    cell_height = 45
+    
+    # Draw table background and grid
+    table_height = cell_height * rows
+    # Draw rounded rectangle for table background
+    draw.rectangle(
+        (table_margin - 2, start_y - 2, width - table_margin + 2, start_y + table_height + 2),
+        fill=(50, 50, 50),
+        outline=(70, 70, 70),
+        width=2
+    )
+    
+    # Draw header row
+    header_labels = ["# Chosen", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    for col in range(cols + 1):
+        if col == 0:
+            # Header for picks column
+            x = table_margin
+            y = start_y
+            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
+            
+            # Draw text
+            text = header_labels[0]
+            text_width = draw.textlength(text, font=header_font)
+            text_x = x + (cell_width - text_width) // 2
+            draw.text((text_x, y + 8), text, font=header_font, fill=highlight_color)
+        elif col <= len(header_labels) - 1:
+            # Headers for hits columns
+            x = table_margin + (col * cell_width)
+            y = start_y
+            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
+            
+            # Draw text
+            text = header_labels[col]
+            text_width = draw.textlength(text, font=header_font)
+            text_x = x + (cell_width - text_width) // 2
+            draw.text((text_x, y + 8), text, font=header_font, fill=highlight_color)
+    
+    # Draw data rows
+    for row in range(1, 11):  # 1-10 picks
+        # First column shows number of picks
+        x = table_margin
+        y = start_y + (row * cell_height)
+        
+        # Alternate row colors
+        row_bg_color = alt_cell_color if row % 2 == 0 else cell_color
+        
+        draw.rectangle((x, y, x + cell_width, y + cell_height), fill=row_bg_color)
+        
+        # Draw pick number
+        text = str(row)
+        text_width = draw.textlength(text, font=cell_font)
+        text_x = x + (cell_width - text_width) // 2
+        draw.text((text_x, y + 10), text, font=cell_font, fill=text_color)
+        
+        # Draw multipliers for each hit possibility
+        for col in range(1, 11):  # 0-10 hits
+            x = table_margin + (col * cell_width)
+            
+            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=row_bg_color)
+            
+            # Get multiplier value
+            hits = col - 1  # Adjust: 1st column is 0 hits, 2nd is 1 hit...
+            multiplier = PAYOUTS.get(row, {}).get(hits, 0)
+            
+            # Format multiplier text
+            if multiplier == 0:
+                text = "0x"
+                text_color_cell = (100, 100, 100)  # Gray for zero
+            else:
+                text = f"{multiplier}x"
+                # Gradient color based on value
+                text_color_cell = (255, 215, 0) if multiplier > 50 else text_color
+            
+            text_width = draw.textlength(text, font=cell_font)
+            text_x = x + (cell_width - text_width) // 2
+            draw.text((text_x, y + 10), text, font=cell_font, fill=text_color_cell)
+    
+    # Draw footer
+    footer_text = "Powered by BetSync Casino | The best Discord casino"
+    footer_width = draw.textlength(footer_text, font=subtitle_font)
+    draw.text(
+        ((width - footer_width) // 2, start_y + table_height + 20),
+        footer_text,
+        font=subtitle_font,
+        fill=(150, 150, 150)
+    )
+    
+    # Save to bytes
+    img_byte_array = io.BytesIO()
+    image.save(img_byte_array, format="PNG")
+    img_byte_array.seek(0)
+    
+    return img_byte_array
 
 # Win probability percentages
 PROBABILITIES = {
@@ -211,7 +353,14 @@ class KenoNumberButton(discord.ui.Button):
         # Update the options embed with current selections and probabilities
         embed = view.cog.create_options_embed(view.ctx.author, view.bet_amount, view.selected_numbers, view.currency_used)
         
-        await interaction.response.edit_message(embed=embed, view=view)
+        # Generate paytable image for the current selection
+        if view.selected_numbers:
+            paytable_bytes = view.cog.create_mini_paytable_for_selections(len(view.selected_numbers))
+            paytable_file = discord.File(paytable_bytes, filename="keno_paytable_selection.png")
+            await interaction.response.edit_message(embed=embed, attachments=[paytable_file], view=view)
+        else:
+            # No selections, don't include paytable
+            await interaction.response.edit_message(embed=embed, attachments=[], view=view)
 
 class Keno(commands.Cog):
     def __init__(self, bot):
@@ -228,6 +377,10 @@ class Keno(commands.Cog):
         """
         # Show help if no bet amount
         if not bet_amount:
+            # Generate paytable image
+            paytable_image = generate_paytable_image()
+            paytable_file = discord.File(paytable_image, filename="keno_paytable.png")
+            
             embed = discord.Embed(
                 title="🎮 How to Play Keno",
                 description=(
@@ -242,21 +395,10 @@ class Keno(commands.Cog):
                 color=0x00FFAE
             )
             
-            # Add paytable
-            table_text = "**Picks | 1 Hit | 2 Hits | 3 Hits | 4 Hits | 5 Hits**\n"
-            
-            for picks in range(1, 11):
-                row = f"**{picks}** | "
-                for hits in range(1, 6):
-                    if hits in PAYOUTS.get(picks, {}):
-                        row += f"{PAYOUTS[picks][hits]}x | "
-                    else:
-                        row += "- | "
-                table_text += row.rstrip("| ") + "\n"
-                
-            embed.add_field(name="📊 Payout Table", value=table_text, inline=False)
+            # Set the paytable image
+            embed.set_image(url="attachment://keno_paytable.png")
             embed.set_footer(text="BetSync Casino • Aliases: !k")
-            return await ctx.reply(embed=embed)
+            return await ctx.reply(embed=embed, file=paytable_file)
             
         # Check if the user already has an ongoing game
         if ctx.author.id in self.ongoing_games:
@@ -314,13 +456,17 @@ class Keno(commands.Cog):
             view = KenoView(self, ctx, bet_amount_value, currency_used)
             
             # Create initial embed
-            initial_embed = self.create_options_embed(ctx.author, bet_amount_value, [], currency_used)
+            initial_embed = self.create_options_embed(ctx.author, bet_amount_value, [1], currency_used)
+            
+            # Generate initial paytable image for selected number
+            paytable_bytes = self.create_mini_paytable_for_selections(1)
+            paytable_file = discord.File(paytable_bytes, filename="keno_paytable_selection.png")
             
             # Delete loading message and start the game
             await loading_message.delete()
             
-            # Send the Keno game embed
-            game_message = await ctx.reply(embed=initial_embed, view=view)
+            # Send the Keno game embed with paytable image
+            game_message = await ctx.reply(embed=initial_embed, file=paytable_file, view=view)
             view.message = game_message
             
             # Mark game as ongoing
@@ -360,17 +506,133 @@ class Keno(commands.Cog):
         
         # Add payout info if numbers are selected
         if num_picks > 0:
-            payout_text = "**Hits | Multiplier | Probability**\n"
-            for hits in range(1, min(num_picks + 1, 6)):
-                if hits in PAYOUTS.get(num_picks, {}):
-                    multiplier = PAYOUTS[num_picks][hits]
-                    probability = PROBABILITIES[num_picks][hits]
-                    payout_text += f"**{hits}** | {multiplier}x | {probability}%\n"
+            # Create a highlight-only mini paytable image for the selected number of picks
+            paytable_bytes = self.create_mini_paytable_for_selections(num_picks)
             
-            embed.add_field(name="📊 Potential Payouts", value=payout_text, inline=False)
+            # Set the footer text
+            probability_text = ""
+            for hits in range(1, min(num_picks + 1, 6)):
+                if hits in PROBABILITIES.get(num_picks, {}):
+                    probability = PROBABILITIES[num_picks][hits]
+                    probability_text += f"**{hits} Hit:** {probability}% chance\n"
+            
+            if probability_text:
+                embed.add_field(name="Win Chances", value=probability_text, inline=False)
+            
+            # The image will be attached by the caller function
+            embed.set_image(url="attachment://keno_paytable_selection.png")
         
         embed.set_footer(text="BetSync Casino • Select 1-10 numbers, then press PLAY")
         return embed
+        
+    def create_mini_paytable_for_selections(self, num_picks):
+        """Create a mini paytable image focused on the selected number of picks"""
+        # Image dimensions and settings
+        width, height = 600, 200
+        bg_color = (25, 25, 25)  # Dark background
+        header_color = (40, 40, 40) 
+        cell_color = (34, 34, 34)
+        highlight_color = (255, 215, 0)  # Gold
+        text_color = (255, 255, 255)
+        accent_color = (0, 255, 174)  # Accent color for highlighting selected row
+        
+        # Create image and draw object
+        image = Image.new('RGB', (width, height), bg_color)
+        draw = ImageDraw.Draw(image)
+        
+        try:
+            # Try to load fonts
+            title_font = ImageFont.truetype("arial.ttf", 24)
+            header_font = ImageFont.truetype("arial.ttf", 20)
+            cell_font = ImageFont.truetype("arial.ttf", 22)
+        except:
+            # Fallback fonts
+            title_font = ImageFont.load_default()
+            header_font = ImageFont.load_default()
+            cell_font = ImageFont.load_default()
+        
+        # Draw title
+        title = f"POTENTIAL PAYOUTS FOR {num_picks} PICKS"
+        title_width = draw.textlength(title, font=title_font)
+        draw.text(((width - title_width) // 2, 15), title, font=title_font, fill=highlight_color)
+        
+        # Table layout
+        table_margin = 30
+        start_y = 60
+        table_width = width - (2 * table_margin)
+        
+        # Determine number of columns (hits)
+        max_hits = min(num_picks, 5)  # Maximum 5 hits
+        cols = max_hits + 1  # Hits columns + 1 for label column
+        
+        cell_width = table_width // cols
+        cell_height = 50
+        
+        # Draw header row
+        header_labels = ["Picks"] + [f"{i} Hit{'' if i == 1 else 's'}" for i in range(1, max_hits + 1)]
+        
+        for col in range(cols):
+            x = table_margin + (col * cell_width)
+            y = start_y
+            
+            # Draw header cell
+            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
+            
+            # Draw header text
+            text = header_labels[col]
+            text_width = draw.textlength(text, font=header_font)
+            text_x = x + (cell_width - text_width) // 2
+            draw.text((text_x, y + 15), text, font=header_font, fill=highlight_color)
+        
+        # Draw data row - just the selected number of picks
+        # First column (picks)
+        x = table_margin
+        y = start_y + cell_height
+        
+        # Draw cell with accent color to highlight
+        draw.rectangle((x, y, x + cell_width, y + cell_height), fill=accent_color)
+        
+        # Draw pick number
+        text = str(num_picks)
+        text_width = draw.textlength(text, font=cell_font)
+        text_x = x + (cell_width - text_width) // 2
+        draw.text((text_x, y + 15), text, font=cell_font, fill=bg_color)
+        
+        # Draw multipliers for each hit
+        for col in range(1, cols):
+            hits = col  # First data column is 1 hit
+            x = table_margin + (col * cell_width)
+            
+            # Get multiplier
+            multiplier = PAYOUTS.get(num_picks, {}).get(hits, 0)
+            
+            # Draw cell with accent
+            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=cell_color)
+            
+            # Format multiplier text
+            if multiplier == 0:
+                text = "-"
+                text_color_cell = (100, 100, 100)  # Gray
+            else:
+                text = f"{multiplier}x"
+                # Use brighter colors for higher values
+                if multiplier > 100:
+                    text_color_cell = (255, 215, 0)  # Gold
+                elif multiplier > 10:
+                    text_color_cell = (255, 165, 0)  # Orange
+                else:
+                    text_color_cell = text_color
+            
+            text_width = draw.textlength(text, font=cell_font)
+            text_x = x + (cell_width - text_width) // 2
+            draw.text((text_x, y + 15), text, font=cell_font, fill=text_color_cell)
+        
+        # Save to bytes
+        img_byte_array = io.BytesIO()
+        image.save(img_byte_array, format="PNG")
+        img_byte_array.seek(0)
+        
+        return img_byte_array
     
     async def generate_keno_image(self, selected_numbers, winning_numbers=None, game_over=False):
         """Generate the Keno board image"""
@@ -434,10 +696,13 @@ class Keno(commands.Cog):
             # Draw tile
             draw.rectangle((x, y, x + tile_size, y + tile_size), fill=tile_color)
             
-            # Draw number
+            # Draw number - properly centered
             text_width = draw.textlength(str(i), font=font)
             text_x = x + (tile_size - text_width) // 2
-            text_y = y + (tile_size - font.size) // 2 - 5  # Adjust for visual center
+            
+            # Get text height for better vertical centering
+            text_height = font.size
+            text_y = y + (tile_size - text_height) // 2
             
             draw.text((text_x, text_y), str(i), font=font, fill=text_col)
         
