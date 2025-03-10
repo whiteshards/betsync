@@ -464,17 +464,6 @@ class Keno(commands.Cog):
             
             if num_selected == 0:
                 # No numbers selected, cancel game
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | No Numbers Selected",
-                    description="You didn't select any numbers. Game cancelled.",
-                    color=0xFF0000
-                )
-                await message.edit(embed=embed, view=view)
-                
-                from Cogs.utils.currency_helper import refund_bet
-                refund_bet(user_id, bet_amount, currency_used)
-                
-                del self.ongoing_games[user_id]
                 return
                 
             # Generate winning numbers (5 random numbers from 1-20)
@@ -530,7 +519,7 @@ class Keno(commands.Cog):
             embed.set_image(url="attachment://keno_game.png")
             embed.set_footer(text="BetSync Casino • Keno")
             
-            await message.edit(embed=embed, attachments=[file], view=view)
+            await message.edit(embed=embed, file=file, view=view)
             
             # Update user balance and history
             db = Users()
@@ -563,7 +552,7 @@ class Keno(commands.Cog):
                 
                 # Update server profit (negative for casino loss)
                 server_db = Servers()
-                server_db.update_profit(ctx.guild.id, -1 * (winnings - bet_amount))
+                server_db.update_server_profit(ctx.guild.id, -1 * (winnings - bet_amount))
                 
             else:
                 # Add loss to history
@@ -584,7 +573,7 @@ class Keno(commands.Cog):
                 
                 # Update server profit (positive for casino win)
                 server_db = Servers()
-                server_db.update_profit(ctx.guild.id, bet_amount)
+                server_db.update_server_profit(ctx.guild.id, bet_amount)
                 
             # Clean up
             del self.ongoing_games[user_id]
