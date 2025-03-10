@@ -408,7 +408,7 @@ class Blackjack(commands.Cog):
                     "- Get closer to 21 than the dealer without going over\n"
                     "- Face cards are worth 10, Aces are 1 or 11\n"
                     "- Dealer must hit until 17 or higher\n"
-                    "- Blackjack pays 1.5x your bet & Win Pays 1.96x\n\n"
+                    "- Blackjack pays 1.5x your bet & Win Pays 1.98x\n\n"
                     "**Commands:**\n"
                     "- **Hit**: Take another card\n"
                     "- **Stand**: End your turn\n"
@@ -857,7 +857,7 @@ class Blackjack(commands.Cog):
         # Calculate win amount
         win_amount = 0
         if result == "win":
-            win_amount = bet_amount * 1.96
+            win_amount = bet_amount * 1.98
         elif result == "blackjack":
             win_amount = bet_amount * 1.5
             
@@ -869,7 +869,7 @@ class Blackjack(commands.Cog):
             user_db.update_balance(user_id, win_amount, currency_used, "$inc")
             
             # Add win to history
-            multiplier = 1.5 if result == "blackjack" else 1.96
+            multiplier = 1.5 if result == "blackjack" else 1.98
             history_entry = {
                 "type": "win",
                 "game": "blackjack",
