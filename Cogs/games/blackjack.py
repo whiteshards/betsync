@@ -29,9 +29,14 @@ class BlackjackView(discord.ui.View):
         self.used_cards = set()  # Track used cards to prevent duplicates
         self.game_over = False
         
-        # Deal initial cards
-        self.player_cards = [self.draw_card(), self.draw_card()]
-        self.dealer_cards = [self.draw_card(), self.draw_card()]
+        # Deal initial cards and remove them from the deck
+        self.player_cards = []
+        self.dealer_cards = []
+        
+        # Deal two cards to player and dealer
+        for _ in range(2):
+            self.player_cards.append(self.draw_card())
+            self.dealer_cards.append(self.draw_card())
         
     def create_deck(self):
         """Create a shuffled deck of cards"""
