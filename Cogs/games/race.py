@@ -317,7 +317,7 @@ class RaceCog(commands.Cog):
         if hasattr(ctx, 'guild') and ctx.guild:
             server_db = Servers()
             server_profit = bet_amount - win_amount
-            server_db.update_server_profit(ctx.guild.id, server_profit)
+            server_db.update_server_profit(ctx.guild.id, server_profit, game="race")
 
             # Add game to server history
             history_entry = {

@@ -870,9 +870,9 @@ class HiLo(commands.Cog):
 
             # Update server profit
             if result_type == "win":
-                server_db.update_server_profit(server_id, (bet_amount - amount))
+                server_db.update_server_profit(server_id, (bet_amount - amount), game="hilo")
             else:
-                server_db.update_server_profit(server_id, bet_amount)
+                server_db.update_server_profit(server_id, bet_amount, game="hilo")
 
         except Exception as e:
             print(f"Error updating history: {e}")

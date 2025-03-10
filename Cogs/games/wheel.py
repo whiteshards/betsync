@@ -365,13 +365,7 @@ class WheelCog(commands.Cog):
 
             # Update server data with all spins
             if server_data and server_history_entries:
-                server_db.collection.update_one(
-                    {"server_id": ctx.guild.id},
-                    {
-                        "$push": {"server_bet_history": {"$each": server_history_entries, "$slice": -100}},
-                        "$inc": {"profit": house_profit}
-                    }
-                )
+                server_db.update_server_profit(ctx.guild.id, house_profit, game="wheel")
 
             # Set final embed color based on overall result
             if total_winnings > total_bet_amount:

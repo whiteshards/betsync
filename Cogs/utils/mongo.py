@@ -154,17 +154,28 @@ class Servers:
             new_server_ = self.collection.insert_one(dump) 
             return self.collection.find_one({"server_id": server_id})
 
-    def update_server_profit(self, server_id, amount):
+    def update_server_profit(self, server_id, amount, game=None):
+        npc = self.db["net_profit"]
         """Update server profit statistics"""
         try:
             self.collection.update_one(
                 {"server_id": server_id},
                 {"$inc": {"total_profit": amount}}
             )
+            if game:
+                npc.update_one({"game": game}, {"$inc": {"total_profit": amount}})
             return True
         except Exception as e:
             print(f"Error updating server profit: {e}")
             return False
+
+    def get_np(self, game=None):
+        if game:
+            npc = self.db["net_profit"]
+            return npc.find_one({"game": game})
+        else:
+            npc = self.db["net_profit"]
+            return npc.find_one({})
 
     def update_history(self, server_id, history_entry):
         """Add an entry to server's bet history with 100 entry limit"""

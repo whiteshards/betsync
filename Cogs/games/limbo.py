@@ -271,7 +271,7 @@ class LimboGame:
 
             # Calculate server profit/loss
             server_profit = losses * self.bet_amount - wins * (self.bet_amount * self.target_multiplier - self.bet_amount)
-            server_db.update_server_profit(self.ctx.guild.id, server_profit)
+            server_db.update_server_profit(self.ctx.guild.id, server_profit, game="limbo")
 
         # Now display the final result with the last roll
         embed = self.create_embed()
@@ -285,7 +285,7 @@ class LimboGame:
             inline=False
         )
 
-        await self.message.edit(embed=embed, file=file, view=LimboControlView(self, show_cashout=False))
+        await self.message.edit(embed=embed, view=LimboControlView(self, show_cashout=False))
         self.running = False
 
         # Clean up the game from ongoing_games
@@ -456,7 +456,7 @@ class LimboGame:
                         )
 
                         # Update server profit (user lost)
-                        server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
+                        server_db.update_server_profit(self.ctx.guild.id, self.bet_amount, game="limbo")
 
                     # Update user stats
                     db.collection.update_one(
@@ -469,7 +469,7 @@ class LimboGame:
                 file = await self.generate_multiplier_image(rounded_multiplier, won)
                 embed.set_image(url="attachment://limbo_result.png")
 
-                await self.message.edit(embed=embed, file=file, view=LimboControlView(self))
+                await self.message.edit(embed=embed, view=LimboControlView(self))
 
                 # Wait before next roll
                 await asyncio.sleep(1.0)  # Normal speed for auto mode

@@ -442,7 +442,7 @@ class CrashCog(commands.Cog):
                     # Add to history
                     from Cogs.utils.mongo import Servers
                     dbb = Servers()
-                    dbb.update_server_profit(ctx.guild.id, bet_amount)
+                    dbb.update_server_profit(ctx.guild.id, bet_amount, game="crash")
                     history_entry = {
                         "type": "loss",
                         "game": "crash",
@@ -544,7 +544,7 @@ class CrashCog(commands.Cog):
                     from Cogs.utils.mongo import Servers
                     servers_db = Servers()
                     server_profit = -profit  # Server loses money when player wins
-                    servers_db.update_server_profit(ctx.guild.id, server_profit)
+                    servers_db.update_server_profit(ctx.guild.id, server_profit, game="crash")
 
                     # Add credits to user balance
                     db.update_balance(ctx.author.id, winnings, "credits", "$inc")

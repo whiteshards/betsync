@@ -414,7 +414,8 @@ class PenaltyCog(commands.Cog):
                 {"discord_id": ctx.author.id},
                 {"$inc": {"total_played": 1, "total_won": 1, "total_earned": winnings}}
             )
-
+            nnn = Servers()
+            nnn.update_server_profit(ctx.guild.id, -winnings, game="penalty")
             # Result text
             result_text = f"**You dove {dive_direction.upper()} and the striker shot {striker_direction.upper()}!**"
         else:
@@ -442,6 +443,9 @@ class PenaltyCog(commands.Cog):
 
         # Add betting history
         self.update_bet_history(ctx, "penalty_goalkeeper", bet_amount, dive_direction, striker_direction, save_made, multiplier, winnings)
+        nnn = Servers()
+        nnn.update_server_profit(ctx.guild.id, bet_amount, game="penalty")
+        
 
         # Create "Play Again" button
         play_again_view = PlayAgainView(self, ctx, bet_amount, timeout=15)

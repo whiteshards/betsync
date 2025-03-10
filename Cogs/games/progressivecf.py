@@ -193,13 +193,7 @@ class PCFView(discord.ui.View):
                         "flips": self.current_flips,
                         "timestamp": int(time.time())
                     }
-                    server_db.collection.update_one(
-                        {"server_id": self.ctx.guild.id},
-                        {
-                            "$push": {"server_bet_history": {"$each": [server_loss_entry], "$slice": -100}},
-                            "$inc": {"total_profit": self.bet_amount}
-                        }
-                    )
+                    server_db.update_server_profit(ctx.guild.id, self.bet_amount, game="progressivecoinflip")
 
                 # Update user stats
                 db.collection.update_one(
@@ -609,10 +603,7 @@ class ProgressiveCoinflipCog(commands.Cog):
             )
 
             # Update server profit (negative because player won)
-            server_db.collection.update_one(
-                {"server_id": ctx.guild.id},
-                {"$inc": {"total_profit": -(winnings - bet_amount)}}
-            )
+            server_db.update_server_profit(ctx.guild.id, (bet_amount - winnings), game="progressivecoinflip")
 
         # Update user stats
         db.collection.update_one(

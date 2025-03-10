@@ -415,10 +415,7 @@ class TowerGameView(discord.ui.View):
             server_profit = self.bet_amount - payout
 
                 # Update server profit directly
-            server_db.collection.update_one(
-                    {"server_id": self.ctx.guild.id},
-                    {"$inc": {"profit": server_profit}}
-                )
+            server_db.update_server_profit(self.ctx.guild.id, server_profit, game="tower")
 
                 # Add to server history
             server_bet_entry = win_entry.copy()
@@ -484,7 +481,7 @@ class TowerGameView(discord.ui.View):
         try:
             server_db = Servers()
             # Update server profit using the correct method
-            server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
+            server_db.update_server_profit(self.ctx.guild.id, self.bet_amount, game="tower")
 
             # Add to server history
             server_bet_entry = loss_entry.copy()

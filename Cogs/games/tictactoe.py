@@ -366,7 +366,10 @@ class TicTacToeGame:
             {"discord_id": loser.id},
             {"$push": {"history": {"$each": [history_entry_loser], "$slice": -100}}}
         )
-
+        #from Cogs.utils.mongo import Servers
+        #serverss = Servers()
+        #serverss.update_server_profit(ctx.guild.id, )
+        
         # Update server stats
         # This part would be similar to other games, but I don't have complete context
         # of your server stats structure

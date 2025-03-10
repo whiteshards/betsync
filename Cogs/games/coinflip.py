@@ -215,10 +215,10 @@ class CoinflipCog(commands.Cog):
                 # Update server history and profit
                 server_db = Servers()
                 #server_data = server_db.fetch_server(ctx.guild.id)
-                server_db.update_server_profit(ctx.guild.id, (bet_amount_value - win_amount))
+                server_db.update_server_profit(ctx.guild.id, (bet_amount_value - win_amount), game="coinflip")
             else:
                 server_db = Servers()
-                server_db.update_server_profit(ctx.guild.id, bet_amount_value)
+                server_db.update_server_profit(ctx.guild.id, bet_amount_value, game="coinflip")
     
 
             

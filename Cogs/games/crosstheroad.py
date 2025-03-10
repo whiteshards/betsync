@@ -264,7 +264,7 @@ class CrossTheRoadGame(discord.ui.View):
         try:
             server_db = Servers()
             server_profit = self.bet_amount - payout
-            server_db.update_server_profit(self.ctx.guild.id, server_profit)
+            server_db.update_server_profit(self.ctx.guild.id, server_profit, game="crosstheroad")
 
             # Add bet to server history with all required fields
             server_bet_data = history_entry.copy()
@@ -330,7 +330,7 @@ class CrossTheRoadGame(discord.ui.View):
         # Also update server stats if available
         try:
             server_db = Servers()
-            server_db.update_server_profit(self.ctx.guild.id, self.bet_amount)
+            server_db.update_server_profit(self.ctx.guild.id, self.bet_amount, game="crosstheroad")
 
             # Add bet to server history with all required fields
             server_bet_data = history_entry.copy()

@@ -482,7 +482,7 @@ class CasesCog(commands.Cog):
 
         if server_data:
 
-            server_db.update_server_profit(ctx.guild.id, (bet_amount_value - win_amount))
+            server_db.update_server_profit(ctx.guild.id, (bet_amount_value - win_amount), game="cases")
 
             # Add to server history
             history_entry = {

@@ -228,7 +228,7 @@ class DiceCog(commands.Cog):
                 # Update server profit (negative value because server loses when player wins)
                 servers_db = Servers()
                 server_profit = -profit  # Server loses money when player wins
-                servers_db.update_server_profit(ctx.guild.id, server_profit)
+                servers_db.update_server_profit(ctx.guild.id, server_profit, game="dice")
 
                 # Add to history
                 history_entry = {
@@ -296,7 +296,7 @@ class DiceCog(commands.Cog):
                 )
 
                 # Update server profit
-                servers_db.update_server_profit(ctx.guild.id, total_bet)
+                servers_db.update_server_profit(ctx.guild.id, total_bet, game="dice")
 
             # Determine which currency was used for display
             currency_used = None
