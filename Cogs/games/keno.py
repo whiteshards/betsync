@@ -356,6 +356,39 @@ class KenoNumberButton(discord.ui.Button):
             # No selections, don't include paytable
             await interaction.response.edit_message(embed=embed, view=view)
 
+import datetime
+import io
+from PIL import Image, ImageDraw, ImageFont
+import random
+
+# Define payouts for different selections and hits
+PAYOUTS = {
+    1: {1: 3.8},
+    2: {1: 1.8, 2: 7.5},
+    3: {1: 1, 2: 2.5, 3: 38},
+    4: {1: 0.5, 2: 2, 3: 6, 4: 80},
+    5: {1: 0.5, 2: 1, 3: 3, 4: 15, 5: 200},
+    6: {1: 0.5, 2: 0.5, 3: 2, 4: 5, 5: 20, 6: 400},
+    7: {1: 0.5, 2: 0.5, 3: 1, 4: 2, 5: 10, 6: 40, 7: 550},
+    8: {1: 0.5, 2: 0.5, 3: 0.5, 4: 2, 5: 4, 6: 15, 7: 100, 8: 800},
+    9: {1: 0.5, 2: 0.5, 3: 0.5, 4: 1, 5: 2, 6: 8, 7: 20, 8: 150, 9: 1000},
+    10: {1: 0.5, 2: 0.5, 3: 0.5, 4: 0.5, 5: 1, 6: 4, 7: 8, 8: 30, 9: 200, 10: 1600}
+}
+
+# Probability percentages for different picks and hits
+PROBABILITIES = {
+    1: {1: 25.0},
+    2: {1: 42.5, 2: 7.5},
+    3: {1: 45.0, 2: 21.0, 3: 3.0},
+    4: {1: 40.0, 2: 27.0, 3: 8.0, 4: 1.0},
+    5: {1: 30.0, 2: 33.0, 3: 15.0, 4: 3.0, 5: 0.3},
+    6: {1: 22.5, 2: 33.0, 3: 22.0, 4: 7.5, 5: 1.2, 6: 0.08},
+    7: {1: 16.4, 2: 30.0, 3: 26.0, 4: 12.0, 5: 3.0, 6: 0.4, 7: 0.02},
+    8: {1: 11.4, 2: 25.6, 3: 28.0, 4: 17.0, 5: 6.0, 6: 1.2, 7: 0.12, 8: 0.005},
+    9: {1: 7.7, 2: 20.6, 3: 28.0, 4: 21.0, 5: 9.4, 6: 2.6, 7: 0.4, 8: 0.03, 9: 0.001},
+    10: {1: 5.0, 2: 16.0, 3: 26.0, 4: 24.0, 5: 13.0, 6: 4.6, 7: 1.0, 8: 0.12, 9: 0.007, 10: 0.0002}
+}
+
 class Keno(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -812,7 +845,34 @@ class Keno(commands.Cog):
             embed.set_image(url="attachment://keno_game.png")
             embed.set_footer(text="BetSync Casino • Keno")
             
-            await message.edit(embed=embed, file=file, view=view)
+            # Create a new view with only "Play Again" button
+            play_again_view = discord.ui.View()
+            play_again_button = discord.ui.Button(
+                style=discord.ButtonStyle.success,
+                label="Play Again",
+                emoji="🎮",
+                custom_id=f"keno_again_{user_id}"
+            )
+            
+            async def play_again_callback(interaction):
+                if interaction.user.id != user_id:
+                    return await interaction.response.send_message("This is not your game!", ephemeral=True)
+                
+                # Start a new game with same bet amount and currency
+                await interaction.response.defer()
+                
+                # Use the command directly
+                bet_command = self.bot.get_command('keno')
+                if bet_command:
+                    new_ctx = await self.bot.get_context(interaction.message)
+                    new_ctx.author = interaction.user
+                    await bet_command(new_ctx, str(bet_amount), currency_used)
+            
+            play_again_button.callback = play_again_callback
+            play_again_view.add_item(play_again_button)
+            
+            # Edit the message with new embed and view
+            await message.edit(embed=embed, file=file, view=play_again_view)
             
             # Update user balance and history
             db = Users()
@@ -832,6 +892,8 @@ class Keno(commands.Cog):
                     "type": "win",
                     "game": "keno",
                     "amount": winnings,
+                    "bet": bet_amount,
+                    "multiplier": multiplier,
                     "timestamp": int(datetime.datetime.now().timestamp())
                 }
                 
@@ -847,12 +909,26 @@ class Keno(commands.Cog):
                 server_db = Servers()
                 server_db.update_server_profit(ctx.guild.id, -1 * (winnings - bet_amount))
                 
+                # Add to server bet history
+                server_history_entry = {
+                    "type": "win",
+                    "game": "keno",
+                    "user_id": user_id,
+                    "user_name": ctx.author.name,
+                    "bet": bet_amount,
+                    "amount": winnings,
+                    "multiplier": multiplier,
+                    "timestamp": int(datetime.datetime.now().timestamp())
+                }
+                server_db.update_history(ctx.guild.id, server_history_entry)
+                
             else:
                 # Add loss to history
                 history_entry = {
                     "type": "loss",
                     "game": "keno",
                     "amount": bet_amount,
+                    "multiplier": 0,
                     "timestamp": int(datetime.datetime.now().timestamp())
                 }
                 
@@ -867,6 +943,19 @@ class Keno(commands.Cog):
                 # Update server profit (positive for casino win)
                 server_db = Servers()
                 server_db.update_server_profit(ctx.guild.id, bet_amount)
+                
+                # Add to server bet history
+                server_history_entry = {
+                    "type": "loss",
+                    "game": "keno",
+                    "user_id": user_id,
+                    "user_name": ctx.author.name,
+                    "bet": bet_amount,
+                    "amount": bet_amount,
+                    "multiplier": 0,
+                    "timestamp": int(datetime.datetime.now().timestamp())
+                }
+                server_db.update_history(ctx.guild.id, server_history_entry)
                 
             # Clean up
             del self.ongoing_games[user_id]
