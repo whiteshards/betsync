@@ -211,9 +211,10 @@ class KenoView(discord.ui.View):
                 break
                 
         if play_button:
-            play_button.disabled = len(self.selected_numbers) == 0
+            # Always enable play button - if no numbers are selected, one will be randomly chosen
+            play_button.disabled = False
             
-    @discord.ui.button(label="PLAY", style=discord.ButtonStyle.success, custom_id="play", row=4, disabled=True)
+    @discord.ui.button(label="PLAY", style=discord.ButtonStyle.success, custom_id="play", row=4, disabled=False)
     async def play_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
@@ -789,8 +790,13 @@ class Keno(commands.Cog):
             num_selected = len(selected_numbers)
             
             if num_selected == 0:
-                # No numbers selected, cancel game
-                return
+                # No numbers selected, randomly select one number
+                random_number = random.randint(1, 20)
+                selected_numbers = [random_number]
+                num_selected = 1
+                
+                # Notify the user that a random number was selected
+                await ctx.send(f"No numbers selected - randomly chose number **{random_number}** for you!", delete_after=5)
                 
             # Generate winning numbers (5 random numbers from 1-20)
             all_numbers = list(range(1, 21))
