@@ -377,7 +377,7 @@ class Blackjack(commands.Cog):
         self.ongoing_games = {}
         
     @commands.command(aliases=["bj", "21"])
-    async def blackjack(self, ctx, bet_amount: str = None, currency_type: str = "tokens"):
+    async def blackjack(self, ctx, bet_amount: str = None, currency_type=None):
         """
         Play a game of Blackjack against the dealer
         
