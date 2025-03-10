@@ -245,6 +245,9 @@ class BlackjackView(discord.ui.View):
             return await interaction.response.send_message(f"You don't have enough tokens to double down.", ephemeral=True)
         elif self.currency_used == "credits" and user_data.get("credits", 0) < self.bet_amount:
             return await interaction.response.send_message(f"You don't have enough credits to double down.", ephemeral=True)
+        
+        # First defer the response to avoid interaction timeout
+        await interaction.response.defer()
             
         # Deduct additional bet amount
         db.update_balance(self.ctx.author.id, self.bet_amount, self.currency_used, "$inc")
@@ -327,9 +330,17 @@ class BlackjackView(discord.ui.View):
         # Create play again view
         play_again_view = self.cog.create_play_again_view(self.ctx.author.id, original_bet, self.currency_used)
         
-        # Update message with result and play again button
-        await interaction.response.edit_message(embed=embed, view=play_again_view)
-        await interaction.message.edit(file=file)
+        try:
+            # Update message with result and play again button
+            await interaction.edit_original_response(embed=embed, view=play_again_view)
+            await interaction.message.edit(file=file)
+        except Exception as e:
+            print(f"Error updating message: {e}")
+            # Fallback method if edit fails
+            try:
+                await interaction.followup.send(embed=embed, file=file, view=play_again_view)
+            except Exception as e2:
+                print(f"Followup also failed: {e2}")
 
     async def on_timeout(self):
         if not self.game_over:
