@@ -660,6 +660,14 @@ class Keno(commands.Cog):
         tile_size = 110
         margin = 25
         
+        # Calculate total grid width and height to center the entire grid
+        grid_width = 5 * tile_size + 4 * margin
+        grid_height = 4 * tile_size + 3 * margin
+        
+        # Calculate starting position to center the grid in the image
+        start_x = (width - grid_width) // 2
+        start_y = (height - grid_height) // 2
+        
         # Create image and draw object
         image = Image.new('RGB', (width, height), dark_bg)
         draw = ImageDraw.Draw(image)
@@ -681,8 +689,9 @@ class Keno(commands.Cog):
             row = (i-1) // 5
             col = (i-1) % 5
             
-            x = margin + col * (tile_size + margin)
-            y = margin + row * (tile_size + margin)
+            # Calculate position with the new centered grid
+            x = start_x + col * (tile_size + margin)
+            y = start_y + row * (tile_size + margin)
             
             # Determine tile color based on game state
             if game_over:
