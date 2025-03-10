@@ -573,49 +573,65 @@ class Blackjack(commands.Cog):
             await ctx.reply(embed=error_embed)
             
     async def generate_game_image(self, player_cards, dealer_cards, show_dealer=False):
-        """Generate game image showing card hands"""
+        """Generate game image showing card hands, styled like the provided image"""
         # Image dimensions and settings
         width, height = 1000, 600
-        bg_color = (16, 46, 60)  # Dark blue-green background as in reference
+        bg_color = (10, 26, 36)  # Dark blue background to match the reference image
         image = Image.new('RGB', (width, height), bg_color)
         draw = ImageDraw.Draw(image)
         
         try:
-            # Load fonts - Bigger and better for readability
-            title_font = ImageFont.truetype("arial.ttf", 36)
-            label_font = ImageFont.truetype("arial.ttf", 28)
-            value_font = ImageFont.truetype("arial.ttf", 48)
+            # Load fonts
+            title_font = ImageFont.truetype("arial.ttf", 32)
+            value_font = ImageFont.truetype("arial.ttf", 28)
         except:
             # Fallback fonts
             title_font = ImageFont.load_default()
-            label_font = ImageFont.load_default()
             value_font = ImageFont.load_default()
-            
-        # Draw title
+        
+        # Card sizes and position configuration
+        card_width = 130
+        card_height = 180
+        card_offset = 30  # Overlap between cards for stacked appearance
+        
+        # Draw title banner (centered, with ribbon-like appearance)
         title = "BLACKJACK PAYS 3 TO 2"
         title_width = draw.textlength(title, font=title_font)
-        draw.text(((width - title_width) // 2, 40), title, font=title_font, fill=(200, 200, 200))
+        banner_width = title_width + 80
+        banner_height = 40
+        banner_x = (width - banner_width) // 2
+        banner_y = 200
         
-        # Draw cards
-        card_width = 120
-        card_height = 180
-        card_spacing = 15
+        # Draw the banner background (dark gray)
+        draw.rectangle(
+            (banner_x, banner_y, banner_x + banner_width, banner_y + banner_height),
+            fill=(50, 60, 70)
+        )
         
-        # Function to draw a hand
+        # Draw the title text
+        draw.text(
+            (width // 2, banner_y + banner_height // 2),
+            title,
+            font=title_font,
+            fill=(200, 200, 200),
+            anchor="mm"  # Center alignment
+        )
+        
+        # Function to draw a card hand with value bubble
         def draw_hand(cards, y_position, is_dealer=False):
-            total_width = (len(cards) * card_width) + ((len(cards) - 1) * card_spacing)
+            # Calculate total displayed width for centering
+            num_cards = len(cards if show_dealer or not is_dealer else [cards[0]])
+            total_width = card_width + ((num_cards - 1) * card_offset)
             start_x = (width - total_width) // 2
             
-            # Draw hand value
+            # Calculate hand value
             if is_dealer and not show_dealer:
-                # If dealer's hand is hidden, only show the first card
-                displayed_cards = [cards[0]]
-                # Only calculate value of first card
+                # Only show value of first card if dealer's hand is hidden
                 value = CARD_VALUES[cards[0][0]]
-                value_text = str(value)
+                displayed_cards = [cards[0]]
             else:
                 displayed_cards = cards
-                # Calculate hand value using the view logic
+                # Calculate hand value
                 value = 0
                 aces = 0
                 
@@ -631,84 +647,94 @@ class Blackjack(commands.Cog):
                 while value > 21 and aces > 0:
                     value -= 10
                     aces -= 1
-                
-                value_text = str(value)
             
-            # Draw value bubble to right of cards
-            if not (is_dealer and not show_dealer):
-                bubble_x = start_x + total_width + 30
-                bubble_y = y_position + (card_height // 2) - 25
-                bubble_radius = 30
-                
-                # Draw value bubble
-                draw.ellipse(
-                    (bubble_x - bubble_radius, bubble_y - bubble_radius, 
-                     bubble_x + bubble_radius, bubble_y + bubble_radius), 
-                    fill=(40, 60, 80)
-                )
-                
-                # Draw value text
-                value_width = draw.textlength(value_text, font=value_font)
-                value_height = value_font.getbbox(value_text)[3]
-                draw.text(
-                    (bubble_x - (value_width // 2), bubble_y - (value_height // 2)),
-                    value_text,
-                    font=value_font,
-                    fill=(255, 255, 255)
-                )
+            # Draw the hand value in a circular bubble
+            value_circle_x = start_x + total_width + 40
+            value_circle_y = y_position + (card_height // 2)
+            circle_radius = 20
             
-            # Draw each card
+            # Draw dark circle for value
+            draw.ellipse(
+                (
+                    value_circle_x - circle_radius, 
+                    value_circle_y - circle_radius, 
+                    value_circle_x + circle_radius, 
+                    value_circle_y + circle_radius
+                ),
+                fill=(50, 60, 75)
+            )
+            
+            # Draw value text
+            value_text = str(value)
+            value_text_width = draw.textlength(value_text, font=value_font)
+            draw.text(
+                (value_circle_x - value_text_width // 2, value_circle_y - 13),
+                value_text,
+                font=value_font,
+                fill=(200, 200, 210)
+            )
+            
+            # Draw the cards with overlap effect (stacked)
             for i, card in enumerate(displayed_cards):
-                x = start_x + (i * (card_width + card_spacing))
+                # Calculate position with overlap
+                x = start_x + (i * card_offset)
                 
-                # If dealer's second card is hidden
+                # Determine which card image to use
                 if is_dealer and i > 0 and not show_dealer:
-                    # Use back card image
-                    card_image_path = f"assests/back_card.png"
-                    try:
-                        card_img = Image.open(card_image_path).convert('RGBA')
-                    except:
-                        # Create a basic card back if image is missing
-                        card_img = Image.new('RGBA', (card_width, card_height), (0, 0, 255, 255))
+                    # Use back card for dealer's hidden card
+                    card_path = "assests/back_card.png"
                 else:
-                    # Use regular card image
-                    card_image_path = f"assests/{card[1]}_{card[0]}.png"
-                    try:
-                        card_img = Image.open(card_image_path).convert('RGBA')
-                    except:
-                        # Create a basic card if image is missing
-                        card_img = Image.new('RGBA', (card_width, card_height), (255, 255, 255, 255))
-                        temp_draw = ImageDraw.Draw(card_img)
-                        temp_draw.text((10, 10), f"{card[0]}", font=title_font, fill=(0, 0, 0, 255))
-                        
-                        # Add suit indicator
-                        suit_color = (0, 0, 0, 255)
-                        if card[1] in ['hearts', 'diamonds']:
-                            suit_color = (255, 0, 0, 255)
-                            
-                        suit_symbol = "♠"
-                        if card[1] == 'hearts':
-                            suit_symbol = "♥"
-                        elif card[1] == 'diamonds':
-                            suit_symbol = "♦"
-                        elif card[1] == 'clubs':
-                            suit_symbol = "♣"
-                            
-                        temp_draw.text((10, 50), suit_symbol, font=title_font, fill=suit_color)
-                        
-                # Resize card if needed
-                card_img = card_img.resize((card_width, card_height))
+                    card_path = f"assests/{card[1]}_{card[0]}.png"
                 
-                # Add card to main image
-                card_img_rgb = Image.new('RGB', card_img.size, (255, 255, 255))
-                card_img_rgb.paste(card_img, (0, 0), card_img)
-                image.paste(card_img_rgb, (x, y_position))
+                try:
+                    # Load and resize card image
+                    card_img = Image.open(card_path).convert('RGBA')
+                    card_img = card_img.resize((card_width, card_height))
+                    
+                    # Create white background for card
+                    card_bg = Image.new('RGB', (card_width, card_height), (255, 255, 255))
+                    card_bg.paste(card_img, (0, 0), card_img)
+                    
+                    # Add card to main image
+                    image.paste(card_bg, (x, y_position))
+                    
+                except Exception as e:
+                    # Fallback to drawing basic card if image loading fails
+                    draw.rectangle(
+                        (x, y_position, x + card_width, y_position + card_height),
+                        fill=(255, 255, 255),
+                        outline=(0, 0, 0)
+                    )
+                    
+                    # Draw rank and suit
+                    rank = card[0]
+                    suit = card[1]
+                    
+                    # Determine color based on suit
+                    text_color = (0, 0, 0)
+                    if suit in ['hearts', 'diamonds']:
+                        text_color = (255, 0, 0)
+                    
+                    # Get suit symbol
+                    suit_symbol = "♠"
+                    if suit == 'hearts':
+                        suit_symbol = "♥"
+                    elif suit == 'diamonds':
+                        suit_symbol = "♦"
+                    elif suit == 'clubs':
+                        suit_symbol = "♣"
+                    
+                    # Draw rank at top-left
+                    draw.text((x + 10, y_position + 10), rank, font=title_font, fill=text_color)
+                    
+                    # Draw suit
+                    draw.text((x + 10, y_position + 50), suit_symbol, font=title_font, fill=text_color)
         
-        # Draw dealer's hand (top)
-        draw_hand(dealer_cards, 150, True)
+        # Draw dealer's hand at top
+        draw_hand(dealer_cards, 100, True)
         
-        # Draw player's hand (bottom)
-        draw_hand(player_cards, 400)
+        # Draw player's hand at bottom
+        draw_hand(player_cards, 350)
         
         # Save to bytes
         img_byte_array = io.BytesIO()
