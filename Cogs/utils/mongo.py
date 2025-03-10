@@ -163,7 +163,9 @@ class Servers:
                 {"$inc": {"total_profit": amount}}
             )
             if game:
-                npc.update_one({"game": game}, {"$inc": {"total_profit": amount}})
+                if npc.count_documents({"game": game}):
+                    npc.update_one({"game": game}, {"$inc": {"total_profit": amount}})
+                else: npc.insert_one({"game": game, "total_profit": amount})
             return True
         except Exception as e:
             print(f"Error updating server profit: {e}")

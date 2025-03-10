@@ -855,9 +855,9 @@ class AdminCommands(commands.Cog):
                 )
                 
                 # Add server share if applicable
-                server_share = profit * (32/100)  # Based on the rate seen in server.py
+                server_share = profit * (30/100)  # Based on the rate seen in server.py
                 embed.add_field(
-                    name="Server Share (32%)",
+                    name="Server Share (30%)",
                     value=f"**{server_share:,.2f}** tokens",
                     inline=True
                 )
@@ -873,17 +873,19 @@ class AdminCommands(commands.Cog):
                 )
                 
                 # Get general stats first
-                overall_data = db.get_np()
-                if overall_data:
-                    total_profit = overall_data.get("total_profit", 0)
-                    embed.add_field(
-                        name="Total Casino Profit",
-                        value=f"**{total_profit:,.2f}** tokens",
-                        inline=False
-                    )
+                #overall_data = db.get_np()
+                #if overall_data:
+                    ##l = 0
+                    #or i in overall_data:
+                        #l += i.get("total_profit", 0)
+                    #embed.add_field(
+                        #name="Total Casino Profit",
+                        #value=f"**{l:,.2f}** tokens",
+                        #nline=False
+                    #)
                 
                 # Get individual game stats
-                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "hilo", "plinko", "keno"]
+                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "hilo", "plinko", "keno", "crash", "crosstheroad", "dice", "poker", "coinflip", "mines", "hilo", "penalty", "pump", "race", "wheel"]
                 game_stats = []
                 
                 for game_name in game_list:
