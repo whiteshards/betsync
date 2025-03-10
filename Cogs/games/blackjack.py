@@ -123,14 +123,12 @@ class BlackjackView(discord.ui.View):
                 self.dealer_cards
             )
             
-            # Update view with "Play Again" button
+            # Create play again view
             play_again_view = self.cog.create_play_again_view(self.ctx.author.id, self.bet_amount, self.currency_used)
             
-            await interaction.response.edit_message(embed=embed, view=self)
+            # Update message with result and play again button
+            await interaction.response.edit_message(embed=embed, view=play_again_view)
             await interaction.message.edit(file=file)
-            
-            # Send a new message with the play again button
-            await interaction.followup.send("Want to play another round?", view=play_again_view)
             
         else:
             # Update game view with new card
@@ -221,13 +219,12 @@ class BlackjackView(discord.ui.View):
             self.dealer_cards
         )
         
-        # Update message
-        await interaction.response.edit_message(embed=embed, view=self)
-        await interaction.message.edit(file=file)
-        
-        # Send a new message with the play again button
+        # Create play again view
         play_again_view = self.cog.create_play_again_view(self.ctx.author.id, self.bet_amount, self.currency_used)
-        await interaction.followup.send("Want to play another round?", view=play_again_view)
+        
+        # Update message with result and play again button
+        await interaction.response.edit_message(embed=embed, view=play_again_view)
+        await interaction.message.edit(file=file)
     
     @discord.ui.button(label="Double Down", style=discord.ButtonStyle.danger, custom_id="double")
     async def double_button(self, button, interaction):
@@ -327,13 +324,12 @@ class BlackjackView(discord.ui.View):
             self.dealer_cards
         )
         
-        # Update message
-        await interaction.response.edit_message(embed=embed, view=self)
-        await interaction.message.edit(file=file)
-        
-        # Send a new message with the play again button
+        # Create play again view
         play_again_view = self.cog.create_play_again_view(self.ctx.author.id, original_bet, self.currency_used)
-        await interaction.followup.send("Want to play another round?", view=play_again_view)
+        
+        # Update message with result and play again button
+        await interaction.response.edit_message(embed=embed, view=play_again_view)
+        await interaction.message.edit(file=file)
 
     async def on_timeout(self):
         if not self.game_over:
@@ -526,13 +522,12 @@ class Blackjack(commands.Cog):
                 # Delete loading message
                 await loading_message.delete()
                 
-                # Send game message
-                game_message = await ctx.reply(embed=embed, file=file, view=view)
-                view.message = game_message
-                
-                # Add play again button
+                # Create play again view
                 play_again_view = self.create_play_again_view(ctx.author.id, bet_amount_value, currency_used)
-                await ctx.send("Want to play another round?", view=play_again_view)
+                
+                # Send game message with play again buttons
+                game_message = await ctx.reply(embed=embed, file=file, view=play_again_view)
+                view.message = game_message
                 
             else:
                 # Normal game start
