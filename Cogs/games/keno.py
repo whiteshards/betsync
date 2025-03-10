@@ -85,7 +85,7 @@ def generate_paytable_image():
     )
     
     # Draw header row
-    header_labels = ["# Picks", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    header_labels = ["Picks", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
     for col in range(cols):
         # Headers for columns
         x = table_margin + (col * cell_width)
@@ -145,17 +145,17 @@ def generate_paytable_image():
             text_x = x + (cell_width - text_width) // 2
             text_y = y + ((cell_height - cell_font.getbbox(text)[3]) // 2)  # Better centering
             draw.text((text_x, text_y), text, font=cell_font, fill=text_color_cell)
-    
+    """
     # Draw footer
     footer_text = "Powered by BetSync Casino | The best Discord casino"
     footer_width = draw.textlength(footer_text, font=subtitle_font)
-    draw.text(
+    #draw.text(
         ((width - footer_width) // 2, start_y + table_height + 25),
         footer_text,
         font=subtitle_font,
         fill=(170, 170, 170)
     )
-    
+   """ 
     # Save to bytes
     img_byte_array = io.BytesIO()
     image.save(img_byte_array, format="PNG")

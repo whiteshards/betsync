@@ -209,7 +209,7 @@ class ServersCog(commands.Cog):
         
         await ctx.reply(embed=embed)
         
-    @commands.command(aliases=["sbh"])
+    #@commands.command(aliases=["sbh"])
     async def serverbethistory(self, ctx):
         """View the server's bet history with pagination"""
         db = Servers()
