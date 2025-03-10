@@ -594,7 +594,7 @@ class Blackjack(commands.Cog):
         # Card sizes and positioning
         card_width = 120
         card_height = 170
-        card_offset = 25  # Overlap between cards
+        card_offset = 60  # Increased card spread for better visibility
         
         # Draw ribbon-style banner
         banner_width = 350
@@ -637,44 +637,6 @@ class Blackjack(commands.Cog):
             font=title_font,
             fill=(220, 220, 220),
             anchor="mm"  # Center alignment
-        )
-        
-        # Add "INSURANCE PAYS 2 TO 1" subtitle in smaller ribbon
-        sub_banner_width = 320
-        sub_banner_height = 30
-        sub_banner_x = (width - sub_banner_width) // 2
-        sub_banner_y = banner_y + banner_height + 10
-        
-        # Draw subtitle ribbon
-        draw.rectangle(
-            (sub_banner_x, sub_banner_y, sub_banner_x + sub_banner_width, sub_banner_y + sub_banner_height),
-            fill=banner_color,
-            outline=(58, 68, 78)
-        )
-        
-        # Left ribbon end for subtitle
-        draw.polygon(
-            [(sub_banner_x, sub_banner_y), 
-             (sub_banner_x - ribbon_end_width, sub_banner_y + (sub_banner_height//2)), 
-             (sub_banner_x, sub_banner_y + sub_banner_height)],
-            fill=banner_color
-        )
-        
-        # Right ribbon end for subtitle
-        draw.polygon(
-            [(sub_banner_x + sub_banner_width, sub_banner_y), 
-             (sub_banner_x + sub_banner_width + ribbon_end_width, sub_banner_y + (sub_banner_height//2)), 
-             (sub_banner_x + sub_banner_width, sub_banner_y + sub_banner_height)],
-            fill=banner_color
-        )
-        
-        # Draw subtitle text
-        draw.text(
-            (width // 2, sub_banner_y + (sub_banner_height // 2)),
-            "INSURANCE PAYS 2 TO 1",
-            font=subtitle_font,
-            fill=(200, 200, 200),
-            anchor="mm"
         )
         
         # Function to draw a card hand with value bubble
@@ -731,9 +693,9 @@ class Blackjack(commands.Cog):
                 anchor="mm"  # Center alignment
             )
             
-            # Draw the cards with overlap effect (stacked from right to left)
+            # Draw the cards with increased spacing, more like the reference image
             for i, card in enumerate(reversed(displayed_cards)):
-                # Calculate position with overlap - show newer cards on top
+                # Calculate position with more space between cards
                 idx = len(displayed_cards) - 1 - i
                 x = start_x + (idx * card_offset)
                 
@@ -823,8 +785,8 @@ class Blackjack(commands.Cog):
                         fill=text_color
                     )
         
-        # Draw dealer's hand at top
-        draw_hand(dealer_cards, 120, True)
+        # Draw dealer's hand at top (moved up to avoid overlapping with banner)
+        draw_hand(dealer_cards, 70, True)
         
         # Draw player's hand at bottom
         draw_hand(player_cards, 400)
