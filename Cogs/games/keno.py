@@ -207,7 +207,7 @@ class KenoView(discord.ui.View):
         self.update_play_button()
         
         # Auto-select the first number to ensure user has at least one pick
-        self.selected_numbers.append(1)
+        #self.selected_numbers.append(1)
         # Update the first button to show as selected
         for child in self.children:
             if isinstance(child, KenoNumberButton) and child.number == 1:
@@ -362,10 +362,10 @@ class KenoNumberButton(discord.ui.Button):
         if view.selected_numbers:
             paytable_bytes = view.cog.create_mini_paytable_for_selections(len(view.selected_numbers))
             paytable_file = discord.File(paytable_bytes, filename="keno_paytable_selection.png")
-            await interaction.response.edit_message(embed=embed, attachments=[paytable_file], view=view)
+            await interaction.response.edit_message(embed=embed, file=paytable_file, view=view)
         else:
             # No selections, don't include paytable
-            await interaction.response.edit_message(embed=embed, attachments=[], view=view)
+            await interaction.response.edit_message(embed=embed, view=view)
 
 class Keno(commands.Cog):
     def __init__(self, bot):
