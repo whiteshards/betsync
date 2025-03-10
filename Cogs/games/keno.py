@@ -28,13 +28,13 @@ PAYOUTS = {
 
 def generate_paytable_image():
     """Generate a visually appealing payout table image"""
-    # Image dimensions and settings - smaller size
-    width, height = 800, 600
+    # Image dimensions and settings - larger size for better fit
+    width, height = 1000, 700
     bg_color = (25, 25, 25)  # Dark background
     header_color = (40, 40, 40)  # Slightly lighter for header
     cell_color = (34, 34, 34)
     alt_cell_color = (30, 30, 30)
-    highlight_color = (0, 120, 215)  # Blue for highlights instead of gold
+    highlight_color = (128, 0, 255)  # Purple for highlights
     text_color = (255, 255, 255)
     
     # Create image and draw object
@@ -42,11 +42,11 @@ def generate_paytable_image():
     draw = ImageDraw.Draw(image)
     
     try:
-        # Try to load fonts - smaller sizes for better fit
-        title_font = ImageFont.truetype("arial.ttf", 36)
-        header_font = ImageFont.truetype("arial.ttf", 22)
-        cell_font = ImageFont.truetype("arial.ttf", 20)
-        subtitle_font = ImageFont.truetype("arial.ttf", 18)
+        # Try to load fonts - better sizes for readability
+        title_font = ImageFont.truetype("arial.ttf", 42)
+        header_font = ImageFont.truetype("arial.ttf", 24)
+        cell_font = ImageFont.truetype("arial.ttf", 22)
+        subtitle_font = ImageFont.truetype("arial.ttf", 20)
     except:
         # Fallback fonts
         title_font = ImageFont.load_default()
@@ -57,22 +57,22 @@ def generate_paytable_image():
     # Draw title
     title = "BETSYNC CASINO"
     title_width = draw.textlength(title, font=title_font)
-    draw.text(((width - title_width) // 2, 20), title, font=title_font, fill=highlight_color)
+    draw.text(((width - title_width) // 2, 30), title, font=title_font, fill=highlight_color)
     
     # Draw subtitle
     subtitle = "Payout Table"
     subtitle_width = draw.textlength(subtitle, font=subtitle_font)
-    draw.text(((width - subtitle_width) // 2, 70), subtitle, font=subtitle_font, fill=text_color)
+    draw.text(((width - subtitle_width) // 2, 85), subtitle, font=subtitle_font, fill=text_color)
     
-    # Table layout - smaller margins and cells
-    table_margin = 40
-    start_y = 110
+    # Table layout - better margins for breathing room
+    table_margin = 100  # Increased margin for breathing room
+    start_y = 130
     table_width = width - (2 * table_margin)
     rows = 11  # Header + 10 rows
     cols = 11  # First column is for picks, then 0-10 hits
     
     cell_width = table_width // cols
-    cell_height = 40
+    cell_height = 42  # Slightly larger cells
     
     # Draw table background and grid
     table_height = cell_height * rows
@@ -80,35 +80,24 @@ def generate_paytable_image():
     draw.rectangle(
         (table_margin - 2, start_y - 2, width - table_margin + 2, start_y + table_height + 2),
         fill=(50, 50, 50),
-        outline=(70, 70, 70),
+        outline=(90, 90, 90),
         width=2
     )
     
     # Draw header row
-    header_labels = ["# Chosen", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
-    for col in range(cols + 1):
-        if col == 0:
-            # Header for picks column
-            x = table_margin
-            y = start_y
-            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
-            
-            # Draw text - use shorter label to fit better
-            text = "# Picks"
-            text_width = draw.textlength(text, font=header_font)
-            text_x = x + (cell_width - text_width) // 2
-            draw.text((text_x, y + 10), text, font=header_font, fill=highlight_color)
-        elif col <= len(header_labels) - 1:
-            # Headers for hits columns
-            x = table_margin + (col * cell_width)
-            y = start_y
-            draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
-            
-            # Draw text
-            text = header_labels[col]
-            text_width = draw.textlength(text, font=header_font)
-            text_x = x + (cell_width - text_width) // 2
-            draw.text((text_x, y + 10), text, font=header_font, fill=highlight_color)
+    header_labels = ["# Picks", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    for col in range(cols):
+        # Headers for columns
+        x = table_margin + (col * cell_width)
+        y = start_y
+        draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
+        
+        # Draw text
+        text = header_labels[col]
+        text_width = draw.textlength(text, font=header_font)
+        text_x = x + (cell_width - text_width) // 2
+        text_y = y + ((cell_height - header_font.getbbox(text)[3]) // 2)  # Better centering
+        draw.text((text_x, text_y), text, font=header_font, fill=highlight_color)
     
     # Draw data rows
     for row in range(1, 11):  # 1-10 picks
@@ -125,7 +114,8 @@ def generate_paytable_image():
         text = str(row)
         text_width = draw.textlength(text, font=cell_font)
         text_x = x + (cell_width - text_width) // 2
-        draw.text((text_x, y + 10), text, font=cell_font, fill=text_color)
+        text_y = y + ((cell_height - cell_font.getbbox(text)[3]) // 2)  # Better centering
+        draw.text((text_x, text_y), text, font=cell_font, fill=text_color)
         
         # Draw multipliers for each hit possibility
         for col in range(1, 11):  # 0-10 hits
@@ -143,26 +133,27 @@ def generate_paytable_image():
                 text_color_cell = (100, 100, 100)  # Gray for zero
             else:
                 text = f"{multiplier}x"
-                # Use blue color scheme instead of gold
+                # Use purple color scheme
                 if multiplier > 50:
-                    text_color_cell = (0, 191, 255)  # Bright blue for high values
+                    text_color_cell = (191, 0, 255)  # Bright purple for high values
                 elif multiplier > 10:
-                    text_color_cell = (65, 105, 225)  # Royal blue for medium values
+                    text_color_cell = (147, 112, 219)  # Medium purple for medium values
                 else:
                     text_color_cell = text_color
             
             text_width = draw.textlength(text, font=cell_font)
             text_x = x + (cell_width - text_width) // 2
-            draw.text((text_x, y + 10), text, font=cell_font, fill=text_color_cell)
+            text_y = y + ((cell_height - cell_font.getbbox(text)[3]) // 2)  # Better centering
+            draw.text((text_x, text_y), text, font=cell_font, fill=text_color_cell)
     
     # Draw footer
     footer_text = "Powered by BetSync Casino | The best Discord casino"
     footer_width = draw.textlength(footer_text, font=subtitle_font)
     draw.text(
-        ((width - footer_width) // 2, start_y + table_height + 15),
+        ((width - footer_width) // 2, start_y + table_height + 25),
         footer_text,
         font=subtitle_font,
-        fill=(150, 150, 150)
+        fill=(170, 170, 170)
     )
     
     # Save to bytes
@@ -208,11 +199,8 @@ class KenoView(discord.ui.View):
         
         # Auto-select the first number to ensure user has at least one pick
         #self.selected_numbers.append(1)
-        # Update the first button to show as selected
-        for child in self.children:
-            if isinstance(child, KenoNumberButton) and child.number == 1:
-                child.style = discord.ButtonStyle.primary
-                break
+        # No auto-select by default, but keep the first button on standby
+        # Let users make their own selections
     
     def update_play_button(self):
         # Get the play button and update its state
@@ -350,7 +338,8 @@ class KenoNumberButton(discord.ui.Button):
                 return await interaction.response.send_message(f"You can select a maximum of {view.max_selections} numbers!", ephemeral=True)
                 
             view.selected_numbers.append(self.number)
-            self.style = discord.ButtonStyle.primary
+            # Use blurple color which is closer to purple than primary blue
+            self.style = discord.ButtonStyle.blurple
             
         # Update the play button state
         view.update_play_button()
@@ -532,38 +521,38 @@ class Keno(commands.Cog):
         
     def create_mini_paytable_for_selections(self, num_picks):
         """Create a mini paytable image focused on the selected number of picks"""
-        # Image dimensions and settings - smaller for better fit
-        width, height = 500, 180
+        # Image dimensions and settings - better size with more breathing room
+        width, height = 600, 200  # Larger dimensions for better fit
         bg_color = (25, 25, 25)  # Dark background
         header_color = (40, 40, 40) 
         cell_color = (34, 34, 34)
-        highlight_color = (0, 120, 215)  # Blue instead of gold
+        highlight_color = (128, 0, 255)  # Purple for highlights
         text_color = (255, 255, 255)
-        accent_color = (0, 180, 230)  # Blue accent color
+        accent_color = (147, 51, 234)  # Purple accent color
         
         # Create image and draw object
         image = Image.new('RGB', (width, height), bg_color)
         draw = ImageDraw.Draw(image)
         
         try:
-            # Try to load fonts - slightly smaller for better fit
-            title_font = ImageFont.truetype("arial.ttf", 20)
-            header_font = ImageFont.truetype("arial.ttf", 18)
-            cell_font = ImageFont.truetype("arial.ttf", 18)
+            # Try to load fonts - better sizing
+            title_font = ImageFont.truetype("arial.ttf", 24)  # Larger title font
+            header_font = ImageFont.truetype("arial.ttf", 20)
+            cell_font = ImageFont.truetype("arial.ttf", 20)
         except:
             # Fallback fonts
             title_font = ImageFont.load_default()
             header_font = ImageFont.load_default()
             cell_font = ImageFont.load_default()
         
-        # Draw title - shorter for better fit
+        # Draw title
         title = f"PAYOUTS FOR {num_picks} PICKS"
         title_width = draw.textlength(title, font=title_font)
-        draw.text(((width - title_width) // 2, 12), title, font=title_font, fill=highlight_color)
+        draw.text(((width - title_width) // 2, 20), title, font=title_font, fill=highlight_color)
         
-        # Table layout
-        table_margin = 25
-        start_y = 50
+        # Table layout - better margins
+        table_margin = 50  # Increased margin for breathing room
+        start_y = 60
         table_width = width - (2 * table_margin)
         
         # Determine number of columns (hits)
@@ -571,7 +560,7 @@ class Keno(commands.Cog):
         cols = max_hits + 1  # Hits columns + 1 for label column
         
         cell_width = table_width // cols
-        cell_height = 45
+        cell_height = 50  # Slightly larger cells
         
         # Draw header row
         header_labels = ["Picks"] + [f"{i} Hit{'' if i == 1 else 's'}" for i in range(1, max_hits + 1)]
@@ -580,14 +569,20 @@ class Keno(commands.Cog):
             x = table_margin + (col * cell_width)
             y = start_y
             
-            # Draw header cell
+            # Draw header cell with rounded corners
             draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
             
-            # Draw header text
+            # Draw header text with better centering
             text = header_labels[col]
             text_width = draw.textlength(text, font=header_font)
             text_x = x + (cell_width - text_width) // 2
-            draw.text((text_x, y + 13), text, font=header_font, fill=highlight_color)
+            
+            # Better vertical centering using font metrics
+            text_bbox = header_font.getbbox(text)
+            text_height = text_bbox[3] - text_bbox[1]
+            text_y = y + ((cell_height - text_height) // 2)
+            
+            draw.text((text_x, text_y), text, font=header_font, fill=highlight_color)
         
         # Draw data row - just the selected number of picks
         # First column (picks)
@@ -597,11 +592,16 @@ class Keno(commands.Cog):
         # Draw cell with accent color to highlight
         draw.rectangle((x, y, x + cell_width, y + cell_height), fill=accent_color)
         
-        # Draw pick number
+        # Draw pick number with better centering
         text = str(num_picks)
         text_width = draw.textlength(text, font=cell_font)
+        text_bbox = cell_font.getbbox(text)
+        text_height = text_bbox[3] - text_bbox[1]
+        
         text_x = x + (cell_width - text_width) // 2
-        draw.text((text_x, y + 13), text, font=cell_font, fill=bg_color)
+        text_y = y + ((cell_height - text_height) // 2)
+        
+        draw.text((text_x, text_y), text, font=cell_font, fill=(255, 255, 255))  # White text on purple
         
         # Draw multipliers for each hit
         for col in range(1, cols):
@@ -611,7 +611,7 @@ class Keno(commands.Cog):
             # Get multiplier
             multiplier = PAYOUTS.get(num_picks, {}).get(hits, 0)
             
-            # Draw cell with accent
+            # Draw cell
             draw.rectangle((x, y, x + cell_width, y + cell_height), fill=cell_color)
             
             # Format multiplier text
@@ -620,17 +620,23 @@ class Keno(commands.Cog):
                 text_color_cell = (100, 100, 100)  # Gray
             else:
                 text = f"{multiplier}x"
-                # Use blue color scheme for higher values
+                # Use purple color scheme for higher values
                 if multiplier > 100:
-                    text_color_cell = (0, 191, 255)  # Deep sky blue
+                    text_color_cell = (221, 160, 221)  # Light purple for high values
                 elif multiplier > 10:
-                    text_color_cell = (65, 105, 225)  # Royal blue
+                    text_color_cell = (147, 112, 219)  # Medium purple
                 else:
                     text_color_cell = text_color
             
+            # Better text centering
             text_width = draw.textlength(text, font=cell_font)
+            text_bbox = cell_font.getbbox(text)
+            text_height = text_bbox[3] - text_bbox[1]
+            
             text_x = x + (cell_width - text_width) // 2
-            draw.text((text_x, y + 13), text, font=cell_font, fill=text_color_cell)
+            text_y = y + ((cell_height - text_height) // 2)
+            
+            draw.text((text_x, text_y), text, font=cell_font, fill=text_color_cell)
         
         # Save to bytes
         img_byte_array = io.BytesIO()
@@ -644,15 +650,15 @@ class Keno(commands.Cog):
         # Set colors
         dark_bg = (26, 32, 44)
         tile_bg = (45, 55, 72)
-        selected_color = (0, 120, 215)  # Blue instead of purple (matching color scheme)
+        selected_color = (128, 0, 255)  # Purple for selections
         matching_color = (0, 255, 0)    # Green for matches
         unmatched_winning_color = (255, 0, 0)  # Red for unselected winning numbers
         text_color = (255, 255, 255)
         
         # Image dimensions for 20 numbers (4x5 grid)
-        width, height = 800, 600
-        tile_size = 100
-        margin = 20
+        width, height = 900, 700  # Slightly larger for better spacing
+        tile_size = 110
+        margin = 25
         
         # Create image and draw object
         image = Image.new('RGB', (width, height), dark_bg)
@@ -660,9 +666,12 @@ class Keno(commands.Cog):
         
         # Load font
         try:
-            font = ImageFont.truetype("arial.ttf", 42)
-            # Calculate actual font height
-            font_height = int(font.getbbox("0")[3] * 0.7)  # Approximate text height
+            # Use a slightly larger font
+            font = ImageFont.truetype("arial.ttf", 46)
+            # Get exact text dimensions for perfect centering
+            test_text = "88"  # Use a double digit for better estimation
+            text_bbox = font.getbbox(test_text)
+            font_height = text_bbox[3] - text_bbox[1]
         except:
             font = ImageFont.load_default()
             font_height = 30  # Approximation for default font
@@ -686,7 +695,7 @@ class Keno(commands.Cog):
                     tile_color = unmatched_winning_color
                     text_col = text_color
                 elif i in selected_numbers:
-                    # Selected but not winning stays blue
+                    # Selected but not winning stays purple
                     tile_color = selected_color
                     text_col = text_color
                 else:
@@ -704,13 +713,15 @@ class Keno(commands.Cog):
             # Draw tile
             draw.rectangle((x, y, x + tile_size, y + tile_size), fill=tile_color)
             
-            # Draw number - properly centered
+            # Draw number with perfect centering
             text = str(i)
-            text_width = draw.textlength(text, font=font)
-            text_x = x + (tile_size - text_width) // 2
+            text_bbox = font.getbbox(text)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
             
-            # Better vertical centering using calculated font height
-            text_y = y + (tile_size - font_height) // 2
+            # Calculate exact center position
+            text_x = x + (tile_size - text_width) // 2
+            text_y = y + (tile_size - text_height) // 2
             
             draw.text((text_x, text_y), text, font=font, fill=text_col)
         
