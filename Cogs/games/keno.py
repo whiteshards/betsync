@@ -396,7 +396,7 @@ class Keno(commands.Cog):
         self.ongoing_games = {}
         
     @commands.command(aliases=["k"])
-    async def keno(self, ctx, bet_amount: str = None, currency_type: str = "tokens"):
+    async def keno(self, ctx, bet_amount: str = None, currency_type=None):
         """
         Play a game of Keno
         
