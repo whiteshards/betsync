@@ -250,7 +250,7 @@ class BlackjackView(discord.ui.View):
         await interaction.response.defer()
             
         # Deduct additional bet amount
-        db.update_balance(self.ctx.author.id, self.bet_amount, self.currency_used, "$inc")
+        db.update_balance(self.ctx.author.id, -self.bet_amount, self.currency_used, "$inc")
         
         # Double the bet
         original_bet = self.bet_amount
@@ -883,7 +883,7 @@ class Blackjack(commands.Cog):
             )
             
             # Update server stats - casino loses
-            server_db.update_server_profit(ctx.guild.id, -win_amount)
+            server_db.update_server_profit(ctx.guild.id, (win_amount - bet_amount))
             
             # Add to server history
             server_history_entry = {
