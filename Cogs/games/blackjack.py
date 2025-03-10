@@ -576,45 +576,105 @@ class Blackjack(commands.Cog):
         """Generate game image showing card hands, styled like the provided image"""
         # Image dimensions and settings
         width, height = 1000, 600
-        bg_color = (10, 26, 36)  # Dark blue background to match the reference image
+        bg_color = (8, 28, 40)  # Darker navy blue background to match reference image
         image = Image.new('RGB', (width, height), bg_color)
         draw = ImageDraw.Draw(image)
         
         try:
             # Load fonts
-            title_font = ImageFont.truetype("arial.ttf", 32)
-            value_font = ImageFont.truetype("arial.ttf", 28)
+            title_font = ImageFont.truetype("roboto.ttf", 26) 
+            subtitle_font = ImageFont.truetype("roboto.ttf", 22)
+            value_font = ImageFont.truetype("roboto.ttf", 26)
         except:
             # Fallback fonts
             title_font = ImageFont.load_default()
+            subtitle_font = ImageFont.load_default()
             value_font = ImageFont.load_default()
         
-        # Card sizes and position configuration
-        card_width = 130
-        card_height = 180
-        card_offset = 30  # Overlap between cards for stacked appearance
+        # Card sizes and positioning
+        card_width = 120
+        card_height = 170
+        card_offset = 25  # Overlap between cards
         
-        # Draw title banner (centered, with ribbon-like appearance)
-        title = "BLACKJACK PAYS 3 TO 2"
-        title_width = draw.textlength(title, font=title_font)
-        banner_width = title_width + 80
+        # Draw ribbon-style banner
+        banner_width = 350
         banner_height = 40
         banner_x = (width - banner_width) // 2
-        banner_y = 200
+        banner_y = 280
         
-        # Draw the banner background (dark gray)
+        # Draw ribbon with slight gradient
+        banner_color = (48, 58, 68)
         draw.rectangle(
             (banner_x, banner_y, banner_x + banner_width, banner_y + banner_height),
-            fill=(50, 60, 70)
+            fill=banner_color,
+            outline=(58, 68, 78)
+        )
+        
+        # Add ribbon ends
+        ribbon_end_width = 15
+        ribbon_end_height = 20
+        
+        # Left ribbon end
+        draw.polygon(
+            [(banner_x, banner_y), 
+             (banner_x - ribbon_end_width, banner_y + (banner_height//2)), 
+             (banner_x, banner_y + banner_height)],
+            fill=banner_color
+        )
+        
+        # Right ribbon end
+        draw.polygon(
+            [(banner_x + banner_width, banner_y), 
+             (banner_x + banner_width + ribbon_end_width, banner_y + (banner_height//2)), 
+             (banner_x + banner_width, banner_y + banner_height)],
+            fill=banner_color
         )
         
         # Draw the title text
         draw.text(
-            (width // 2, banner_y + banner_height // 2),
-            title,
+            (width // 2, banner_y + (banner_height // 2)),
+            "BLACKJACK PAYS 3 TO 2",
             font=title_font,
-            fill=(200, 200, 200),
+            fill=(220, 220, 220),
             anchor="mm"  # Center alignment
+        )
+        
+        # Add "INSURANCE PAYS 2 TO 1" subtitle in smaller ribbon
+        sub_banner_width = 320
+        sub_banner_height = 30
+        sub_banner_x = (width - sub_banner_width) // 2
+        sub_banner_y = banner_y + banner_height + 10
+        
+        # Draw subtitle ribbon
+        draw.rectangle(
+            (sub_banner_x, sub_banner_y, sub_banner_x + sub_banner_width, sub_banner_y + sub_banner_height),
+            fill=banner_color,
+            outline=(58, 68, 78)
+        )
+        
+        # Left ribbon end for subtitle
+        draw.polygon(
+            [(sub_banner_x, sub_banner_y), 
+             (sub_banner_x - ribbon_end_width, sub_banner_y + (sub_banner_height//2)), 
+             (sub_banner_x, sub_banner_y + sub_banner_height)],
+            fill=banner_color
+        )
+        
+        # Right ribbon end for subtitle
+        draw.polygon(
+            [(sub_banner_x + sub_banner_width, sub_banner_y), 
+             (sub_banner_x + sub_banner_width + ribbon_end_width, sub_banner_y + (sub_banner_height//2)), 
+             (sub_banner_x + sub_banner_width, sub_banner_y + sub_banner_height)],
+            fill=banner_color
+        )
+        
+        # Draw subtitle text
+        draw.text(
+            (width // 2, sub_banner_y + (sub_banner_height // 2)),
+            "INSURANCE PAYS 2 TO 1",
+            font=subtitle_font,
+            fill=(200, 200, 200),
+            anchor="mm"
         )
         
         # Function to draw a card hand with value bubble
@@ -648,39 +708,37 @@ class Blackjack(commands.Cog):
                     value -= 10
                     aces -= 1
             
-            # Draw the hand value in a circular bubble
-            value_circle_x = start_x + total_width + 40
-            value_circle_y = y_position + (card_height // 2)
-            circle_radius = 20
+            # Draw the hand value in a pill-shaped bubble like in the reference
+            bubble_width = 50
+            bubble_height = 34
+            bubble_x = start_x + total_width + 30
+            bubble_y = y_position + (card_height // 2) - (bubble_height // 2)
             
-            # Draw dark circle for value
-            draw.ellipse(
-                (
-                    value_circle_x - circle_radius, 
-                    value_circle_y - circle_radius, 
-                    value_circle_x + circle_radius, 
-                    value_circle_y + circle_radius
-                ),
-                fill=(50, 60, 75)
+            # Draw rounded rect for value bubble
+            draw.rounded_rectangle(
+                (bubble_x, bubble_y, bubble_x + bubble_width, bubble_y + bubble_height),
+                radius=17,
+                fill=(52, 68, 82)
             )
             
             # Draw value text
             value_text = str(value)
-            value_text_width = draw.textlength(value_text, font=value_font)
             draw.text(
-                (value_circle_x - value_text_width // 2, value_circle_y - 13),
+                (bubble_x + (bubble_width // 2), bubble_y + (bubble_height // 2)),
                 value_text,
                 font=value_font,
-                fill=(200, 200, 210)
+                fill=(220, 220, 220),
+                anchor="mm"  # Center alignment
             )
             
-            # Draw the cards with overlap effect (stacked)
-            for i, card in enumerate(displayed_cards):
-                # Calculate position with overlap
-                x = start_x + (i * card_offset)
+            # Draw the cards with overlap effect (stacked from right to left)
+            for i, card in enumerate(reversed(displayed_cards)):
+                # Calculate position with overlap - show newer cards on top
+                idx = len(displayed_cards) - 1 - i
+                x = start_x + (idx * card_offset)
                 
                 # Determine which card image to use
-                if is_dealer and i > 0 and not show_dealer:
+                if is_dealer and idx > 0 and not show_dealer:
                     # Use back card for dealer's hidden card
                     card_path = "assests/back_card.png"
                 else:
@@ -691,7 +749,7 @@ class Blackjack(commands.Cog):
                     card_img = Image.open(card_path).convert('RGBA')
                     card_img = card_img.resize((card_width, card_height))
                     
-                    # Create white background for card
+                    # Create white background for card with subtle shadow effect
                     card_bg = Image.new('RGB', (card_width, card_height), (255, 255, 255))
                     card_bg.paste(card_img, (0, 0), card_img)
                     
@@ -700,10 +758,12 @@ class Blackjack(commands.Cog):
                     
                 except Exception as e:
                     # Fallback to drawing basic card if image loading fails
-                    draw.rectangle(
+                    # Draw card with rounded corners
+                    draw.rounded_rectangle(
                         (x, y_position, x + card_width, y_position + card_height),
+                        radius=10,
                         fill=(255, 255, 255),
-                        outline=(0, 0, 0)
+                        outline=(220, 220, 220)
                     )
                     
                     # Draw rank and suit
@@ -713,7 +773,7 @@ class Blackjack(commands.Cog):
                     # Determine color based on suit
                     text_color = (0, 0, 0)
                     if suit in ['hearts', 'diamonds']:
-                        text_color = (255, 0, 0)
+                        text_color = (220, 30, 30)
                     
                     # Get suit symbol
                     suit_symbol = "♠"
@@ -724,17 +784,50 @@ class Blackjack(commands.Cog):
                     elif suit == 'clubs':
                         suit_symbol = "♣"
                     
-                    # Draw rank at top-left
-                    draw.text((x + 10, y_position + 10), rank, font=title_font, fill=text_color)
+                    # Draw large symbol in center
+                    draw.text(
+                        (x + (card_width // 2), y_position + (card_height // 2)),
+                        suit_symbol,
+                        font=title_font,
+                        fill=text_color,
+                        anchor="mm"
+                    )
                     
-                    # Draw suit
-                    draw.text((x + 10, y_position + 50), suit_symbol, font=title_font, fill=text_color)
+                    # Draw rank at top-left
+                    draw.text(
+                        (x + 10, y_position + 10),
+                        rank,
+                        font=title_font,
+                        fill=text_color
+                    )
+                    
+                    # Draw small suit under rank
+                    draw.text(
+                        (x + 10, y_position + 40),
+                        suit_symbol,
+                        font=subtitle_font,
+                        fill=text_color
+                    )
+                    
+                    # Draw inverted rank and suit at bottom-right
+                    draw.text(
+                        (x + card_width - 25, y_position + card_height - 40),
+                        rank,
+                        font=title_font,
+                        fill=text_color
+                    )
+                    draw.text(
+                        (x + card_width - 25, y_position + card_height - 70),
+                        suit_symbol,
+                        font=subtitle_font,
+                        fill=text_color
+                    )
         
         # Draw dealer's hand at top
-        draw_hand(dealer_cards, 100, True)
+        draw_hand(dealer_cards, 120, True)
         
         # Draw player's hand at bottom
-        draw_hand(player_cards, 350)
+        draw_hand(player_cards, 400)
         
         # Save to bytes
         img_byte_array = io.BytesIO()
