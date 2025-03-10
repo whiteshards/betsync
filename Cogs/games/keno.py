@@ -58,6 +58,14 @@ class KenoView(discord.ui.View):
             
         # Disable the play button initially (enable after at least one number is selected)
         self.update_play_button()
+        
+        # Auto-select the first number to ensure user has at least one pick
+        self.selected_numbers.append(1)
+        # Update the first button to show as selected
+        for child in self.children:
+            if isinstance(child, KenoNumberButton) and child.number == 1:
+                child.style = discord.ButtonStyle.primary
+                break
     
     def update_play_button(self):
         # Get the play button and update its state
@@ -93,9 +101,9 @@ class KenoView(discord.ui.View):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
             
-        # Cancel the game and refund the user
-        from Cogs.utils.currency_helper import refund_bet
-        refund_bet(self.ctx.author.id, self.bet_amount, self.currency_used)
+        # Cancel the game and refund the user by adding the bet amount back
+        db = Users()
+        db.update_balance(self.ctx.author.id, self.bet_amount, self.currency_used, "$inc")
         
         for child in self.children:
             child.disabled = True
@@ -114,24 +122,53 @@ class KenoView(discord.ui.View):
             del self.cog.ongoing_games[self.ctx.author.id]
             
     async def on_timeout(self):
-        # Handle timeout - refund the bet if game wasn't played
+        # Handle timeout - game is considered played if user made no selections
         if not self.game_over and self.ctx.author.id in self.cog.ongoing_games:
-            from Cogs.utils.currency_helper import refund_bet
-            refund_bet(self.ctx.author.id, self.bet_amount, self.currency_used)
-            
             for child in self.children:
                 child.disabled = True
                 
             try:
                 await self.message.edit(view=self)
                 
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Game Timed Out",
-                    description=f"Game timed out. Your bet of {self.bet_amount} {self.currency_used} has been refunded.",
-                    color=discord.Color.red()
-                )
-                await self.ctx.reply(embed=embed)
-            except:
+                # If user didn't select any numbers, count it as a loss
+                if len(self.selected_numbers) == 0:
+                    # Record loss in database
+                    db = Users()
+                    
+                    # Add loss to history
+                    history_entry = {
+                        "type": "loss",
+                        "game": "keno",
+                        "amount": self.bet_amount,
+                        "timestamp": int(datetime.datetime.now().timestamp())
+                    }
+                    
+                    db.collection.update_one(
+                        {"discord_id": self.ctx.author.id},
+                        {
+                            "$push": {"history": {"$each": [history_entry], "$slice": -100}},
+                            "$inc": {"total_spent": self.bet_amount, "total_lost": 1, "total_played": 1}
+                        }
+                    )
+                    
+                    # Update server profit (positive for casino win)
+                    server_db = Servers()
+                    server_db.update_profit(self.ctx.guild.id, self.bet_amount)
+                    
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Game Timed Out",
+                        description=f"Game timed out. Your bet of {self.bet_amount} {self.currency_used} has been lost.",
+                        color=discord.Color.red()
+                    )
+                    await self.ctx.reply(embed=embed)
+                    
+                else:
+                    # If they selected numbers but didn't press play, run the game automatically
+                    await self.cog.run_keno_game(self.ctx, self, self.message)
+                    return
+                    
+            except Exception as e:
+                print(f"Error in Keno timeout handler: {e}")
                 pass
                 
             # Remove from ongoing games
