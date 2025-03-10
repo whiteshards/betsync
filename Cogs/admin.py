@@ -787,6 +787,146 @@ class AdminCommands(commands.Cog):
         embed.set_footer(text=f"Requested by: {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
         
         await ctx.reply(embed=embed)
+        
+    @commands.command(name="game_np")
+    async def game_np(self, ctx, game: str = None):
+        """Check how much all games or a specific game is performing
+        
+        Usage: !game_np [game_name]
+               Example games: limbo, blackjack, cases
+        """
+        # Check if command user is an admin
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+            
+        # Get the database instance
+        db = Servers()
+        
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Retrieving Game Performance Data",
+            description="Please wait while we fetch the statistics...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
+        
+        try:
+            if game:
+                # Get stats for a specific game
+                game = game.lower()  # Normalize game name
+                game_data = db.get_np(game)
+                
+                if not game_data:
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Game Not Found",
+                        description=f"No data found for game '{game}'. Check the spelling or try without specifying a game.",
+                        color=0xFF0000
+                    )
+                    return await loading_message.edit(embed=embed)
+                
+                # Create embed for single game
+                money_emoji = emoji()["money"]
+                embed = discord.Embed(
+                    title=f"{money_emoji} | Game Performance: {game.capitalize()}",
+                    description=f"Performance statistics for {game.capitalize()}",
+                    color=0x00FFAE
+                )
+                
+                # Add game stats
+                profit = game_data.get("total_profit", 0)
+                embed.add_field(
+                    name="Total Profit",
+                    value=f"**{profit:,.2f}** tokens",
+                    inline=True
+                )
+                
+                # Calculate rough USD equivalent (example rate from context)
+                usd_equivalent = profit * 0.0212  # Based on the rate seen in server.py
+                embed.add_field(
+                    name="USD Equivalent (Est.)",
+                    value=f"**${usd_equivalent:,.2f}**",
+                    inline=True
+                )
+                
+                # Add server share if applicable
+                server_share = profit * (32/100)  # Based on the rate seen in server.py
+                embed.add_field(
+                    name="Server Share (32%)",
+                    value=f"**{server_share:,.2f}** tokens",
+                    inline=True
+                )
+                
+            else:
+                # Get stats for all games
+                # Create the main embed
+                money_emoji = emoji()["money"]
+                embed = discord.Embed(
+                    title=f"{money_emoji} | Game Performance Overview",
+                    description="Performance statistics for all games",
+                    color=0x00FFAE
+                )
+                
+                # Get general stats first
+                overall_data = db.get_np()
+                if overall_data:
+                    total_profit = overall_data.get("total_profit", 0)
+                    embed.add_field(
+                        name="Total Casino Profit",
+                        value=f"**{total_profit:,.2f}** tokens",
+                        inline=False
+                    )
+                
+                # Get individual game stats
+                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "hilo", "plinko", "keno"]
+                game_stats = []
+                
+                for game_name in game_list:
+                    game_data = db.get_np(game_name)
+                    if game_data:
+                        profit = game_data.get("total_profit", 0)
+                        game_stats.append((game_name, profit))
+                
+                # Sort games by profit (highest to lowest)
+                game_stats.sort(key=lambda x: x[1], reverse=True)
+                
+                # Add top performing games field
+                if game_stats:
+                    performance_text = ""
+                    for i, (game_name, profit) in enumerate(game_stats):
+                        performance_text += f"**{i+1}.** {game_name.capitalize()}: **{profit:,.2f}** tokens\n"
+                    
+                    embed.add_field(
+                        name="Game Performance (Ranked)",
+                        value=performance_text,
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="Game Performance",
+                        value="No game performance data available.",
+                        inline=False
+                    )
+            
+            # Add help text
+            embed.set_footer(text="Use !game_np [game_name] to view stats for a specific game", icon_url=ctx.bot.user.avatar.url)
+            
+            # Edit loading message with the stats
+            await loading_message.edit(embed=embed)
+            
+        except Exception as e:
+            # Handle any errors
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"An error occurred while retrieving game statistics: ```{str(e)}```",
+                color=0xFF0000
+            )
+            await loading_message.edit(embed=error_embed)
 
 def setup(bot):
     bot.add_cog(AdminCommands(bot))
