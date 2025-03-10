@@ -913,7 +913,7 @@ class Keno(commands.Cog):
                 
                 # Update server profit (negative for casino loss)
                 server_db = Servers()
-                server_db.update_server_profit(ctx.guild.id, -1 * (winnings - bet_amount))
+                server_db.update_profit(ctx.guild.id, -1 * (winnings - bet_amount))
                 
                 # Add to server bet history
                 server_history_entry = {
@@ -948,7 +948,7 @@ class Keno(commands.Cog):
                 
                 # Update server profit (positive for casino win)
                 server_db = Servers()
-                server_db.update_server_profit(ctx.guild.id, bet_amount)
+                server_db.update_profit(ctx.guild.id, bet_amount)
                 
                 # Add to server bet history
                 server_history_entry = {
