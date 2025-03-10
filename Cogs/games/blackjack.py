@@ -26,6 +26,7 @@ class BlackjackView(discord.ui.View):
         self.player_cards = []
         self.dealer_cards = []
         self.deck = self.create_deck()
+        self.used_cards = set()  # Track used cards to prevent duplicates
         self.game_over = False
         
         # Deal initial cards
@@ -41,10 +42,23 @@ class BlackjackView(discord.ui.View):
         return deck
         
     def draw_card(self):
-        """Draw a card from the deck"""
-        if not self.deck:
+        """Draw a card from the deck, ensuring no duplicates"""
+        if len(self.used_cards) >= 52:  # All cards used
+            # Create a new deck excluding already used cards
             self.deck = self.create_deck()
-        return self.deck.pop()
+            self.used_cards = set()
+            
+        # Get a card that hasn't been used
+        while True:
+            if not self.deck:
+                self.deck = self.create_deck()
+                
+            card = self.deck.pop()
+            card_id = f"{card[0]}_{card[1]}"
+            
+            if card_id not in self.used_cards:
+                self.used_cards.add(card_id)
+                return card
         
     def calculate_hand_value(self, cards):
         """Calculate the value of a hand, handling Aces intelligently"""
