@@ -1,8 +1,8 @@
-
+import datetime
 import os
 import discord
 import asyncio
-from colorama import Fore
+from colorama import Fore, Back, Style
 from discord.ext import commands
 from pymongo import ReturnDocument
 from Cogs.utils.mongo import Users, Servers
@@ -43,9 +43,9 @@ cogs = [
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
-        print(f"{Fore.RED}[-] {Fore.WHITE} User {Fore.BLACK}{ctx.message.author}{Fore.WHITE} tried to use a non-existent command")
+        pass #print(f"{Fore.RED}[-] {Fore.WHITE} User {Fore.BLACK}{ctx.message.author}{Fore.WHITE} tried to use a non-existent command")
     else:
-        print(f"{Fore.RED}[!] {Fore.WHITE}Command error: {Fore.RED}{error}")
+        pass #print(f"{Fore.RED}[!] {Fore.WHITE}Command error: {Fore.RED}{error}")
 
 @bot.event
 async def on_guild_join(guild):
@@ -63,7 +63,7 @@ async def on_guild_join(guild):
         if resp:
             print(f"{Fore.GREEN}[+] {Fore.WHITE}New Server Registered: {Fore.GREEN}{guild.name} ({guild.id}){Fore.WHITE}")
     except Exception as e:
-        print(f"{Fore.RED}[!] {Fore.WHITE}Error registering server: {Fore.RED}{e}")
+        pass #print(f"{Fore.RED}[!] {Fore.WHITE}Error registering server: {Fore.RED}{e}")
 
 @bot.event
 async def on_command(ctx):
@@ -110,7 +110,8 @@ async def on_command(ctx):
                 embed.set_footer(text="BetSync Casino", icon_url=bot.user.avatar.url)
                 await ctx.reply("By using BetSync, you agree to our TOS. Type `!tos` to know more.", embed=embed)
         except Exception as e:
-            print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_command: {Fore.RED}{e}")
+            #print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_command: {Fore.RED}{e}")
+            pass
     bg_task = asyncio.create_task(bg())
     await bg_task
    
@@ -134,6 +135,22 @@ async def on_ready():
                 print(f"{Fore.RED}[-] {Fore.WHITE}Failed to load cog {Fore.RED}{cog}{Fore.WHITE}: {e}")
         
         print(f"{Fore.GREEN}[+] {Fore.WHITE}Bot initialization complete!")
+        await asyncio.sleep(3)
+        os.system("clear")
+        print("""
+        
+  ____       _    _____                  _____  ____  
+ |  _ \     | |  / ____|                |  __ \|  _ \ 
+ | |_) | ___| |_| (___  _   _ _ __   ___| |  | | |_) |
+ |  _ < / _ \ __|\___ \| | | | '_ \ / __| |  | |  _ < 
+ | |_) |  __/ |_ ____) | |_| | | | | (__| |__| | |_) |
+ |____/ \___|\__|_____/ \__, |_| |_|\___|_____/|____/ 
+                         __/ |                        
+                        |___/                         
+                        """)
+        now = datetime.datetime.now()
+        rn = now.strftime("%X")
+        print(f"{Back.CYAN}     {Style.DIM}NOHASH{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}BetsyncDB Initialized{Style.RESET_ALL}")
     except Exception as e:
         print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_ready: {Fore.RED}{e}")
 
