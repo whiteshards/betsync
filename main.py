@@ -1,6 +1,7 @@
 
 import os
 import discord
+import asyncio
 from colorama import Fore
 from discord.ext import commands
 from pymongo import ReturnDocument
@@ -66,21 +67,22 @@ async def on_guild_join(guild):
 @bot.event
 async def on_command(ctx):
     # Check if user is blacklisted
-    try:
-        admin_cog = bot.get_cog("AdminCommands")
-        if admin_cog and hasattr(admin_cog, 'blacklisted_ids') and ctx.author.id in admin_cog.blacklisted_ids:
-            embed = discord.Embed(
+    async def bg():
+        try:
+            admin_cog = bot.get_cog("AdminCommands")
+            if admin_cog and hasattr(admin_cog, 'blacklisted_ids') and ctx.author.id in admin_cog.blacklisted_ids:
+                embed = discord.Embed(
                 title="🚫 Access Denied",
                 description="You have been blacklisted from using this bot.",
                 color=0xFF0000
-            )
-            await ctx.reply(embed=embed)
-            return
+                )
+                await ctx.reply(embed=embed)
+                return
 
         # Register new user if needed
-        db = Users()
-        if not db.fetch_user(ctx.author.id):
-            dump = {
+            db = Users()
+            if not db.fetch_user(ctx.author.id):
+                dump = {
                 "discord_id": ctx.author.id, 
                 "tokens": 0, 
                 "credits": 0, 
@@ -91,20 +93,25 @@ async def on_command(ctx):
                 "total_earned": 0, 
                 'total_played': 0, 
                 'total_won': 0, 
-                'total_lost': 0
-            }
-            db.register_new_user(dump)
-            print(f"{Fore.GREEN}[+] {Fore.WHITE}New User Registered: {Fore.GREEN}{ctx.author.name} ({ctx.author.id}){Fore.WHITE}")
+                'total_lost': 0,
+                'xp': 0,
+                'level': 1,
+                'rank': 0,
+                }
+                db.register_new_user(dump)
+                print(f"{Fore.GREEN}[+] {Fore.WHITE}New User Registered: {Fore.GREEN}{ctx.author.name} ({ctx.author.id}){Fore.WHITE}")
 
-            embed = discord.Embed(
+                embed = discord.Embed(
                 title=":wave: Welcome to BetSync Casino!", 
                 color=0x00FFAE, 
                 description="**Type** `!guide` **to get started**"
-            )
-            embed.set_footer(text="BetSync Casino", icon_url=bot.user.avatar.url)
-            await ctx.reply("By using BetSync, you agree to our TOS. Type `!tos` to know more.", embed=embed)
-    except Exception as e:
-        print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_command: {Fore.RED}{e}")
+                )
+                embed.set_footer(text="BetSync Casino", icon_url=bot.user.avatar.url)
+                await ctx.reply("By using BetSync, you agree to our TOS. Type `!tos` to know more.", embed=embed)
+        except Exception as e:
+            print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_command: {Fore.RED}{e}")
+        bg_task = asyncio.create_task(bg())
+        await bg_task
 
 @bot.event
 async def on_ready():
