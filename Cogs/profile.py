@@ -37,7 +37,7 @@ class Profile(commands.Cog):
     def generate_profile_image(self, user, user_data):
         """Generate profile image with user stats"""
         # Create a dark background image (960x600)
-        width, height = 960, 600
+        width, height = 960, 500  # Reduced height since we removed top section
         image = Image.new('RGB', (width, height), (18, 18, 18))
         draw = ImageDraw.Draw(image)
         
@@ -63,27 +63,13 @@ class Profile(commands.Cog):
         total_played = user_data.get('total_played', 0)
         win_rate = (user_data.get('total_won', 0) / total_played * 100) if total_played > 0 else 0
         
-        # Add circular profile picture placeholder (yellow circle)
+        # Center coordinates for the layout
         center_x = width // 2
-        avatar_radius = 50
-        draw.ellipse((center_x - avatar_radius, 50 - avatar_radius, 
-                      center_x + avatar_radius, 50 + avatar_radius), 
-                      fill=(255, 193, 7))
-        
-        # Add username text
-        username = user.name
-        draw.text((center_x, 120), username, fill=(255, 255, 255), font=self.title_font, anchor="mt")
-        
-        # Add verification badge if applicable
-        draw.text((center_x + len(username) * 8, 120), "✓", fill=(29, 161, 242), font=self.title_font)
-        
-        # Add Discord ID text
-        draw.text((center_x, 145), f"{user.id}", fill=(180, 180, 180), font=self.small_font, anchor="mt")
         
         # Draw sections
         left_x = 100
         right_x = width - 100
-        section_y = 210
+        section_y = 50  # Adjusted to start higher since we removed top section
         section_height = 250
         
         # Left section - User Info
@@ -187,11 +173,51 @@ class Profile(commands.Cog):
         # Generate profile image
         image_buffer = self.generate_profile_image(user, user_data)
         
-        # Create a simple embed
+        # Calculate title and XP info
+        total_wagered = user_data.get("total_spent", 0)
+        title, title_description = self.get_user_title(total_wagered)
+        current_xp = user_data.get('xp', 0)
+        current_level = user_data.get('level', 1)
+        xp_limit = round(10 * (1 + (current_level - 1) * 0.1))
+        
+        # Calculate win rate
+        total_played = user_data.get('total_played', 0)
+        win_rate = (user_data.get('total_won', 0) / total_played * 100) if total_played > 0 else 0
+        
+        # Create embed with user information
         embed = discord.Embed(
             title=f"{emojis.get('profile', '👤')} User Profile",
+            description=f"**{user.name}'s Casino Profile**",
             color=0x00FFAE
         )
+        
+        # Add user information field
+        embed.add_field(
+            name="User Information",
+            value=(
+                f"**Username:** {user.name}\n"
+                f"**User ID:** {user.id}\n"
+                f"**Title:** {title}\n"
+                f"**Level:** {current_level}\n"
+                f"**XP:** {current_xp}/{xp_limit}\n"
+                f"**Rank:** {user_data.get('rank', 0)}"
+            ),
+            inline=True
+        )
+        
+        # Add balance information field
+        embed.add_field(
+            name="Balance",
+            value=(
+                f"**Tokens:** {user_data.get('tokens', 0):.2f}\n"
+                f"**Credits:** {user_data.get('credits', 0):.2f}"
+            ),
+            inline=True
+        )
+        
+        # Set user avatar as thumbnail if available
+        if user.avatar:
+            embed.set_thumbnail(url=user.avatar.url)
         
         # Set footer
         embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
