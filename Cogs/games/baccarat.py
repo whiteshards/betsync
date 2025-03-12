@@ -150,21 +150,21 @@ class BaccaratGame(commands.Cog):
                         super().__init__(timeout=timeout)
                         self.bet_on = None
                     
-                    @discord.ui.button(label="Player", style=discord.ButtonStyle.primary)
+                    @discord.ui.button(label="Player (1.95x)", style=discord.ButtonStyle.primary)
                     async def player_button(self, button, interaction):
                         if interaction.user.id != ctx.author.id:
                             return await interaction.response.send_message("This is not your game.", ephemeral=True)
                         self.bet_on = "player"
                         self.stop()
                         
-                    @discord.ui.button(label="Banker", style=discord.ButtonStyle.danger)
+                    @discord.ui.button(label="Banker (1.95x)", style=discord.ButtonStyle.danger)
                     async def banker_button(self, button, interaction):
                         if interaction.user.id != ctx.author.id:
                             return await interaction.response.send_message("This is not your game.", ephemeral=True)
                         self.bet_on = "banker"
                         self.stop()
                     
-                    @discord.ui.button(label="Tie", style=discord.ButtonStyle.secondary)
+                    @discord.ui.button(label="Tie (4x)", style=discord.ButtonStyle.secondary)
                     async def tie_button(self, button, interaction):
                         if interaction.user.id != ctx.author.id:
                             return await interaction.response.send_message("This is not your game.", ephemeral=True)
@@ -182,7 +182,7 @@ class BaccaratGame(commands.Cog):
                         "**Choose who to bet on:**\n"
                         "**Player** - Win 1.95x if player hand wins\n"
                         "**Banker** - Win 1.95x if banker hand wins\n"
-                        "**Tie** - Win 8x if the hands tie"
+                        "**Tie** - Win 4x if the hands tie"
                     ),
                     color=0x00FFAE
                 )
@@ -253,7 +253,7 @@ class BaccaratGame(commands.Cog):
                 win_multiplier = 1.95 if bet_on == "banker" else 0
             else:
                 winner = "tie"
-                win_multiplier = 8 if bet_on == "tie" else 0
+                win_multiplier = 4 if bet_on == "tie" else 0
             
             # Calculate winnings
             win_amount = total_bet * win_multiplier
@@ -347,7 +347,7 @@ class BaccaratGame(commands.Cog):
                     "timestamp": timestamp
                 }
                 
-                server_db.add_bet_to_server_history(ctx.guild.id, server_history_entry)
+                server_db.update_history(ctx.guild.id, server_history_entry)
             else:
                 # Player loses - record loss
                 history_entry = {
@@ -378,7 +378,7 @@ class BaccaratGame(commands.Cog):
                     "timestamp": timestamp
                 }
                 
-                server_db.add_bet_to_server_history(ctx.guild.id, server_history_entry)
+                server_db.update_history(ctx.guild.id, server_history_entry)
             
             # Remove game from ongoing games
             if ctx.author.id in self.ongoing_games:

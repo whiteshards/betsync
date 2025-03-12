@@ -788,7 +788,7 @@ class AdminCommands(commands.Cog):
         
         await ctx.reply(embed=embed)
         
-    @commands.command(name="game_np")
+    @commands.command(name="game_np", aliases=["gnp"])
     async def game_np(self, ctx, game: str = None):
         """Check how much all games or a specific game is performing
         
@@ -885,7 +885,7 @@ class AdminCommands(commands.Cog):
                     #)
                 
                 # Get individual game stats
-                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "hilo", "plinko", "keno", "crash", "crosstheroad", "dice", "poker", "coinflip", "mines", "hilo", "penalty", "pump", "race", "wheel"]
+                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "hilo", "plinko", "keno", "crash", "crosstheroad", "dice", "poker", "coinflip", "mines", "hilo", "penalty", "pump", "race", "wheel", "baccarat"]
                 game_stats = []
                 
                 for game_name in game_list:
