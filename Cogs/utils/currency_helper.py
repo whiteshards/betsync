@@ -186,6 +186,33 @@ async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=Non
     if credits_used > 0:
         db.update_balance(user.id, -credits_used, "credits", "$inc")
 
+    # Calculate and add XP (1 XP per token/credit wagered)
+    xp_to_add = tokens_used + credits_used
+    current_xp = user_data.get('xp', 0)
+    current_level = user_data.get('level', 1)
+    
+    # Calculate XP limit for current level (10 for level 1, then 10% increase per level)
+    xp_limit = 10 * (1 + (current_level - 1) * 0.1)
+    xp_limit = round(xp_limit)
+    
+    # Calculate new XP and check if level up is needed
+    new_xp = current_xp + xp_to_add
+    new_level = current_level
+    
+    # Handle level progression
+    while new_xp >= xp_limit:
+        new_xp -= xp_limit
+        new_level += 1
+        # Recalculate XP limit for the new level
+        xp_limit = 10 * (1 + (new_level - 1) * 0.1)
+        xp_limit = round(xp_limit)
+    
+    # Update XP and level in database
+    db.collection.update_one(
+        {"discord_id": user.id},
+        {"$set": {"xp": new_xp, "level": new_level}}
+    )
+
     # Create a result dictionary with all relevant information
     bet_info = {
         "tokens_used": tokens_used,
@@ -193,7 +220,11 @@ async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=Non
         "total_bet_amount": tokens_used + credits_used,
         "user_id": user.id,
         "remaining_tokens": tokens_balance - tokens_used,
-        "remaining_credits": credits_balance - credits_used
+        "remaining_credits": credits_balance - credits_used,
+        "xp_gained": xp_to_add,
+        "current_xp": new_xp,
+        "current_level": new_level,
+        "leveled_up": new_level > current_level
     }
 
     # Update loading message if provided
