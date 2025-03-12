@@ -186,7 +186,7 @@ class Profile(commands.Cog):
         
         # Create embed with user information
         embed = discord.Embed(
-            title=f"{emojis.get('profile', '👤')} User Profile",
+            title=f"<:member_hexagon:1347561410837876786> User Profile",
             description=f"**{user.name}'s Casino Profile**",
             color=0x00FFAE
         )
@@ -197,23 +197,23 @@ class Profile(commands.Cog):
             value=(
                 f"**Username:** {user.name}\n"
                 f"**User ID:** {user.id}\n"
-                f"**Title:** {title}\n"
-                f"**Level:** {current_level}\n"
-                f"**XP:** {current_xp}/{xp_limit}\n"
-                f"**Rank:** {user_data.get('rank', 0)}"
+                #f"**Title:** {title}\n"
+                #f"**Level:** {current_level}\n"
+                #f"**XP:** {current_xp}/{xp_limit}\n"
+                #f"**Rank:** {user_data.get('rank', 0)}"
             ),
             inline=True
         )
         
         # Add balance information field
-        embed.add_field(
-            name="Balance",
-            value=(
-                f"**Tokens:** {user_data.get('tokens', 0):.2f}\n"
-                f"**Credits:** {user_data.get('credits', 0):.2f}"
-            ),
-            inline=True
-        )
+        #embed.add_field(
+            #name="Balance",
+            #value=(
+                #f"**Tokens:** {user_data.get('tokens', 0):.2f}\n"
+                #f"**Credits:** {user_data.get('credits', 0):.2f}"
+            #),
+            #inline=True
+        #)
         
         # Set user avatar as thumbnail if available
         if user.avatar:
