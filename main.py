@@ -110,8 +110,9 @@ async def on_command(ctx):
                 await ctx.reply("By using BetSync, you agree to our TOS. Type `!tos` to know more.", embed=embed)
         except Exception as e:
             print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_command: {Fore.RED}{e}")
-        bg_task = asyncio.create_task(bg())
-        await bg_task
+    bg_task = asyncio.create_task(bg())
+    await bg_task
+   
 
 @bot.event
 async def on_ready():
