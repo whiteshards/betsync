@@ -190,6 +190,10 @@ class Servers:
         except Exception as e:
             print(f"Error updating server history: {e}")
             return False
+            
+    def add_bet_to_history(self, server_id, history_entry):
+        """Alias for update_history for backward compatibility"""
+        return self.update_history(server_id, history_entry)
 
     def fetch_server(self, server_id):
         if self.collection.count_documents({"server_id": server_id}):
