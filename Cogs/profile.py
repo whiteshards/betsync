@@ -191,6 +191,10 @@ class Profile(commands.Cog):
             color=0x00FFAE
         )
         
+        # Add image to embed first (to ensure it appears centered)
+        file = discord.File(fp=image_buffer, filename="profile.png")
+        embed.set_image(url="attachment://profile.png")
+        
         # Add user information field
         embed.add_field(
             name="User Information",
@@ -221,10 +225,6 @@ class Profile(commands.Cog):
         
         # Set footer
         embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
-        
-        # Add image to embed
-        file = discord.File(fp=image_buffer, filename="profile.png")
-        embed.set_image(url="attachment://profile.png")
         
         # Delete loading message and send the profile
         await loading_message.delete()
