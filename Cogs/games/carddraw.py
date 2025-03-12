@@ -396,7 +396,7 @@ class CardDraw(commands.Cog):
         
         # Delete loading message and send result
         await loading_message.delete()
-        await ctx.reply(embed=result_embed, file=file)
+        await ctx.reply(embed=result_embed)
     
     def draw_card(self):
         """Draw a random card and return tuple (value, suit)"""
