@@ -5,6 +5,8 @@ import os
 from discord.ext import commands
 from Cogs.utils.mongo import Users
 from Cogs.utils.emojis import emoji
+from PIL import Image, ImageDraw, ImageFont
+import io
 
 class Profile(commands.Cog):
     def __init__(self, bot):
@@ -12,6 +14,12 @@ class Profile(commands.Cog):
         # Load titles from static_data/titles.json
         with open('static_data/titles.json', 'r') as f:
             self.titles_data = json.load(f)
+        
+        # Load fonts
+        self.title_font = ImageFont.truetype("arial.ttf", 24)
+        self.subtitle_font = ImageFont.truetype("arial.ttf", 20)
+        self.regular_font = ImageFont.truetype("arial.ttf", 16)
+        self.small_font = ImageFont.truetype("arial.ttf", 14)
 
     def get_user_title(self, total_wagered):
         """Determine user's title based on total amount wagered"""
@@ -25,6 +33,123 @@ class Profile(commands.Cog):
                     current_title = title
         
         return current_title, titles.get(current_title, {}).get("description", "")
+
+    def generate_profile_image(self, user, user_data):
+        """Generate profile image with user stats"""
+        # Create a dark background image (960x600)
+        width, height = 960, 600
+        image = Image.new('RGB', (width, height), (18, 18, 18))
+        draw = ImageDraw.Draw(image)
+        
+        # Draw checkerboard pattern in the background (subtle)
+        square_size = 40
+        for y in range(0, height, square_size):
+            for x in range(0, width, square_size):
+                if (x // square_size + y // square_size) % 2 == 0:
+                    draw.rectangle([x, y, x + square_size, y + square_size], fill=(25, 25, 25))
+        
+        # Calculate total wagered
+        total_wagered = user_data.get("total_spent", 0)
+        
+        # Get user's title
+        title, title_description = self.get_user_title(total_wagered)
+        
+        # Calculate XP info
+        current_xp = user_data.get('xp', 0)
+        current_level = user_data.get('level', 1)
+        xp_limit = round(10 * (1 + (current_level - 1) * 0.1))
+        
+        # Calculate win rate
+        total_played = user_data.get('total_played', 0)
+        win_rate = (user_data.get('total_won', 0) / total_played * 100) if total_played > 0 else 0
+        
+        # Add circular profile picture placeholder (yellow circle)
+        center_x = width // 2
+        avatar_radius = 50
+        draw.ellipse((center_x - avatar_radius, 50 - avatar_radius, 
+                      center_x + avatar_radius, 50 + avatar_radius), 
+                      fill=(255, 193, 7))
+        
+        # Add username text
+        username = user.name
+        draw.text((center_x, 120), username, fill=(255, 255, 255), font=self.title_font, anchor="mt")
+        
+        # Add verification badge if applicable
+        draw.text((center_x + len(username) * 8, 120), "✓", fill=(29, 161, 242), font=self.title_font)
+        
+        # Add Discord ID text
+        draw.text((center_x, 145), f"{user.id}", fill=(180, 180, 180), font=self.small_font, anchor="mt")
+        
+        # Draw sections
+        left_x = 100
+        right_x = width - 100
+        section_y = 210
+        section_height = 250
+        
+        # Left section - User Info
+        draw.rectangle([left_x - 50, section_y - 20, center_x - 20, section_y + section_height], 
+                       fill=(30, 30, 30), outline=(40, 40, 40))
+        draw.text((left_x, section_y), "User Information", fill=(200, 200, 200), font=self.subtitle_font)
+        
+        # Right section - Casino Stats
+        draw.rectangle([center_x + 20, section_y - 20, right_x + 50, section_y + section_height], 
+                       fill=(30, 30, 30), outline=(40, 40, 40))
+        draw.text((center_x + 70, section_y), "Casino Statistics", fill=(200, 200, 200), font=self.subtitle_font)
+        
+        # User information details
+        details_y = section_y + 40
+        line_height = 34
+        
+        # Left section details
+        draw.text((left_x, details_y), "Title:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((left_x + 200, details_y), f"{title}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((left_x, details_y + line_height), "Level:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((left_x + 200, details_y + line_height), f"{current_level}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((left_x, details_y + line_height * 2), "XP:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((left_x + 200, details_y + line_height * 2), f"{current_xp}/{xp_limit}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((left_x, details_y + line_height * 3), "Rank:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((left_x + 200, details_y + line_height * 3), f"{user_data.get('rank', 0)}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((left_x, details_y + line_height * 4), "Tokens:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((left_x + 200, details_y + line_height * 4), f"{round(user_data.get('tokens', 0), 2):.2f}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((left_x, details_y + line_height * 5), "Credits:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((left_x + 200, details_y + line_height * 5), f"{round(user_data.get('credits', 0), 2):.2f}", fill=(255, 255, 255), font=self.regular_font)
+        
+        # Right section details
+        right_left_x = center_x + 70
+        
+        draw.text((right_left_x, details_y), "Total Wagered:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((right_left_x + 200, details_y), f"{round(total_wagered, 2):.2f}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((right_left_x, details_y + line_height), "Total Deposited:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((right_left_x + 200, details_y + line_height), f"{round(user_data.get('total_deposit_amount', 0), 2):.2f}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((right_left_x, details_y + line_height * 2), "Total Withdrawn:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((right_left_x + 200, details_y + line_height * 2), f"{round(user_data.get('total_withdraw_amount', 0), 2):.2f}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((right_left_x, details_y + line_height * 3), "Games Played:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((right_left_x + 200, details_y + line_height * 3), f"{user_data.get('total_played', 0)}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((right_left_x, details_y + line_height * 4), "Games Won:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((right_left_x + 200, details_y + line_height * 4), f"{user_data.get('total_won', 0)}", fill=(255, 255, 255), font=self.regular_font)
+        
+        draw.text((right_left_x, details_y + line_height * 5), "Win Rate:", fill=(150, 150, 150), font=self.regular_font)
+        draw.text((right_left_x + 200, details_y + line_height * 5), f"{win_rate:.2f}%", fill=(255, 255, 255), font=self.regular_font)
+        
+        # Footer section
+        footer_y = section_y + section_height + 20
+        draw.text((center_x, footer_y), "BetSync Casino", fill=(150, 150, 150), font=self.small_font, anchor="mt")
+        
+        # Save image to bytes buffer
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        return buffer
 
     @commands.command(aliases=["prof"])
     async def profile(self, ctx, user: discord.Member = None):
@@ -59,75 +184,25 @@ class Profile(commands.Cog):
             await loading_message.delete()
             return await ctx.reply(embed=embed)
         
-        # Calculate total wagered (total_spent in database)
-        total_wagered = user_data.get("total_spent", 0)
+        # Generate profile image
+        image_buffer = self.generate_profile_image(user, user_data)
         
-        # Get user's title based on amount wagered
-        title, title_description = self.get_user_title(total_wagered)
-        
-        # Create the profile embed
+        # Create a simple embed
         embed = discord.Embed(
             title=f"{emojis.get('profile', '👤')} User Profile",
             color=0x00FFAE
         )
         
-        # Set user avatar as thumbnail if they have one
-        if user.avatar:
-            embed.set_thumbnail(url=user.avatar.url)
-        
-        # User information with title
-        embed.add_field(
-            name="User Info",
-            value=f"**Name:** {user.name}\n**ID:** {user.id}\n**Title:** {title}",
-            inline=False
-        )
-        
-        # Title description
-        embed.add_field(
-            name="Title Description",
-            value=title_description or "No description available",
-            inline=False
-        )
-        
-        # Balance information
-        embed.add_field(
-            name="Balance",
-            value=f"**Tokens:** {user_data.get('tokens', 0):,.2f}\n**Credits:** {user_data.get('credits', 0):,.2f}",
-            inline=True
-        )
-        
-        # User statistics
-        embed.add_field(
-            name=f"User Statistics",
-            value=(
-                f"**Total Wagered:** {total_wagered:,.2f}\n"
-                f"**Total Deposited:** {user_data.get('total_deposit_amount', 0):,.2f}\n"
-                f"**Total Withdrawn:** {user_data.get('total_withdraw_amount', 0):,.2f}\n"
-                f"**Games Played:** {user_data.get('total_played', 0):,}\n"
-                f"**Games Won:** {user_data.get('total_won', 0):,}\n"
-                f"**Games Lost:** {user_data.get('total_lost', 0):,}\n"
-                f"**Total Spent:** {user_data.get('total_spent', 0):,.2f}\n"
-                f"**Total Earned:** {user_data.get('total_earned', 0):,.2f}"
-            ),
-            inline=True
-        )
-        
-        # Win Rate Calculation
-        total_played = user_data.get('total_played', 0)
-        win_rate = (user_data.get('total_won', 0) / total_played * 100) if total_played > 0 else 0
-        
-        embed.add_field(
-            name=f"Performance",
-            value=f"**Win Rate:** {win_rate:.2f}%",
-            inline=False
-        )
-        
         # Set footer
         embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url)
         
+        # Add image to embed
+        file = discord.File(fp=image_buffer, filename="profile.png")
+        embed.set_image(url="attachment://profile.png")
+        
         # Delete loading message and send the profile
         await loading_message.delete()
-        await ctx.reply(embed=embed)
+        await ctx.reply(embed=embed, file=file)
 
 def setup(bot):
     bot.add_cog(Profile(bot))
