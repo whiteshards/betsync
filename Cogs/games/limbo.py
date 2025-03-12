@@ -78,13 +78,17 @@ class LimboGame:
         server_loss_entries = []
 
         current_timestamp = int(time.time())
-        total_funds_needed = self.bet_amount * original_rolls
+        # First roll is already paid for in process_bet_amount
+        # For subsequent rolls, calculate additional funds needed
+        total_funds_needed = self.bet_amount * (self.rolls_remaining -1) if self.rolls_remaining > 1 else 0
         user_data = db.fetch_user(self.user_id)
         available_funds = user_data['tokens'] + user_data['credits']
 
-        if available_funds < total_funds_needed:
-            max_rolls = int(available_funds / self.bet_amount)
-            if max_rolls <= 0:
+
+        if self.rolls_remaining > 1 and available_funds < total_funds_needed:
+            # Calculate max rolls including the first paid roll
+            max_rolls = 1 + int(available_funds / self.bet_amount)
+            if max_rolls <=1:
                 insufficient_embed = self.create_embed()
                 insufficient_embed.title = "<:no:1344252518305234987> | Game Over - Insufficient Funds"
                 insufficient_embed.description = f"You don't have enough funds to place even a single bet of {self.bet_amount}."
@@ -110,20 +114,20 @@ class LimboGame:
         # For the first bet, use the already deducted amount
         first_bet_tokens = self.tokens_used
         first_bet_credits = self.credits_used
-        
+
         # For remaining rolls, calculate additional funds needed
         remaining_rolls = self.rolls_remaining - 1  # Subtract 1 for the already deducted first bet
         if remaining_rolls > 0:
             additional_tokens_used = min(user_data['tokens'], self.bet_amount * remaining_rolls)
             additional_credits_used = min(user_data['credits'], self.bet_amount * remaining_rolls - additional_tokens_used)
-            
+
             # Update balances for additional rolls
             if additional_tokens_used > 0:
                 db.update_balance(self.user_id, user_data['tokens'] - additional_tokens_used, "tokens")
-                
+
             if additional_credits_used > 0:
                 db.update_balance(self.user_id, user_data['credits'] - additional_credits_used, "credits")
-                
+
             # Add to the already used amounts
             tokens_used = first_bet_tokens + additional_tokens_used
             credits_used = first_bet_credits + additional_credits_used
@@ -131,7 +135,7 @@ class LimboGame:
             # Only one roll, so just use the amounts already deducted
             tokens_used = first_bet_tokens
             credits_used = first_bet_credits
-            
+
         # Keep track of the total funds used
         self.tokens_used = tokens_used
         self.credits_used = credits_used
@@ -306,7 +310,7 @@ class LimboGame:
 
             # Start betting loop (first bet already deducted)
             is_first_bet = True
-            
+
             while self.running:
                 # Only check balance after the first bet (first bet was handled by currency_helper)
                 if not is_first_bet:
