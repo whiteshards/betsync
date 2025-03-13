@@ -222,7 +222,8 @@ class ProfitData:
         self.collection = self.db["profit_data"]
 
     def update_daily_profit(self, amount, game=None):
-        today = datetime.date.today()
+        # Convert datetime.date to string format (YYYY-MM-DD)
+        today = datetime.date.today().strftime("%Y-%m-%d")
         try:
             # Use upsert to handle both document creation and updating
             # This creates the document if it doesn't exist, or updates it if it does
@@ -259,6 +260,9 @@ class ProfitData:
 
     def get_profit_data(self, date=None):
         if date:
+            # Convert date to string if it's a datetime object
+            if isinstance(date, (datetime.date, datetime.datetime)):
+                date = date.strftime("%Y-%m-%d")
             return self.collection.find_one({"date": date})
         else:
             return list(self.collection.find())
