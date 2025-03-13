@@ -37,7 +37,7 @@ cogs = [
     "Cogs.games.race", "Cogs.games.cases", "Cogs.games.tictactoe", 
     "Cogs.games.hilo", "Cogs.games.poker", "Cogs.games.plinko", 
     "Cogs.games.keno", "Cogs.games.blackjack", "Cogs.games.baccarat",
-    "Cogs.games.carddraw"
+    "Cogs.games.carddraw", "Cogs.games.match"
 ]
 
 @bot.event
@@ -118,17 +118,17 @@ async def on_command(ctx):
             pass
     bg_task = asyncio.create_task(bg())
     await bg_task
-   
+
 
 @bot.event
 async def on_ready():
     try:
         print(f"{Fore.GREEN}[+] {Fore.WHITE}Bot is online as {Fore.GREEN}{bot.user.name} ({bot.user.id}){Fore.WHITE}")
         print(f"{Fore.GREEN}[+] {Fore.WHITE}Servers: {Fore.GREEN}{len(bot.guilds)}{Fore.WHITE}")
-        
+
         # Set bot status
         await bot.change_presence(activity=discord.Game(name="!help | BetSync Casino"))
-        
+
         # Load cogs
         print(f"{Fore.CYAN}[*] {Fore.WHITE}Loading cogs...")
         for cog in cogs:
@@ -137,12 +137,12 @@ async def on_ready():
                 print(f"{Fore.GREEN}[+] {Fore.WHITE}Loaded Cog: {Fore.GREEN}{cog}{Fore.WHITE}")
             except Exception as e:
                 print(f"{Fore.RED}[-] {Fore.WHITE}Failed to load cog {Fore.RED}{cog}{Fore.WHITE}: {e}")
-        
+
         print(f"{Fore.GREEN}[+] {Fore.WHITE}Bot initialization complete!")
         await asyncio.sleep(3)
         os.system("clear")
         print("""
-        
+
   ____       _    _____                  _____  ____  
  |  _ \     | |  / ____|                |  __ \|  _ \ 
  | |_) | ___| |_| (___  _   _ _ __   ___| |  | | |_) |

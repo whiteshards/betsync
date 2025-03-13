@@ -1,0 +1,494 @@
+
+import discord
+import random
+import asyncio
+import io
+import datetime
+import time
+from PIL import Image, ImageDraw, ImageFont
+from discord.ext import commands
+from Cogs.utils.mongo import Users
+from Cogs.utils.emojis import emoji
+
+class MatchGame:
+    """A game where players reveal multipliers on a 4x5 grid and win based on matching multipliers."""
+    def __init__(self, bet_amount, user_id):
+        self.bet_amount = bet_amount
+        self.user_id = user_id
+        self.rows = 4
+        self.cols = 5
+        self.multipliers = [0.2, 0.5, 1.25, 1.75, 2.0, 3.0]
+        self.board = self.create_board()
+        self.revealed = [[False for _ in range(self.cols)] for _ in range(self.rows)]
+        self.matched_multiplier = None
+        self.game_over = False
+        self.revealed_count = 0
+        
+    def create_board(self):
+        """Create a 4x5 board with 3 of each multiplier randomly placed"""
+        # Create a list of all multipliers (3 of each)
+        all_multipliers = []
+        for multi in self.multipliers:
+            all_multipliers.extend([multi] * 3)
+            
+        # Shuffle the multipliers
+        random.shuffle(all_multipliers)
+        
+        # Create the board
+        board = []
+        for r in range(self.rows):
+            row = []
+            for c in range(self.cols):
+                index = r * self.cols + c
+                if index < len(all_multipliers):
+                    row.append(all_multipliers[index])
+                else:
+                    # Fill any remaining spaces (shouldn't happen with 4x5=20 and 6*3=18 multipliers)
+                    row.append(random.choice(self.multipliers))
+            board.append(row)
+            
+        return board
+    
+    def reveal_tile(self, row, col):
+        """Reveal a tile and check if a multiplier has been matched"""
+        if self.game_over or self.revealed[row][col]:
+            return False
+        
+        self.revealed[row][col] = True
+        self.revealed_count += 1
+        
+        # Check if we've matched any multiplier (3 of the same)
+        if self.matched_multiplier is None:
+            for multi in self.multipliers:
+                matched_count = 0
+                for r in range(self.rows):
+                    for c in range(self.cols):
+                        if self.revealed[r][c] and self.board[r][c] == multi:
+                            matched_count += 1
+                
+                if matched_count >= 3:
+                    self.matched_multiplier = multi
+                    self.game_over = True
+                    return True
+        
+        # Check if all tiles are revealed
+        if self.revealed_count >= self.rows * self.cols:
+            self.game_over = True
+            
+        return False
+    
+    def get_winnings(self):
+        """Calculate winnings based on matched multiplier"""
+        if self.matched_multiplier is None:
+            return 0
+        return self.bet_amount * self.matched_multiplier
+    
+    def generate_board_image(self):
+        """Generate an image of the current game board"""
+        # Image constants
+        cell_size = 100
+        padding = 10
+        width = self.cols * cell_size + padding * 2
+        height = self.rows * cell_size + padding * 2
+        
+        # Create image
+        img = Image.new('RGBA', (width, height), (40, 44, 52, 255))
+        draw = ImageDraw.Draw(img)
+        
+        # Load fonts
+        try:
+            font = ImageFont.truetype("roboto.ttf", 32)
+            small_font = ImageFont.truetype("roboto.ttf", 24)
+        except:
+            font = ImageFont.load_default()
+            small_font = ImageFont.load_default()
+        
+        # Draw cells
+        for r in range(self.rows):
+            for c in range(self.cols):
+                x = c * cell_size + padding
+                y = r * cell_size + padding
+                
+                # Determine cell color based on state
+                if not self.revealed[r][c]:
+                    # Unrevealed tile
+                    cell_color = (59, 64, 78, 255)  # Dark blue-gray
+                    text = "?"
+                    text_color = (200, 200, 200, 255)
+                else:
+                    # Revealed tile
+                    multiplier = self.board[r][c]
+                    
+                    # Check if this multiplier is matched
+                    is_matched = self.matched_multiplier == multiplier
+                    
+                    if is_matched:
+                        cell_color = (88, 101, 242, 255)  # Discord blue for matched
+                    else:
+                        cell_color = (47, 49, 54, 255)  # Dark gray
+                    
+                    text = f"{multiplier}x"
+                    
+                    # Determine text color based on multiplier value
+                    if multiplier <= 0.5:
+                        text_color = (220, 53, 69, 255)  # Red for low multipliers
+                    elif multiplier <= 1.75:
+                        text_color = (255, 193, 7, 255)  # Yellow for medium multipliers
+                    else:
+                        text_color = (40, 167, 69, 255)  # Green for high multipliers
+                
+                # Draw cell
+                draw.rectangle([x, y, x + cell_size, y + cell_size], fill=cell_color, outline=(30, 33, 36, 255), width=2)
+                
+                # Center text
+                text_bbox = font.getbbox(text)
+                text_width = text_bbox[2] - text_bbox[0]
+                text_height = text_bbox[3] - text_bbox[1]
+                
+                text_x = x + (cell_size - text_width) // 2
+                text_y = y + (cell_size - text_height) // 2
+                
+                draw.text((text_x, text_y), text, font=font, fill=text_color)
+        
+        # Save to bytes
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='PNG')
+        img_bytes.seek(0)
+        
+        return discord.File(img_bytes, filename="match_board.png")
+
+class MatchButton(discord.ui.Button):
+    def __init__(self, row, col, match_game, match_cog):
+        # Determine style and label
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="?",
+            row=row
+        )
+        self.game_row = row
+        self.game_col = col
+        self.match_game = match_game
+        self.match_cog = match_cog
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Ensure only the game owner can play
+        if interaction.user.id != self.match_game.user_id:
+            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+        
+        # Reveal the selected tile
+        self.match_game.reveal_tile(self.game_row, self.game_col)
+        
+        # Update the button appearance
+        if self.match_game.revealed[self.game_row][self.game_col]:
+            multiplier = self.match_game.board[self.game_row][self.game_col]
+            self.label = f"{multiplier}x"
+            
+            # Set color based on multiplier value
+            if multiplier <= 0.5:
+                self.style = discord.ButtonStyle.danger  # Red for low multipliers
+            elif multiplier <= 1.75:
+                self.style = discord.ButtonStyle.primary  # Blue for medium multipliers
+            else:
+                self.style = discord.ButtonStyle.success  # Green for high multipliers
+            
+            # Disable the button
+            self.disabled = True
+        
+        # Check if game is over
+        if self.match_game.game_over:
+            # Disable all buttons
+            for child in self.view.children:
+                child.disabled = True
+            
+            # Process the game result
+            await self.match_cog.process_game_result(interaction, self.match_game)
+        else:
+            # Just update the view
+            await interaction.response.edit_message(view=self.view)
+
+class PlayAgainButton(discord.ui.Button):
+    def __init__(self, match_cog, bet_amount):
+        super().__init__(style=discord.ButtonStyle.success, label="Play Again", row=4)
+        self.match_cog = match_cog
+        self.bet_amount = bet_amount
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Start a new game with the same bet amount
+        await self.match_cog.match(await self.match_cog.bot.get_context(interaction.message), self.bet_amount)
+
+class MatchGameView(discord.ui.View):
+    def __init__(self, match_game, match_cog):
+        super().__init__(timeout=180)  # 3 minute timeout
+        self.match_game = match_game
+        self.match_cog = match_cog
+        
+        # Add buttons for each tile
+        for r in range(match_game.rows):
+            for c in range(match_game.cols):
+                self.add_item(MatchButton(r, c, match_game, match_cog))
+
+class Match(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.ongoing_games = {}
+    
+    @commands.command(aliases=["mat", "matchgame"])
+    async def match(self, ctx, bet: float = None):
+        """Match Game - Match 3 of the same multiplier to win!"""
+        # Check if bet is provided
+        if bet is None:
+            embed = discord.Embed(
+                title=":game_die: Match Game",
+                description="In Match Game, you reveal tiles to find multipliers. Match 3 of the same multiplier to win your bet × that multiplier!",
+                color=0x00FFAE
+            )
+            embed.add_field(
+                name="How to Play",
+                value="1. Place a bet with `!match <amount>`\n2. Click on tiles to reveal multipliers\n3. Match 3 of the same multiplier to win\n4. The first multiplier matched determines your prize",
+                inline=False
+            )
+            embed.add_field(
+                name="Multipliers",
+                value="0.2x (Low) | 0.5x (Low) | 1.25x (Medium) | 1.75x (Medium) | 2x (High) | 3x (High)",
+                inline=False
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Verify bet is valid
+        try:
+            bet_amount = float(bet)
+        except ValueError:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Invalid Bet",
+                description="Please enter a valid bet amount.",
+                color=discord.Color.red()
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check for active game
+        if ctx.author.id in self.ongoing_games:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Game In Progress",
+                description="You already have an ongoing game. Please finish it first.",
+                color=discord.Color.red()
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Starting Match Game...",
+            description="Please wait while we set up your game...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
+        
+        # Process bet
+        db = Users()
+        user_data = db.fetch_user(ctx.author.id)
+        
+        if user_data == False:
+            # Create new user account
+            dump = {
+                "discord_id": ctx.author.id,
+                "tokens": 0,
+                "credits": 0,
+                "history": [],
+                "total_deposit_amount": 0,
+                "total_withdraw_amount": 0,
+                "total_spent": 0,
+                "total_earned": 0,
+                'total_played': 0,
+                'total_won': 0,
+                'total_lost': 0
+            }
+            db.register_new_user(dump)
+            user_data = db.fetch_user(ctx.author.id)
+        
+        # Check minimum bet
+        if bet_amount < 1:
+            await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Minimum Bet",
+                description="The minimum bet is 1 token.",
+                color=discord.Color.red()
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Check user balance
+        if bet_amount > user_data.get("tokens", 0):
+            await loading_message.delete()
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Insufficient Balance",
+                description=f"You need {bet_amount} tokens, but you only have {user_data.get('tokens', 0)} tokens.",
+                color=discord.Color.red()
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Deduct bet amount
+        db.update_balance(ctx.author.id, -bet_amount, "tokens", "$inc")
+        
+        # Create game
+        match_game = MatchGame(bet_amount, ctx.author.id)
+        self.ongoing_games[ctx.author.id] = match_game
+        
+        # Create game view
+        view = MatchGameView(match_game, self)
+        
+        # Create initial game embed
+        embed = discord.Embed(
+            title=":game_die: Match Game",
+            description=f"Click on tiles to reveal multipliers. Match 3 of the same multiplier to win your bet amount × that multiplier.\n\n**Bet Amount:** {bet_amount} tokens",
+            color=0x00FFAE
+        )
+        embed.set_footer(text=f"Player: {ctx.author.name} | Game will timeout after 3 minutes of inactivity")
+        
+        # Delete loading message and send game
+        await loading_message.delete()
+        
+        # Send board image and buttons
+        board_image = match_game.generate_board_image()
+        message = await ctx.reply(embed=embed, file=board_image, view=view)
+        
+        # Set message reference for timeout handling
+        view.message = message
+    
+    async def process_game_result(self, interaction, match_game):
+        """Process the game result when the game is over"""
+        db = Users()
+        user = await self.bot.fetch_user(match_game.user_id)
+        
+        # Get match result
+        matched_multiplier = match_game.matched_multiplier
+        winnings = match_game.get_winnings()
+        
+        # Create result embed
+        if matched_multiplier is not None:
+            # Player matched a multiplier
+            embed = discord.Embed(
+                title=":trophy: Match Game Results",
+                description=f"You matched the **{matched_multiplier}x** multiplier!",
+                color=0x00FFAE
+            )
+            
+            embed.add_field(
+                name="Game Summary",
+                value=f"**Bet Amount:** {match_game.bet_amount} tokens\n**Multiplier:** {matched_multiplier}x\n**Winnings:** {winnings} tokens",
+                inline=False
+            )
+            
+            # Update user balance and history
+            if winnings > 0:
+                db.update_balance(match_game.user_id, winnings, "tokens", "$inc")
+                
+                # Adjust profit ratio for house edge calculations
+                profit = winnings - match_game.bet_amount
+                
+                # Update user stats
+                db.collection.update_one(
+                    {"discord_id": match_game.user_id},
+                    {"$inc": {
+                        "total_played": 1,
+                        "total_won": 1,
+                        "total_earned": winnings
+                    }}
+                )
+                
+                # Add to history
+                history_entry = {
+                    "type": "win",
+                    "game": "match",
+                    "bet": match_game.bet_amount,
+                    "multiplier": matched_multiplier,
+                    "amount": winnings,
+                    "timestamp": int(datetime.datetime.now().timestamp())
+                }
+                
+                db.collection.update_one(
+                    {"discord_id": match_game.user_id},
+                    {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+                )
+            else:
+                # If they matched but didn't win anything (unlikely but possible with very low multipliers)
+                db.collection.update_one(
+                    {"discord_id": match_game.user_id},
+                    {"$inc": {
+                        "total_played": 1,
+                        "total_lost": 1,
+                        "total_spent": match_game.bet_amount
+                    }}
+                )
+                
+                # Add to history
+                history_entry = {
+                    "type": "loss",
+                    "game": "match",
+                    "amount": match_game.bet_amount,
+                    "timestamp": int(datetime.datetime.now().timestamp())
+                }
+                
+                db.collection.update_one(
+                    {"discord_id": match_game.user_id},
+                    {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+                )
+        else:
+            # Player didn't match any multiplier
+            embed = discord.Embed(
+                title="❌ Match Game Over",
+                description="You didn't match any multipliers.",
+                color=discord.Color.red()
+            )
+            
+            embed.add_field(
+                name="Game Summary",
+                value=f"**Bet Amount:** {match_game.bet_amount} tokens\n**Multiplier:** None\n**Loss:** {match_game.bet_amount} tokens",
+                inline=False
+            )
+            
+            # Update user stats
+            db.collection.update_one(
+                {"discord_id": match_game.user_id},
+                {"$inc": {
+                    "total_played": 1,
+                    "total_lost": 1,
+                    "total_spent": match_game.bet_amount
+                }}
+            )
+            
+            # Add to history
+            history_entry = {
+                "type": "loss",
+                "game": "match",
+                "amount": match_game.bet_amount,
+                "timestamp": int(datetime.datetime.now().timestamp())
+            }
+            
+            db.collection.update_one(
+                {"discord_id": match_game.user_id},
+                {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+            )
+        
+        # Add balance field
+        user_data = db.fetch_user(match_game.user_id)
+        embed.add_field(
+            name="Current Balance",
+            value=f"{user_data.get('tokens', 0)} tokens",
+            inline=False
+        )
+        
+        # Generate the final board image
+        board_image = match_game.generate_board_image()
+        
+        # Create a new view with Play Again button
+        view = discord.ui.View()
+        view.add_item(PlayAgainButton(self, match_game.bet_amount))
+        
+        # Send the final result
+        await interaction.response.edit_message(embed=embed, attachments=[board_image], view=view)
+        
+        # Remove from ongoing games
+        if match_game.user_id in self.ongoing_games:
+            del self.ongoing_games[match_game.user_id]
+
+def setup(bot):
+    bot.add_cog(Match(bot))
