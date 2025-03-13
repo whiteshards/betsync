@@ -707,7 +707,7 @@ class MinesCog(commands.Cog):
             "credits_used": credits_used,
             "bet_amount": total_bet,
             "currency_used": currency_used,
-            "mines_count": mines_count,ount,
+            "mines_count": mines_count,
             "view": game_view
         }
 
