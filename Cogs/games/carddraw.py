@@ -264,7 +264,7 @@ class CardDraw(commands.Cog):
             winnings = winner_bet_info["total_bet_amount"] * 1.96
             
             # Update winner's balance
-            db.update_balance(winner.id, winnings, "tokens", "$inc")
+            db.update_balance(winner.id, winnings, "credits", "$inc")
             
             # Update stats
             db.collection.update_one(

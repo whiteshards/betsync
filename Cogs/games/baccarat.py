@@ -313,7 +313,7 @@ class BaccaratGame(commands.Cog):
             
             if win_amount > 0:
                 # Player wins - add winnings to balance
-                user_db.update_balance(ctx.author.id, win_amount, currency_used, "$inc")
+                user_db.update_balance(ctx.author.id, win_amount, "credits", "$inc")
                 
                 # Add win to history
                 history_entry = {

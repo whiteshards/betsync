@@ -289,7 +289,7 @@ class KenoView(discord.ui.View):
                     
                     # Update server profit (positive for casino win)
                     server_db = Servers()
-                    server_db.update_profit(self.ctx.guild.id, self.bet_amount)
+                    server_db.update_server_profit(self.ctx.guild.id, self.bet_amount, game="keno")
                     
                     embed = discord.Embed(
                         title="<:no:1344252518305234987> | Game Timed Out",
@@ -891,7 +891,7 @@ class Keno(commands.Cog):
             # Handle win
             if num_matches > 0 and multiplier > 0:
                 # Update user balance
-                db.update_balance(user_id, winnings, currency_used, "$inc")
+                db.update_balance(user_id, winnings, "credits", "$inc")
                 
                 # Add to user history
                 history_entry = {
