@@ -5,38 +5,7 @@ import time
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
-
-def process_bet_amount(bet_amount_str, user_data, currency_type):
-    """Processes the bet amount, handling various input formats and currency types."""
-    try:
-        if bet_amount_str.lower() in ['all', 'max']:
-            bet_amount = user_data['tokens'] + user_data['credits']
-            currency_type = 'mixed'  # Indicate mixed tokens and credits
-        elif bet_amount_str.lower().endswith('k'):
-            bet_amount = float(bet_amount_str[:-1]) * 1000
-        elif bet_amount_str.lower().endswith('m'):
-            bet_amount = float(bet_amount_str[:-1]) * 1000000
-        else:
-            bet_amount = float(bet_amount_str)
-
-        if bet_amount <= 0:
-            return {'error': True, 'error_title': 'Invalid Bet', 'error_message': 'Bet amount must be greater than 0.'}
-
-        if currency_type and currency_type.lower() not in ['tokens', 'credits', 'mixed']:
-            return {'error': True, 'error_title': 'Invalid Currency', 'error_message': "Please specify a valid currency: 'tokens', 'credits', or leave blank for auto-determination."}
-
-        #Simplified currency check, a more sophisticated check would be needed in a real application.
-        if currency_type == 'tokens' and user_data['tokens'] < bet_amount:
-            return {'error': True, 'error_title': 'Insufficient Tokens', 'error_message': f"You don't have enough tokens. You have {user_data['tokens']} tokens."}
-        elif currency_type == 'credits' and user_data['credits'] < bet_amount:
-            return {'error': True, 'error_title': 'Insufficient Credits', 'error_message': f"You don't have enough credits. You have {user_data['credits']} credits."}
-        elif currency_type == 'mixed' and user_data['tokens'] + user_data['credits'] < bet_amount:
-            return {'error': True, 'error_title': 'Insufficient Funds', 'error_message': f"You don't have enough funds. You have {user_data['tokens']} tokens and {user_data['credits']} credits."}
-
-
-        return {'error': False, 'amount': bet_amount, 'currency': currency_type if currency_type else 'mixed'}
-    except ValueError:
-        return {'error': True, 'error_title': 'Invalid Amount', 'error_message': 'Please enter a valid number or "all".'}
+from Cogs.utils.currency_helper import process_bet_amount
 
 
 class MineButton(discord.ui.Button):
@@ -712,32 +681,10 @@ class MinesCog(commands.Cog):
                 mines_count = 5
 
         # Process bet amount using currency helper
-        processed_bet = process_bet_amount(bet_amount, user_data, currency_type)
-
-        if processed_bet['error']:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | " + processed_bet['error_title'],
-                description=processed_bet['error_message'],
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-
-        # Extract the processed values
-        bet_amount = processed_bet['amount']
-        currency_type = processed_bet['currency']
+        processed_bet = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
 
         # Deduct from user balances
-        if currency_type == 'tokens':
-            db.update_balance(ctx.author.id, user_data['tokens'] - bet_amount, "tokens")
-        elif currency_type == 'credits':
-            db.update_balance(ctx.author.id, user_data['credits'] - bet_amount, "credits")
-        else:  #mixed
-            tokens_to_use = min(bet_amount, user_data['tokens'])
-            db.update_balance(ctx.author.id, user_data['tokens'] - tokens_to_use, "tokens")
-            credits_to_use = bet_amount - tokens_to_use
-            db.update_balance(ctx.author.id, user_data['credits'] - credits_to_use, "credits")
 
 
         # Record game stats

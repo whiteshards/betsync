@@ -1,5 +1,7 @@
 from pymongo import MongoClient
 import os
+import datetime
+from colorama import Back, Fore, Style
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -161,11 +163,13 @@ class Servers:
             self.collection.update_one(
                 {"server_id": server_id},
                 {"$inc": {"total_profit": amount}}
-            )
+          )
             if game:
                 if npc.count_documents({"game": game}):
                     npc.update_one({"game": game}, {"$inc": {"total_profit": amount}})
                 else: npc.insert_one({"game": game, "total_profit": amount})
+                rn = datetime.datetime.now().strftime("%X")
+                print(f"{Back.CYAN}  {Style.DIM}{server_id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{amount} ({round((amount)*0.0212, 3)}$){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}{game}, sv_profit{Fore.WHITE}")
             return True
         except Exception as e:
             print(f"Error updating server profit: {e}")

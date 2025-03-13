@@ -61,7 +61,9 @@ async def on_guild_join(guild):
         }
         resp = db.new_server(dump)
         if resp:
-            print(f"{Fore.GREEN}[+] {Fore.WHITE}New Server Registered: {Fore.GREEN}{guild.name} ({guild.id}){Fore.WHITE}")
+            #print(f"{Fore.GREEN}[+] {Fore.WHITE}New Server Registered: {Fore.GREEN}{guild.name} ({guild.id}){Fore.WHITE}")
+            rn = datetime.datetime.now().strftime("%X")
+            print(f"{Back.CYAN}  {Style.DIM}{guild.id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{dump} ({resp}){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}{guild.name}, new_sv{Fore.WHITE}")
     except Exception as e:
         pass #print(f"{Fore.RED}[!] {Fore.WHITE}Error registering server: {Fore.RED}{e}")
 
@@ -100,7 +102,9 @@ async def on_command(ctx):
                 'rank': 0,
                 }
                 db.register_new_user(dump)
-                print(f"{Fore.GREEN}[+] {Fore.WHITE}New User Registered: {Fore.GREEN}{ctx.author.name} ({ctx.author.id}){Fore.WHITE}")
+                rn = datetime.datetime.now().strftime("%X")
+                print(f"{Back.CYAN}  {Style.DIM}{ctx.author.id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{dump}{Style.RESET_ALL}  {Fore.MAGENTA}new_user{Fore.WHITE}")
+                #print(f"{Fore.GREEN}[+] {Fore.WHITE}New User Registered: {Fore.GREEN}{ctx.author.name} ({ctx.author.id}){Fore.WHITE}")
 
                 embed = discord.Embed(
                 title=":wave: Welcome to BetSync Casino!", 
