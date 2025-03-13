@@ -101,13 +101,14 @@ class MatchGame:
         return board_display
 
 class MatchButton(discord.ui.Button):
-    def __init__(self, row, col, match_game, match_cog):
+    def __init__(self, row, col, match_game, match_cog, ctx):
         # Determine style and label
         super().__init__(
             style=discord.ButtonStyle.secondary,
             label="?",
             row=row
         )
+        self.ctx = ctx
         self.game_row = row
         self.game_col = col
         self.match_game = match_game
@@ -144,13 +145,13 @@ class MatchButton(discord.ui.Button):
                 child.disabled = True
 
             # Process the game result
-            await self.match_cog.process_game_result(interaction, self.match_game)
+            await self.match_cog.process_game_result(interaction, self.match_game, self.ctx.guild.id)
         else:
             # Just update the view
             await interaction.response.edit_message(view=self.view)
 
 class PlayAgainButton(discord.ui.Button):
-    def __init__(self, match_cog, bet_amount, currency_type="tokens"):
+    def __init__(self, match_cog, bet_amount, currency_type=None):
         super().__init__(style=discord.ButtonStyle.success, label="Play Again", row=4)
         self.match_cog = match_cog
         self.bet_amount = bet_amount
@@ -161,15 +162,16 @@ class PlayAgainButton(discord.ui.Button):
         await self.match_cog.match(await self.match_cog.bot.get_context(interaction.message), self.bet_amount, self.currency_type)
 
 class MatchGameView(discord.ui.View):
-    def __init__(self, match_game, match_cog):
+    def __init__(self, match_game, match_cog, ctx):
         super().__init__(timeout=180)  # 3 minute timeout
+        self.ctx = ctx
         self.match_game = match_game
         self.match_cog = match_cog
 
         # Add buttons for each tile
         for r in range(match_game.rows):
             for c in range(match_game.cols):
-                self.add_item(MatchButton(r, c, match_game, match_cog))
+                self.add_item(MatchButton(r, c, match_game, match_cog, self.ctx))
 
 class Match(commands.Cog):
     def __init__(self, bot):
@@ -238,7 +240,7 @@ class Match(commands.Cog):
         self.ongoing_games[ctx.author.id] = match_game
 
         # Create game view
-        view = MatchGameView(match_game, self)
+        view = MatchGameView(match_game, self, ctx)
 
         # Create initial game embed
         embed = discord.Embed(
@@ -258,7 +260,7 @@ class Match(commands.Cog):
         # Set message reference for timeout handling
         view.message = message
 
-    async def process_game_result(self, interaction, match_game):
+    async def process_game_result(self, interaction, match_game, s):
         """Process the game result when the game is over"""
         db = Users()
         user = await self.bot.fetch_user(match_game.user_id)
@@ -290,10 +292,14 @@ class Match(commands.Cog):
 
             # Update user balance and history
             if winnings > 0:
-                db.update_balance(match_game.user_id, winnings, "tokens", "$inc")
+                db.update_balance(match_game.user_id, winnings, "credits", "$inc")
 
                 # Adjust profit ratio for house edge calculations
-                profit = winnings - match_game.bet_amount
+                profit = match_game.bet_amount - winnings
+                from Cogs.utils.mongo import Servers
+                dbb = Servers()
+                dbb.update_server_profit(s, profit, game="match")
+                
 
                 # Update user stats
                 db.collection.update_one(
