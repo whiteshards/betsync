@@ -28,16 +28,13 @@ class MatchGame:
         for multi in self.multipliers:
             all_multipliers.extend([multi] * 3)
         
+        # Add 1 extra 0.2x and 1 extra 0.5x multiplier to fill the remaining 2 spots
+        all_multipliers.append(0.2)
+        all_multipliers.append(0.5)
+        
         # Shuffle the multipliers
         random.shuffle(all_multipliers)
         
-        # Fill with random values if needed (should be 18 items for 4x5=20 board)
-        while len(all_multipliers) < self.rows * self.cols:
-            all_multipliers.append(random.choice(self.multipliers))
-            
-        # Shuffle again to ensure random distribution
-        random.shuffle(all_multipliers)
-
         # Create the board
         board = []
         for r in range(self.rows):
@@ -147,9 +144,21 @@ class MatchButton(discord.ui.Button):
 
         # Check if game is over
         if self.match_game.game_over:
-            # Disable all buttons
+            # Reveal all tiles but don't disable them
             for child in self.view.children:
-                child.disabled = True
+                if isinstance(child, MatchButton):
+                    row = child.game_row
+                    col = child.game_col
+                    multiplier = self.match_game.board[row][col]
+                    child.label = f"{multiplier}x"
+                    
+                    # Set color based on multiplier value
+                    if multiplier <= 0.5:
+                        child.style = discord.ButtonStyle.danger  # Red for low multipliers
+                    elif multiplier <= 1.75:
+                        child.style = discord.ButtonStyle.primary  # Blue for medium multipliers
+                    else:
+                        child.style = discord.ButtonStyle.success  # Green for high multipliers
 
             # Process the game result
             await self.match_cog.process_game_result(interaction, self.match_game, self.ctx.guild.id)
@@ -307,12 +316,6 @@ class Match(commands.Cog):
                 inline=False
             )
 
-            embed.add_field(
-                name="Final Board",
-                value=f"```\n{match_game.get_board_display()}```",
-                inline=False
-            )
-
             # Update user balance and history
             if winnings > 0:
                 db.update_balance(match_game.user_id, winnings, "credits", "$inc")
@@ -384,12 +387,6 @@ class Match(commands.Cog):
                 inline=False
             )
 
-            embed.add_field(
-                name="Final Board",
-                value=f"```\n{match_game.get_board_display()}```",
-                inline=False
-            )
-
             # Update user stats
             db.collection.update_one(
                 {"discord_id": match_game.user_id},
@@ -413,13 +410,7 @@ class Match(commands.Cog):
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
 
-        # Add balance field
-        user_data = db.fetch_user(match_game.user_id)
-        embed.add_field(
-            name="Current Balance",
-            value=f"{user_data.get('tokens', 0)} tokens",
-            inline=False
-        )
+        # No balance field needed
 
         # Create a new view with Play Again button
         view = discord.ui.View()
