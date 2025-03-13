@@ -38,26 +38,26 @@ class Users:
             user_before = self.fetch_user(user_id)
             if not user_before:
                 return False
-                
+
             previous_amount = user_before.get(currency, 0)
-            
+
             # Update the balance
             self.collection.update_one({"discord_id": user_id}, {operation: {currency: amount}})
-            
+
             # Get updated user data
             user_after = self.fetch_user(user_id)
             if not user_after:
                 return False
-                
+
             new_amount = user_after.get(currency, 0)
-            
+
             # Determine if this was an increase or decrease
             change = 0
             if operation == "$set":
                 change = new_amount - previous_amount
             elif operation == "$inc":
                 change = amount
-            
+
             # Send webhook notification
             import aiohttp
             import json
@@ -65,7 +65,7 @@ class Users:
             import asyncio
             import discord
             from datetime import datetime
-            
+
             webhook_url = os.environ.get("WEBHOOK")
             if webhook_url:
                 # Get user object to fetch avatar if possible
@@ -76,7 +76,7 @@ class Users:
                         user = self.bot.get_user(user_id)
                 except:
                     pass
-                
+
                 # Create a pretty embed
                 embed = discord.Embed(
                     title=f"{'Balance Added' if change > 0 else 'Balance Deducted'}",
@@ -91,26 +91,26 @@ class Users:
                         f"Change: **{'+' if change > 0 else ''}{change:.2f}**"
                     )
                 )
-                
+
                 # Set thumbnail to user avatar if available
                 if user and user.avatar:
                     embed.set_thumbnail(url=user.avatar.url)
-                
+
                 # Add footer
                 embed.set_footer(text="BetSync Casino | Balance Update")
-                
+
                 # Send the webhook
                 webhook_data = {
                     "embeds": [embed.to_dict()]
                 }
-                
+
                 # Use asyncio to send the webhook in a non-blocking way
                 async def send_webhook():
                     async with aiohttp.ClientSession() as session:
                         async with session.post(webhook_url, json=webhook_data) as response:
                             if response.status != 204:
                                 print(f"Failed to send webhook: {response.status}")
-                
+
                 # Run the async function without blocking
                 try:
                     loop = asyncio.get_event_loop()
@@ -120,7 +120,7 @@ class Users:
                         loop.run_until_complete(send_webhook())
                 except Exception as e:
                     print(f"Error sending webhook: {e}")
-            
+
             return True
         except Exception as e:
             print(f"Error updating balance: {e}")
@@ -158,18 +158,26 @@ class Servers:
 
     def update_server_profit(self, server_id, amount, game=None):
         npc = self.db["net_profit"]
+        profit_tracker = ProfitData()
         """Update server profit statistics"""
         try:
+            # Update server profit
             self.collection.update_one(
                 {"server_id": server_id},
                 {"$inc": {"total_profit": amount}}
-          )
+            )
+
+            # Update daily profit tracking
+            profit_tracker.update_daily_profit(amount, game)
+
+            # Update game-specific profit
             if game:
                 if npc.count_documents({"game": game}):
                     npc.update_one({"game": game}, {"$inc": {"total_profit": amount}})
-                else: npc.insert_one({"game": game, "total_profit": amount})
+                else: 
+                    npc.insert_one({"game": game, "total_profit": amount})
                 rn = datetime.datetime.now().strftime("%X")
-                print(f"{Back.CYAN}  {Style.DIM}{server_id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{amount} ({round((amount)*0.0212, 3)}$){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}{game}, sv_profit{Fore.WHITE}")
+                print(f"{Back.CYAN}  {Style.DIM}{server_id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{amount} ({round((amount)*0.0212, 3)}$){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}{game}, sv_profit{Fore.WHITE}")
             return True
         except Exception as e:
             print(f"Error updating server profit: {e}")
@@ -194,7 +202,7 @@ class Servers:
         except Exception as e:
             print(f"Error updating server history: {e}")
             return False
-            
+
     def add_bet_to_history(self, server_id, history_entry):
         """Alias for update_history for backward compatibility"""
         return self.update_history(server_id, history_entry)
@@ -204,3 +212,28 @@ class Servers:
             return self.collection.find_one({"server_id": server_id})
         else:
             return False
+
+
+class ProfitData:
+    def __init__(self):
+        self.db = mongodb["BetSync"]
+        self.collection = self.db["profit_data"]
+
+    def update_daily_profit(self, amount, game):
+        today = datetime.date.today()
+        try:
+            result = self.collection.update_one(
+                {"date": today},
+                {"$inc": {"all_data.{}".format(game): amount, "total_profit": amount}, "$setOnInsert": {"date": today, "all_data": {game: amount}}},
+                upsert=True
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            print(f"Error updating daily profit: {e}")
+            return False
+
+    def get_profit_data(self, date=None):
+        if date:
+            return self.collection.find_one({"date": date})
+        else:
+            return self.collection.find()
