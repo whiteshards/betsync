@@ -224,25 +224,37 @@ class ProfitData:
     def update_daily_profit(self, amount, game=None):
         today = datetime.date.today()
         try:
-            # Check if document for today exists
-            doc = self.collection.find_one({"date": today})
+            # Use upsert to handle both document creation and updating
+            # This creates the document if it doesn't exist, or updates it if it does
+            # The setOnInsert ensures we set initial values only if creating a new document
+            result = self.collection.update_one(
+                {"date": today},
+                {
+                    "$inc": {"total_profit": amount},
+                    "$setOnInsert": {
+                        "date": today,
+                        "games": {}  # Initialize games object if needed
+                    }
+                },
+                upsert=True  # Create document if it doesn't exist
+            )
             
-            if doc:
-                # Document exists, increment the total profit
+            # If game is specified, update game-specific profit
+            if game:
+                # Use dot notation to safely update nested fields
+                game_field = f"games.{game}"
                 self.collection.update_one(
                     {"date": today},
-                    {"$inc": {"total_profit": amount}}
+                    {
+                        "$inc": {game_field: amount}
+                    },
+                    upsert=True
                 )
-            else:
-                # Document doesn't exist yet, create it with initial values
-                self.collection.insert_one({
-                    "date": today,
-                    "total_profit": amount
-                })
             
             return True
         except Exception as e:
             print(f"Error updating daily profit: {e}")
+            print(f"Details: {str(e)}")  # More detailed error logging
             return False
 
     def get_profit_data(self, date=None):
