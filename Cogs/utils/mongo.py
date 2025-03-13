@@ -168,8 +168,7 @@ class Servers:
             )
 
             # Update daily profit tracking
-            if game:
-                profit_tracker.update_daily_profit(amount, game)
+            profit_tracker.update_daily_profit(amount)
             
             # Update net profit
 
@@ -222,39 +221,22 @@ class ProfitData:
         self.db = mongodb["BetSync"]
         self.collection = self.db["profit_data"]
 
-    def update_daily_profit(self, amount, game):
+    def update_daily_profit(self, amount, game=None):
         today = datetime.date.today()
         try:
             # Check if document for today exists
             doc = self.collection.find_one({"date": today})
             
             if doc:
-                # Document exists, increment the game-specific profit and total profit
-                update_fields = {}
-                game_field = f"all_data.{game}"
-                
-                # If this game doesn't exist yet in all_data, initialize it
-                if "all_data" not in doc or game not in doc["all_data"]:
-                    update_fields[game_field] = amount
-                else:
-                    # Increment existing game profit
-                    self.collection.update_one(
-                        {"date": today},
-                        {"$inc": {game_field: amount, "total_profit": amount}}
-                    )
-                    return True
-                
-                # Apply updates if we have any fields to update
-                if update_fields:
-                    self.collection.update_one(
-                        {"date": today},
-                        {"$set": update_fields, "$inc": {"total_profit": amount}}
-                    )
+                # Document exists, increment the total profit
+                self.collection.update_one(
+                    {"date": today},
+                    {"$inc": {"total_profit": amount}}
+                )
             else:
                 # Document doesn't exist yet, create it with initial values
                 self.collection.insert_one({
                     "date": today,
-                    "all_data": {game: amount},
                     "total_profit": amount
                 })
             
