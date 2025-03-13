@@ -1,8 +1,13 @@
 
 import discord
 import os
+import datetime
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
+import io
 from discord.ext import commands
-from Cogs.utils.mongo import Users, Servers
+from Cogs.utils.mongo import Users, Servers, ProfitData
 from Cogs.utils.emojis import emoji
 
 class AdminCommands(commands.Cog):
@@ -10,6 +15,9 @@ class AdminCommands(commands.Cog):
         self.bot = bot
         self.admin_ids = self.load_admin_ids()
         self.blacklisted_ids = self.load_blacklisted_ids()
+        
+        # Set default matplotlib style
+        plt.style.use('dark_background')
     
     def load_admin_ids(self):
         """Load admin IDs from admins.txt file"""
@@ -788,6 +796,292 @@ class AdminCommands(commands.Cog):
         
         await ctx.reply(embed=embed)
         
+    async def generate_profit_graph(self, view_type="daily"):
+        """Generate a profit graph based on the time frame"""
+        # Get profit data from MongoDB
+        profit_db = ProfitData()
+        profit_data = profit_db.get_profit_data()
+        
+        if not profit_data:
+            raise ValueError("No profit data available")
+        
+        # Prepare data based on view type
+        dates = []
+        profits = []
+        cumulative_profits = []
+        total_profit = 0
+        
+        # Set time frame data
+        if view_type == "daily":
+            # Get last 30 days
+            end_date = datetime.datetime.now().date()
+            start_date = end_date - datetime.timedelta(days=30)
+            
+            # Create a date range for the last 30 days
+            date_range = {}
+            current_date = start_date
+            while current_date <= end_date:
+                date_range[current_date] = 0
+                current_date += datetime.timedelta(days=1)
+            
+            # Fill in available data
+            for item in profit_data:
+                date = item.get("date")
+                if isinstance(date, datetime.date) and start_date <= date <= end_date:
+                    date_range[date] = item.get("total_profit", 0)
+            
+            # Convert to lists
+            for date, profit in sorted(date_range.items()):
+                dates.append(date)
+                profits.append(profit * 0.0212)  # Convert tokens to USD (1 token = 0.0212$)
+                total_profit += profit
+                cumulative_profits.append(total_profit * 0.0212)  # Convert tokens to USD
+            
+            x_label = "Day"
+            title = "Daily Profit (Last 30 Days)"
+            
+        elif view_type == "monthly":
+            # Group by month
+            monthly_data = {}
+            
+            for item in profit_data:
+                date = item.get("date")
+                if isinstance(date, datetime.date):
+                    # Create a key for year-month
+                    month_key = datetime.date(date.year, date.month, 1)
+                    
+                    if month_key not in monthly_data:
+                        monthly_data[month_key] = 0
+                    
+                    monthly_data[month_key] += item.get("total_profit", 0)
+            
+            # Sort by date and convert to lists
+            for date, profit in sorted(monthly_data.items()):
+                dates.append(date)
+                profits.append(profit * 0.0212)  # Convert tokens to USD
+                total_profit += profit
+                cumulative_profits.append(total_profit * 0.0212)  # Convert tokens to USD
+            
+            x_label = "Month"
+            title = "Monthly Profit"
+            
+        else:  # all_time
+            # Group by date (keep all records, but ensure they're sorted)
+            all_data = {}
+            
+            for item in profit_data:
+                date = item.get("date")
+                if isinstance(date, datetime.date):
+                    if date not in all_data:
+                        all_data[date] = 0
+                    
+                    all_data[date] += item.get("total_profit", 0)
+            
+            # Sort by date and convert to lists
+            for date, profit in sorted(all_data.items()):
+                dates.append(date)
+                profits.append(profit * 0.0212)  # Convert tokens to USD
+                total_profit += profit
+                cumulative_profits.append(total_profit * 0.0212)  # Convert tokens to USD
+            
+            x_label = "Date"
+            title = "All-Time Profit"
+        
+        # Create the plot with a modern gray background
+        fig, ax = plt.subplots(figsize=(12, 6), dpi=100)
+        fig.patch.set_facecolor('#2B2D31')  # Modern dark gray for outer background
+        ax.set_facecolor('#36393F')  # Slightly lighter gray for plot area
+        
+        # Plot the profit trend with a nice gradient fill
+        if cumulative_profits:
+            # Create gradient fill
+            line, = ax.plot(dates, cumulative_profits, color='#00FFAE', linewidth=2.5, marker='', zorder=3)
+            
+            # Fill area under the curve with gradient
+            ax.fill_between(dates, cumulative_profits, color='#00FFAE', alpha=0.2)
+            
+            # Get the highest value for annotation
+            max_idx = np.argmax(cumulative_profits)
+            max_date = dates[max_idx]
+            max_value = cumulative_profits[max_idx]
+            
+            # Add a dot marker at the highest value with annotation
+            ax.plot(max_date, max_value, 'o', color='white', markersize=8, zorder=4)
+            
+            # Add a "tooltip" annotation with black background
+            bbox_props = dict(boxstyle="round,pad=0.5", facecolor='black', alpha=0.8, edgecolor='gray')
+            cumulative_text = f"{max_date.strftime('%d %b %Y')}\nCumulative: ${max_value:,.2f}"
+            ax.annotate(cumulative_text, 
+                        (max_date, max_value),
+                        xytext=(10, 10),
+                        textcoords="offset points",
+                        bbox=bbox_props,
+                        color='white',
+                        zorder=5)
+            
+            # Format the y-axis with dollar signs
+            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+            
+            # Format x-axis dates
+            if view_type == "daily":
+                ax.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
+            elif view_type == "monthly":
+                ax.xaxis.set_major_locator(mdates.MonthLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+            else:
+                ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b'))
+                
+            # Customize grid
+            ax.grid(True, linestyle='--', alpha=0.3, zorder=1)
+            
+            # Add labels and title with white text
+            ax.set_xlabel(x_label, color='white', fontsize=12)
+            ax.set_ylabel('Profit (USD)', color='white', fontsize=12)
+            
+            # Calculate total profit and growth percentage
+            first_value = cumulative_profits[0] if cumulative_profits else 0
+            last_value = cumulative_profits[-1] if cumulative_profits else 0
+            growth_pct = ((last_value - first_value) / first_value * 100) if first_value > 0 else 0
+            
+            # Title with accumulated amount and growth percentage
+            title_text = f"Total Revenue\n${last_value:,.2f}"
+            growth_text = f"+{growth_pct:.2f}%" if growth_pct >= 0 else f"{growth_pct:.2f}%"
+            
+            # Set the main title
+            ax.set_title(title_text, fontsize=18, color='white', pad=20)
+            
+            # Add the growth percentage text with color based on value
+            text_color = '#4CAF50' if growth_pct >= 0 else '#FF5252'
+            fig.text(0.15, 0.86, growth_text, fontsize=12, color=text_color)
+            
+            # Add the time period text
+            fig.text(0.15, 0.82, f"• {title}", fontsize=10, color='white', alpha=0.7)
+            
+            # Style the axes and ticks
+            ax.tick_params(colors='white', which='both')
+            for spine in ax.spines.values():
+                spine.set_edgecolor('#555555')
+            
+            # Add BetSync watermark
+            plt.figtext(0.5, 0.01, "BetSync Casino", fontsize=10, color='white', alpha=0.4, ha='center')
+            
+            # Adjust layout for better padding
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+            
+            # Add a subtle shadow effect for the frame
+            # This is done by adding a rectangle patch with a gradient alpha
+            from matplotlib.patches import Rectangle
+            shadow = Rectangle((0, 0), 1, 1, transform=fig.transFigure, 
+                              facecolor='black', alpha=0.2, zorder=-1)
+            fig.patches.append(shadow)
+            
+            # Save to bytes buffer
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', facecolor=fig.get_facecolor())
+            buf.seek(0)
+            
+            # Create Discord file and embed
+            file = discord.File(buf, filename="profit_graph.png")
+            
+            embed = discord.Embed(
+                title=f"BetSync Casino {title}", 
+                description=f"**Total Revenue:** ${last_value:,.2f}",
+                color=0x2B2D31
+            )
+            
+            # Add growth information
+            growth_indicator = "📈" if growth_pct >= 0 else "📉"
+            embed.add_field(
+                name=f"{growth_indicator} Growth",
+                value=f"**{growth_text}** during this period",
+                inline=True
+            )
+            
+            # Add average daily profit
+            if len(cumulative_profits) > 1:
+                avg_daily = last_value / len(cumulative_profits)
+                embed.add_field(
+                    name="💰 Average",
+                    value=f"**${avg_daily:,.2f}** per {x_label.lower()}",
+                    inline=True
+                )
+            
+            embed.set_image(url="attachment://profit_graph.png")
+            embed.set_footer(text="Click the buttons below to change the time period")
+            
+            # Close the figure to prevent memory leaks
+            plt.close(fig)
+            
+            return embed, file
+        else:
+            # If no data available
+            embed = discord.Embed(
+                title="No Profit Data Available",
+                description="There is no profit data available for the selected time period.",
+                color=0xFF0000
+            )
+            
+            # Create empty plot for attachment
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', facecolor=fig.get_facecolor())
+            buf.seek(0)
+            file = discord.File(buf, filename="no_data.png")
+            
+            # Close the figure to prevent memory leaks
+            plt.close(fig)
+            
+            return embed, file
+    
+    @commands.command(name="tp")
+    async def total_profit(self, ctx, view_type: str = "daily"):
+        """Display total profit graph with daily/monthly/all-time views
+        
+        Usage: !tp
+        """
+        # Check if command user is an admin
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Normalize view type
+        view_type = view_type.lower()
+        if view_type not in ["daily", "monthly", "all_time"]:
+            view_type = "daily"
+        
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Generating Profit Graph",
+            description="Please wait while we generate the profit chart...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
+        
+        try:
+            # Generate the profit graph
+            embed, file = await self.generate_profit_graph(view_type)
+            
+            # Create the view with buttons for different time frames
+            view = TotalProfitView(self, ctx.author.id)
+            
+            # Edit the loading message with the graph
+            await loading_message.edit(embed=embed, attachments=[file], view=view)
+            
+        except Exception as e:
+            # Handle any errors
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"An error occurred while generating the profit graph: ```{str(e)}```",
+                color=0xFF0000
+            )
+            await loading_message.edit(embed=error_embed)
+    
     @commands.command(name="game_np", aliases=["gnp"])
     async def game_np(self, ctx, game: str = None):
         """Check how much all games or a specific game is performing
@@ -929,6 +1223,46 @@ class AdminCommands(commands.Cog):
                 color=0xFF0000
             )
             await loading_message.edit(embed=error_embed)
+
+class TimeFrameButton(discord.ui.Button):
+    def __init__(self, view_type, label, style, custom_id):
+        super().__init__(style=style, label=label, custom_id=custom_id)
+        self.view_type = view_type
+    
+    async def callback(self, interaction: discord.Interaction):
+        # Only allow the original command author to use buttons
+        if interaction.user.id != self.view.author_id:
+            return await interaction.response.send_message("You cannot interact with someone else's command.", ephemeral=True)
+        
+        # Update the view with the selected time frame
+        await self.view.update_graph(interaction, self.view_type)
+
+class TotalProfitView(discord.ui.View):
+    def __init__(self, cog, author_id):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.author_id = author_id
+        
+        # Add buttons for different time periods
+        self.add_item(TimeFrameButton("daily", "Daily", discord.ButtonStyle.primary, "daily"))
+        self.add_item(TimeFrameButton("monthly", "Monthly", discord.ButtonStyle.secondary, "monthly"))
+        self.add_item(TimeFrameButton("all_time", "All Time", discord.ButtonStyle.success, "all_time"))
+    
+    async def update_graph(self, interaction, view_type):
+        """Update the graph based on the selected time frame"""
+        try:
+            # Generate the appropriate graph
+            embed, file = await self.cog.generate_profit_graph(view_type)
+            
+            # Update the message with the new graph
+            await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"An error occurred while generating the graph: `{str(e)}`",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=error_embed, ephemeral=True)
 
 def setup(bot):
     bot.add_cog(AdminCommands(bot))
