@@ -163,7 +163,7 @@ class HiLoView(discord.ui.View):
         # Process winnings directly with mongo
         try:
             # Update user's balance
-            update_success = db.update_balance(self.ctx.author.id, winnings, self.currency_used, "$inc")
+            update_success = db.update_balance(self.ctx.author.id, winnings, "credits", "$inc")
 
             if not update_success:
                 # Handle the error

@@ -354,7 +354,7 @@ class PumpGameView(discord.ui.View):
                 server_profit = self.bet_amount - payout
 
                 # Update server profit
-                server_db.update_server_profit(ctx.guild.id, server_profit, game="pump")
+                server_db.update_server_profit(self.ctx.guild.id, server_profit, game="pump")
 
                 # Add to server history
                 server_bet_entry = win_entry.copy()
@@ -427,7 +427,7 @@ class PumpGameView(discord.ui.View):
             server_db = Servers()
 
             # Update server profit directly
-            server_db.update_server_profit(ctx.guild.id, self.bet_amount, game="pump")
+            server_db.update_server_profit(self.ctx.guild.id, self.bet_amount, game="pump")
 
             # Add to server history
             server_bet_entry = loss_entry.copy()

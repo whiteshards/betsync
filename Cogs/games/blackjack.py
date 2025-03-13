@@ -866,7 +866,7 @@ class Blackjack(commands.Cog):
         
         if result == "win" or result == "blackjack":
             # Player wins - add winnings to balance
-            user_db.update_balance(user_id, win_amount, currency_used, "$inc")
+            user_db.update_balance(user_id, win_amount, "credits", "$inc")
             
             # Add win to history
             multiplier = 1.5 if result == "blackjack" else 1.98
