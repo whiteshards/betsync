@@ -826,8 +826,19 @@ class AdminCommands(commands.Cog):
             
             # Fill in available data
             for item in profit_data:
-                date = item.get("date")
-                if isinstance(date, datetime.date) and start_date <= date <= end_date:
+                date_str = item.get("date")
+                # Convert string date to datetime.date if needed
+                if isinstance(date_str, str):
+                    try:
+                        date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+                elif isinstance(date_str, datetime.date):
+                    date = date_str
+                else:
+                    continue
+                
+                if start_date <= date <= end_date:
                     date_range[date] = item.get("total_profit", 0)
             
             # Convert to lists
@@ -845,10 +856,20 @@ class AdminCommands(commands.Cog):
             monthly_data = {}
             
             for item in profit_data:
-                date = item.get("date")
-                if isinstance(date, datetime.date):
-                    # Create a key for year-month
-                    month_key = datetime.date(date.year, date.month, 1)
+                date_str = item.get("date")
+                # Convert string date to datetime.date if needed
+                if isinstance(date_str, str):
+                    try:
+                        date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+                elif isinstance(date_str, datetime.date):
+                    date = date_str
+                else:
+                    continue
+                
+                # Create a key for year-month
+                month_key = datetime.date(date.year, date.month, 1)
                     
                     if month_key not in monthly_data:
                         monthly_data[month_key] = 0
@@ -870,10 +891,20 @@ class AdminCommands(commands.Cog):
             all_data = {}
             
             for item in profit_data:
-                date = item.get("date")
-                if isinstance(date, datetime.date):
-                    if date not in all_data:
-                        all_data[date] = 0
+                date_str = item.get("date")
+                # Convert string date to datetime.date if needed
+                if isinstance(date_str, str):
+                    try:
+                        date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+                elif isinstance(date_str, datetime.date):
+                    date = date_str
+                else:
+                    continue
+                
+                if date not in all_data:
+                    all_data[date] = 0
                     
                     all_data[date] += item.get("total_profit", 0)
             
