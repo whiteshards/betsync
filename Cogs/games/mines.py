@@ -671,29 +671,43 @@ class MinesCog(commands.Cog):
                 mines_count = 5
 
         # Process bet amount using currency helper
-        
+        from Cogs.utils.currency_helper import process_bet_amount
         success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-
-
-        # Deduct from user balances
-
+        
+        if not success:
+            await loading_message.delete()
+            return await ctx.reply(embed=error_embed)
+            
+        # Extract bet information
+        tokens_used = bet_info["tokens_used"]
+        credits_used = bet_info["credits_used"]
+        total_bet = bet_info["total_bet_amount"]
+        
+        # Determine currency used for display
+        if tokens_used > 0 and credits_used > 0:
+            currency_used = "mixed"
+        elif tokens_used > 0:
+            currency_used = "tokens"
+        else:
+            currency_used = "credits"
 
         # Record game stats
         db = Users()
         db.collection.update_one(
             {"discord_id": ctx.author.id},
-            {"$inc": {"total_played": 1, "total_spent": bet_amount}}
+            {"$inc": {"total_played": 1, "total_spent": total_bet}}
         )
 
         # Create game view
-        game_view = MinesTileView(self, ctx, bet_amount, mines_count)
-
+        game_view = MinesTileView(self, ctx, total_bet, mines_count)
+        
         # Mark the game as ongoing
         self.ongoing_games[ctx.author.id] = {
-            "tokens_used": 0, #These values are not accurately tracked anymore
-            "credits_used": 0,
-            "bet_amount": bet_amount,
-            "mines_count": mines_count,
+            "tokens_used": tokens_used,
+            "credits_used": credits_used,
+            "bet_amount": total_bet,
+            "currency_used": currency_used,
+            "mines_count": mines_count,ount,
             "view": game_view
         }
 
