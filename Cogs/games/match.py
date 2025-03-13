@@ -412,8 +412,32 @@ class Match(commands.Cog):
 
         # No balance field needed
 
-        # Create a new view with Play Again button
-        view = discord.ui.View()
+        # Create a new view that reveals all tiles and adds Play Again button
+        view = MatchGameView(match_game, self, self.bot.get_context(interaction.message))
+        
+        # Reveal all tiles
+        for r in range(match_game.rows):
+            for c in range(match_game.cols):
+                match_game.reveal_tile(r, c)
+                
+        # Update all buttons to show their values
+        for child in view.children:
+            if isinstance(child, MatchButton):
+                multiplier = match_game.board[child.game_row][child.game_col]
+                child.label = f"{multiplier}x"
+                
+                # Set color based on multiplier value
+                if multiplier <= 0.5:
+                    child.style = discord.ButtonStyle.danger  # Red for low multipliers
+                elif multiplier <= 1.75:
+                    child.style = discord.ButtonStyle.primary  # Blue for medium multipliers
+                else:
+                    child.style = discord.ButtonStyle.success  # Green for high multipliers
+                
+                # Disable all buttons
+                child.disabled = True
+        
+        # Add Play Again button
         view.add_item(PlayAgainButton(self, match_game.bet_amount, currency_used))
 
         # Try to edit the message, but handle potential interaction errors
