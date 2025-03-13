@@ -638,30 +638,7 @@ class MinesCog(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Process bet amount with error handling
-        try:
-            from Cogs.utils.currency_helper import process_bet_amount
-            success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-            
-            if not success:
-                await loading_message.delete()
-                return await ctx.reply(embed=error_embed)
-                
-            # Extract bet information
-            tokens_used = bet_info["tokens_used"]
-            credits_used = bet_info["credits_used"]
-            total_bet = bet_info["total_bet_amount"]
-            
-            db = Users()
-            user_data = db.fetch_user(ctx.author.id)
-            
-            if user_data == False:
-            await loading_message.delete()
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | User Not Found",
-                description="You don't have an account. Please wait for auto-registration or use `!signup`.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
+        
 
         # Format currency type if provided    
         if currency_type:
@@ -694,14 +671,15 @@ class MinesCog(commands.Cog):
                 mines_count = 5
 
         # Process bet amount using currency helper
-        from Cogs.utils.currency_helper import process_bet_amount
-        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)essage)
+        
+        success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
 
 
         # Deduct from user balances
 
 
         # Record game stats
+        db = Users()
         db.collection.update_one(
             {"discord_id": ctx.author.id},
             {"$inc": {"total_played": 1, "total_spent": bet_amount}}
