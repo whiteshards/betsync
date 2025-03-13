@@ -438,6 +438,21 @@ class Match(commands.Cog):
                     await interaction.message.edit(embed=embed, view=view)
                 except:
                     pass
+        except discord.errors.NotFound:
+            # If the interaction is not found (404), edit the message directly
+            try:
+                if hasattr(interaction, 'message') and interaction.message:
+                    await interaction.message.edit(embed=embed, view=view)
+            except:
+                pass
+        except Exception as e:
+            # Handle any other unexpected errors
+            print(f"Error updating match game result: {str(e)}")
+            try:
+                if hasattr(interaction, 'message') and interaction.message:
+                    await interaction.message.edit(embed=embed, view=view)
+            except:
+                pass
 
         # Remove from ongoing games
         if match_game.user_id in self.ongoing_games:
