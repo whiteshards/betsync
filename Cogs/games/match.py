@@ -27,8 +27,15 @@ class MatchGame:
         all_multipliers = []
         for multi in self.multipliers:
             all_multipliers.extend([multi] * 3)
-
+        
         # Shuffle the multipliers
+        random.shuffle(all_multipliers)
+        
+        # Fill with random values if needed (should be 18 items for 4x5=20 board)
+        while len(all_multipliers) < self.rows * self.cols:
+            all_multipliers.append(random.choice(self.multipliers))
+            
+        # Shuffle again to ensure random distribution
         random.shuffle(all_multipliers)
 
         # Create the board
@@ -40,7 +47,7 @@ class MatchGame:
                 if index < len(all_multipliers):
                     row.append(all_multipliers[index])
                 else:
-                    # Fill any remaining spaces (shouldn't happen with 4x5=20 and 6*3=18 multipliers)
+                    # This shouldn't happen now, but just in case
                     row.append(random.choice(self.multipliers))
             board.append(row)
 
@@ -159,7 +166,20 @@ class PlayAgainButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         # Start a new game with the same bet amount
-        await self.match_cog.match(await self.match_cog.bot.get_context(interaction.message), self.bet_amount, self.currency_type)
+        try:
+            ctx = await self.match_cog.bot.get_context(interaction.message)
+            await self.match_cog.match(ctx, str(self.bet_amount), self.currency_type)
+        except Exception as e:
+            # Handle any errors that might occur
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=f"Could not start a new game: {str(e)}",
+                color=discord.Color.red()
+            )
+            try:
+                await interaction.response.send_message(embed=error_embed, ephemeral=True)
+            except:
+                pass
 
 class MatchGameView(discord.ui.View):
     def __init__(self, match_game, match_cog, ctx):
@@ -268,7 +288,10 @@ class Match(commands.Cog):
         # Get match result
         matched_multiplier = match_game.matched_multiplier
         winnings = match_game.get_winnings()
-
+        
+        # Get the currency type from the game
+        currency_used = "tokens"  # Default fallback
+        
         # Create result embed
         if matched_multiplier is not None:
             # Player matched a multiplier
@@ -280,7 +303,7 @@ class Match(commands.Cog):
 
             embed.add_field(
                 name="Game Summary",
-                value=f"**Bet Amount:** {match_game.bet_amount} tokens\n**Multiplier:** {matched_multiplier}x\n**Winnings:** {winnings} tokens",
+                value=f"**Bet Amount:** {match_game.bet_amount} {currency_used}\n**Multiplier:** {matched_multiplier}x\n**Winnings:** {winnings} {currency_used}",
                 inline=False
             )
 
@@ -300,7 +323,6 @@ class Match(commands.Cog):
                 dbb = Servers()
                 dbb.update_server_profit(s, profit, game="match")
                 
-
                 # Update user stats
                 db.collection.update_one(
                     {"discord_id": match_game.user_id},
@@ -358,7 +380,7 @@ class Match(commands.Cog):
 
             embed.add_field(
                 name="Game Summary",
-                value=f"**Bet Amount:** {match_game.bet_amount} tokens\n**Multiplier:** None\n**Loss:** {match_game.bet_amount} tokens",
+                value=f"**Bet Amount:** {match_game.bet_amount} {currency_used}\n**Multiplier:** None\n**Loss:** {match_game.bet_amount} {currency_used}",
                 inline=False
             )
 
@@ -401,10 +423,21 @@ class Match(commands.Cog):
 
         # Create a new view with Play Again button
         view = discord.ui.View()
-        view.add_item(PlayAgainButton(self, match_game.bet_amount))
+        view.add_item(PlayAgainButton(self, match_game.bet_amount, currency_used))
 
-        # Send the final result
-        await interaction.response.edit_message(embed=embed, view=view)
+        # Try to edit the message, but handle potential interaction errors
+        try:
+            await interaction.response.edit_message(embed=embed, view=view)
+        except discord.errors.InteractionResponded:
+            # If interaction was already responded to, try a followup
+            try:
+                await interaction.followup.send(embed=embed, view=view)
+            except:
+                # If all else fails, try to edit the original message directly
+                try:
+                    await interaction.message.edit(embed=embed, view=view)
+                except:
+                    pass
 
         # Remove from ongoing games
         if match_game.user_id in self.ongoing_games:
