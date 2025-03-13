@@ -871,10 +871,10 @@ class AdminCommands(commands.Cog):
                 # Create a key for year-month
                 month_key = datetime.date(date.year, date.month, 1)
                     
-                    if month_key not in monthly_data:
-                        monthly_data[month_key] = 0
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = 0
                     
-                    monthly_data[month_key] += item.get("total_profit", 0)
+                monthly_data[month_key] += item.get("total_profit", 0)
             
             # Sort by date and convert to lists
             for date, profit in sorted(monthly_data.items()):
@@ -978,14 +978,14 @@ class AdminCommands(commands.Cog):
             
             # Title with accumulated amount and growth percentage
             title_text = f"Total Revenue\n${last_value:,.2f}"
-            growth_text = f"+{growth_pct:.2f}%" if growth_pct >= 0 else f"{growth_pct:.2f}%"
+            #growth_text = f"+{growth_pct:.2f}%" if growth_pct >= 0 else f"{growth_pct:.2f}%"
             
             # Set the main title
             ax.set_title(title_text, fontsize=18, color='white', pad=20)
             
             # Add the growth percentage text with color based on value
             text_color = '#4CAF50' if growth_pct >= 0 else '#FF5252'
-            fig.text(0.15, 0.86, growth_text, fontsize=12, color=text_color)
+            #fig.text(0.15, 0.86, growth_text, fontsize=12, color=text_color)
             
             # Add the time period text
             fig.text(0.15, 0.82, f"• {title}", fontsize=10, color='white', alpha=0.7)
