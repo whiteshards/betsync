@@ -1071,7 +1071,7 @@ class AdminCommands(commands.Cog):
             view = TotalProfitView(self, ctx.author.id)
             
             # Edit the loading message with the graph
-            await loading_message.edit(embed=embed, attachments=[file], view=view)
+            await loading_message.edit(embed=embed, file=file, view=view)
             
         except Exception as e:
             # Handle any errors
@@ -1255,7 +1255,7 @@ class TotalProfitView(discord.ui.View):
             embed, file = await self.cog.generate_profit_graph(view_type)
             
             # Update the message with the new graph
-            await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
+            await interaction.response.edit_message(embed=embed, file=file, view=self)
         except Exception as e:
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Error",
