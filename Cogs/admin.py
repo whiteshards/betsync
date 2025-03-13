@@ -980,8 +980,16 @@ class AdminCommands(commands.Cog):
             title_text = f"Total Revenue\n${last_value:,.2f}"
             #growth_text = f"+{growth_pct:.2f}%" if growth_pct >= 0 else f"{growth_pct:.2f}%"
             
-            # Set the main title
-            ax.set_title(title_text, fontsize=18, color='white', pad=20)
+            # Set the main title with Helvetica font
+            from matplotlib.font_manager import FontProperties
+            try:
+                # Try to load Helvetica font
+                helvetica_font = FontProperties(fname="Helvetica.ttf")
+                ax.set_title(title_text, fontsize=18, color='white', pad=20, fontproperties=helvetica_font)
+            except:
+                # Fallback to default font if Helvetica.ttf cannot be loaded
+                print("Could not load Helvetica font, using default")
+                ax.set_title(title_text, fontsize=18, color='white', pad=20)
             
             # Add the growth percentage text with color based on value
             text_color = '#4CAF50' if growth_pct >= 0 else '#FF5252'
