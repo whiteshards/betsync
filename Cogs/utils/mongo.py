@@ -168,7 +168,10 @@ class Servers:
             )
 
             # Update daily profit tracking
-            profit_tracker.update_daily_profit(amount, game)
+            if game:
+                profit_tracker.update_daily_profit(amount, game)
+            
+            # Update net profit
 
             # Update game-specific profit
             if game:
@@ -222,12 +225,40 @@ class ProfitData:
     def update_daily_profit(self, amount, game):
         today = datetime.date.today()
         try:
-            result = self.collection.update_one(
-                {"date": today},
-                {"$inc": {"all_data.{}".format(game): amount, "total_profit": amount}, "$setOnInsert": {"date": today, "all_data": {game: amount}}},
-                upsert=True
-            )
-            return result.modified_count > 0
+            # Check if document for today exists
+            doc = self.collection.find_one({"date": today})
+            
+            if doc:
+                # Document exists, increment the game-specific profit and total profit
+                update_fields = {}
+                game_field = f"all_data.{game}"
+                
+                # If this game doesn't exist yet in all_data, initialize it
+                if "all_data" not in doc or game not in doc["all_data"]:
+                    update_fields[game_field] = amount
+                else:
+                    # Increment existing game profit
+                    self.collection.update_one(
+                        {"date": today},
+                        {"$inc": {game_field: amount, "total_profit": amount}}
+                    )
+                    return True
+                
+                # Apply updates if we have any fields to update
+                if update_fields:
+                    self.collection.update_one(
+                        {"date": today},
+                        {"$set": update_fields, "$inc": {"total_profit": amount}}
+                    )
+            else:
+                # Document doesn't exist yet, create it with initial values
+                self.collection.insert_one({
+                    "date": today,
+                    "all_data": {game: amount},
+                    "total_profit": amount
+                })
+            
+            return True
         except Exception as e:
             print(f"Error updating daily profit: {e}")
             return False
@@ -236,4 +267,4 @@ class ProfitData:
         if date:
             return self.collection.find_one({"date": date})
         else:
-            return self.collection.find()
+            return list(self.collection.find())
