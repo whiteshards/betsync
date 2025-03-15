@@ -978,25 +978,25 @@ class AdminCommands(commands.Cog):
             
             # Title with accumulated amount and growth percentage
             title_text = f"Total Revenue\n${last_value:,.2f}"
-            #growth_text = f"+{growth_pct:.2f}%" if growth_pct >= 0 else f"{growth_pct:.2f}%"
+            growth_text = f"+{growth_pct:.2f}%" if growth_pct >= 0 else f"{growth_pct:.2f}%"
             
             # Set the main title with Helvetica font
             from matplotlib.font_manager import FontProperties
             try:
                 # Try to load Helvetica font
-                helvetica_font = FontProperties(fname="Helvetica.ttf")
-                ax.set_title(title_text, fontsize=18, color='white', pad=20, fontproperties=helvetica_font)
+                helvetica_font = FontProperties(fname="Helvetica-Bold.ttf")
+                ax.set_title(title_text, size=32, color='white', pad=20, fontproperties=helvetica_font)
             except:
                 # Fallback to default font if Helvetica.ttf cannot be loaded
                 print("Could not load Helvetica font, using default")
-                ax.set_title(title_text, fontsize=18, color='white', pad=20)
+                ax.set_title(title_text, fontsize=20, color='white', pad=20)
             
             # Add the growth percentage text with color based on value
             text_color = '#4CAF50' if growth_pct >= 0 else '#FF5252'
             #fig.text(0.15, 0.86, growth_text, fontsize=12, color=text_color)
             
             # Add the time period text
-            fig.text(0.15, 0.82, f"• {title}", fontsize=10, color='white', alpha=0.7)
+            #fig.text(0.15, 0.82, f"• {title}", fontsize=10, color='white', alpha=0.7)
             
             # Style the axes and ticks
             ax.tick_params(colors='white', which='both')
