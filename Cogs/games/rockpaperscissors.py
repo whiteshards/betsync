@@ -361,244 +361,250 @@ class RockPaperScissorsCog(commands.Cog):
 
     async def process_pvp_choice(self, player_id, choice):
         """Process a player's choice in a PvP game"""
-        if player_id not in self.ongoing_games or self.ongoing_games[player_id]["type"] != "pvp_active":
+        if player_id not in self.ongoing_games:
             return False
 
-        # Store the player's choice
-        self.ongoing_games[player_id]["choice"] = choice
+        game_info = self.ongoing_games[player_id]
 
-        # Get opponent info
-        opponent_id = self.ongoing_games[player_id]["opponent_id"]
+        if game_info["type"] == "pve":
+            # For bot opponent games
+            await self.process_pve_game(player_id, choice)
+        else:
+            # Store the player's choice
+            self.ongoing_games[player_id]["choice"] = choice
 
-        # Check if both players have made their choices
-        if opponent_id in self.ongoing_games and self.ongoing_games[opponent_id]["choice"] is not None:
-            # Both players have chosen, resolve the game
-            channel_id = self.ongoing_games[player_id]["channel_id"]
-            message_id = self.ongoing_games[player_id]["message_id"]
+            # Get opponent info
+            opponent_id = self.ongoing_games[player_id]["opponent_id"]
 
-            player_choice = self.ongoing_games[player_id]["choice"]
-            opponent_choice = self.ongoing_games[opponent_id]["choice"]
+            # Check if both players have made their choices
+            if opponent_id in self.ongoing_games and self.ongoing_games[opponent_id]["choice"] is not None:
+                # Both players have chosen, resolve the game
+                channel_id = self.ongoing_games[player_id]["channel_id"]
+                message_id = self.ongoing_games[player_id]["message_id"]
 
-            # Get player and opponent objects
-            player = self.bot.get_user(player_id)
-            opponent = self.bot.get_user(opponent_id)
+                player_choice = self.ongoing_games[player_id]["choice"]
+                opponent_choice = self.ongoing_games[opponent_id]["choice"]
 
-            # Determine who initiated the game (who placed the bet)
-            if "tokens_used" in self.ongoing_games[player_id]:
-                initiator_id = player_id
-                initiator = player
-                tokens_used = self.ongoing_games[player_id]["tokens_used"]
-                credits_used = self.ongoing_games[player_id]["credits_used"]
-                total_bet = self.ongoing_games[player_id]["total_bet"]
-            else:
-                initiator_id = opponent_id
-                initiator = opponent
-                tokens_used = self.ongoing_games[opponent_id]["tokens_used"]
-                credits_used = self.ongoing_games[opponent_id]["credits_used"]
-                total_bet = self.ongoing_games[opponent_id]["total_bet"]
+                # Get player and opponent objects
+                player = self.bot.get_user(player_id)
+                opponent = self.bot.get_user(opponent_id)
 
-            # Get the channel and message
-            channel = self.bot.get_channel(channel_id)
-            if not channel:
-                return self.clean_up_game(player_id, opponent_id)
+                # Determine who initiated the game (who placed the bet)
+                if "tokens_used" in self.ongoing_games[player_id]:
+                    initiator_id = player_id
+                    initiator = player
+                    tokens_used = self.ongoing_games[player_id]["tokens_used"]
+                    credits_used = self.ongoing_games[player_id]["credits_used"]
+                    total_bet = self.ongoing_games[player_id]["total_bet"]
+                else:
+                    initiator_id = opponent_id
+                    initiator = opponent
+                    tokens_used = self.ongoing_games[opponent_id]["tokens_used"]
+                    credits_used = self.ongoing_games[opponent_id]["credits_used"]
+                    total_bet = self.ongoing_games[opponent_id]["total_bet"]
 
-            try:
-                message = await channel.fetch_message(message_id)
-            except:
-                message = None
+                # Get the channel and message
+                channel = self.bot.get_channel(channel_id)
+                if not channel:
+                    return self.clean_up_game(player_id, opponent_id)
 
-            # Determine the winner
-            result, winner_id = self.determine_winner(player_id, player_choice, opponent_id, opponent_choice)
+                try:
+                    message = await channel.fetch_message(message_id)
+                except:
+                    message = None
 
-            # Handle the result
-            db = Users()
+                # Determine the winner
+                result, winner_id = self.determine_winner(player_id, player_choice, opponent_id, opponent_choice)
 
-            if result == "draw":
-                # Draw - refund the bet
-                if tokens_used > 0:
-                    db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
-                if credits_used > 0:
-                    db.update_balance(initiator_id, credits_used, "credits", "$inc")
+                # Handle the result
+                db = Users()
 
-                result_text = "It's a draw! The bet has been refunded."
+                if result == "draw":
+                    # Draw - refund the bet
+                    if tokens_used > 0:
+                        db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
+                    if credits_used > 0:
+                        db.update_balance(initiator_id, credits_used, "credits", "$inc")
 
-                # Update player statistics
-                db.collection.update_one(
-                    {"discord_id": initiator_id},
-                    {"$inc": {"total_played": 0}}  # No change since we already incremented
-                )
+                    result_text = "It's a draw! The bet has been refunded."
 
-                # Log the game in history
-                history_entry = {
-                    "type": "draw",
-                    "game": "Rock Paper Scissors",
-                    "bet": total_bet,
-                    "timestamp": int(time.time())
-                }
-                db.collection.update_one(
-                    {"discord_id": initiator_id},
-                    {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
-                )
+                    # Update player statistics
+                    db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$inc": {"total_played": 0}}  # No change since we already incremented
+                    )
 
-            elif winner_id == initiator_id:
-                # Initiator wins - double the bet
-                winnings = total_bet * 2
-                db.update_balance(initiator_id, winnings, "credits", "$inc")
+                    # Log the game in history
+                    history_entry = {
+                        "type": "draw",
+                        "game": "Rock Paper Scissors",
+                        "bet": total_bet,
+                        "timestamp": int(time.time())
+                    }
+                    db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+                    )
 
-                result_text = f"{initiator.mention} wins and receives **{winnings}** credits!"
+                elif winner_id == initiator_id:
+                    # Initiator wins - double the bet
+                    winnings = total_bet * 2
+                    db.update_balance(initiator_id, winnings, "credits", "$inc")
 
-                # Update player statistics
-                db.collection.update_one(
-                    {"discord_id": initiator_id},
-                    {"$inc": {"total_won": 1, "total_earned": winnings}}
-                )
+                    result_text = f"{initiator.mention} wins and receives **{winnings}** credits!"
 
-                # Log the game in history
-                history_entry = {
-                    "type": "win",
-                    "game": "Rock Paper Scissors",
-                    "bet": total_bet,
-                    "amount": winnings,
-                    "multiplier": 2,
-                    "timestamp": int(time.time())
-                }
-                db.collection.update_one(
-                    {"discord_id": initiator_id},
-                    {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
-                )
+                    # Update player statistics
+                    db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$inc": {"total_won": 1, "total_earned": winnings}}
+                    )
 
-                # Update server profit only in PVE games
-                if game_info["type"] == "pve":
-                    server_db = Servers()
-                    server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
-                    server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
-
-                    # Update server bet history
-                    server_history = {
+                    # Log the game in history
+                    history_entry = {
                         "type": "win",
                         "game": "Rock Paper Scissors",
-                        "user_id": initiator_id,
-                        "user_name": initiator.name,
                         "bet": total_bet,
                         "amount": winnings,
                         "multiplier": 2,
                         "timestamp": int(time.time())
                     }
-                    server_db.update_history(channel.guild.id, server_history)
+                    db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+                    )
 
-            else:
-                # Opponent wins - initiator loses the bet
-                result_text = f"{opponent.mention} wins! {initiator.mention} loses the bet."
+                    # Update server profit only in PVE games
+                    if game_info["type"] == "pve":
+                        server_db = Servers()
+                        server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
+                        server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
 
-                # Update player statistics
-                db.collection.update_one(
-                    {"discord_id": initiator_id},
-                    {"$inc": {"total_lost": 1}}
-                )
+                        # Update server bet history
+                        server_history = {
+                            "type": "win",
+                            "game": "Rock Paper Scissors",
+                            "user_id": initiator_id,
+                            "user_name": initiator.name,
+                            "bet": total_bet,
+                            "amount": winnings,
+                            "multiplier": 2,
+                            "timestamp": int(time.time())
+                        }
+                        server_db.update_history(channel.guild.id, server_history)
 
-                # Log the game in history
-                history_entry = {
-                    "type": "loss",
-                    "game": "Rock Paper Scissors",
-                    "bet": total_bet,
-                    "timestamp": int(time.time())
-                }
-                db.collection.update_one(
-                    {"discord_id": initiator_id},
-                    {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
-                )
+                else:
+                    # Opponent wins - initiator loses the bet
+                    result_text = f"{opponent.mention} wins! {initiator.mention} loses the bet."
 
-                # Update server profit only in PVE games
-                if game_info["type"] == "pve":
-                    server_db = Servers()
-                    server_profit = total_bet  # Server gets the full bet
-                    server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
+                    # Update player statistics
+                    db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$inc": {"total_lost": 1}}
+                    )
 
-                    # Update server bet history
-                    server_history = {
+                    # Log the game in history
+                    history_entry = {
                         "type": "loss",
                         "game": "Rock Paper Scissors",
-                        "user_id": initiator_id,
-                        "user_name": initiator.name,
                         "bet": total_bet,
                         "timestamp": int(time.time())
                     }
-                    server_db.update_history(channel.guild.id, server_history)
+                    db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+                    )
 
-            # Set color based on result
-            result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
+                    # Update server profit only in PVE games
+                    if game_info["type"] == "pve":
+                        server_db = Servers()
+                        server_profit = total_bet  # Server gets the full bet
+                        server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
 
-            # Create the enhanced result embed
-            result_embed = discord.Embed(
-                title="🎮 Rock Paper Scissors Showdown 🎮",
-                color=result_color
-            )
+                        # Update server bet history
+                        server_history = {
+                            "type": "loss",
+                            "game": "Rock Paper Scissors",
+                            "user_id": initiator_id,
+                            "user_name": initiator.name,
+                            "bet": total_bet,
+                            "timestamp": int(time.time())
+                        }
+                        server_db.update_history(channel.guild.id, server_history)
 
-            # Add player choice field with emoji
-            result_embed.add_field(
-                name=f"{player.name}'s Choice",
-                value=f"**{player_choice.capitalize()}** {self.choice_emojis[player_choice]}",
-                inline=True
-            )
+                # Set color based on result
+                result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
 
-            # Add opponent choice field with emoji
-            result_embed.add_field(
-                name=f"{opponent.name}'s Choice",
-                value=f"**{opponent_choice.capitalize()}** {self.choice_emojis[opponent_choice]}",
-                inline=True
-            )
+                # Create the enhanced result embed
+                result_embed = discord.Embed(
+                    title="🎮 Rock Paper Scissors Showdown 🎮",
+                    color=result_color
+                )
 
-            # Add a field separator
-            result_embed.add_field(name="\u200b", value="\u200b", inline=False)
-
-            # Add bet information
-            if total_bet > 0:
+                # Add player choice field with emoji
                 result_embed.add_field(
-                    name="💰 Bet Information",
-                    value=f"Amount: **{total_bet}**\nMultiplier: **{1.96 if result == 'win' else 0}x**",
+                    name=f"{player.name}'s Choice",
+                    value=f"**{player_choice.capitalize()}** {self.choice_emojis[player_choice]}",
                     inline=True
                 )
 
-                # Add winnings information for the winner
-                if result == "win":
+                # Add opponent choice field with emoji
+                result_embed.add_field(
+                    name=f"{opponent.name}'s Choice",
+                    value=f"**{opponent_choice.capitalize()}** {self.choice_emojis[opponent_choice]}",
+                    inline=True
+                )
+
+                # Add a field separator
+                result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+
+                # Add bet information
+                if total_bet > 0:
                     result_embed.add_field(
-                        name="💸 Winnings",
-                        value=f"**{total_bet * 1.96}** credits",
+                        name="💰 Bet Information",
+                        value=f"Amount: **{total_bet}**\nMultiplier: **{1.96 if result == 'win' else 0}x**",
                         inline=True
                     )
 
-            # Add a field separator if bet info was added
-            if total_bet > 0:
-                result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+                    # Add winnings information for the winner
+                    if result == "win":
+                        result_embed.add_field(
+                            name="💸 Winnings",
+                            value=f"**{total_bet * 1.96}** credits",
+                            inline=True
+                        )
 
-            # Add result text as its own field with decorative emoji
-            result_emoji = "🏆" if result == "win" else "💔" if result == "loss" else "🤝"
-            result_embed.add_field(
-                name=f"{result_emoji} Result",
-                value=result_text,
-                inline=False
-            )
+                # Add a field separator if bet info was added
+                if total_bet > 0:
+                    result_embed.add_field(name="\u200b", value="\u200b", inline=False)
 
-            # Set thumbnail based on result
-            #if result == "win":
-                #result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
-            #elif result == "loss":
-                #result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
-            #else:
-                #result_embed.set_thumbnail(url="https://i.imgur.com/QsZoZRZ.png")  # Handshake or draw icon
+                # Add result text as its own field with decorative emoji
+                result_emoji = "🏆" if result == "win" else "💔" if result == "loss" else "🤝"
+                result_embed.add_field(
+                    name=f"{result_emoji} Result",
+                    value=result_text,
+                    inline=False
+                )
 
-            result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
+                # Set thumbnail based on result
+                #if result == "win":
+                    #result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
+                #elif result == "loss":
+                    #result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
+                #else:
+                    #result_embed.set_thumbnail(url="https://i.imgur.com/QsZoZRZ.png")  # Handshake or draw icon
 
-            # Send or update the message
-            if message:
-                await message.edit(embed=result_embed, view=None)
-            else:
-                await channel.send(embed=result_embed, content=f"{player.mention} {opponent.mention}")
+                result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
 
-            # Clean up the game
-            self.clean_up_game(player_id, opponent_id)
+                # Send or update the message
+                if message:
+                    await message.edit(embed=result_embed, view=None)
+                else:
+                    await channel.send(embed=result_embed, content=f"{player.mention} {opponent.mention}")
 
-            return True
+                # Clean up the game
+                self.clean_up_game(player_id, opponent_id)
+
+                return True
 
         return True
 
@@ -787,7 +793,7 @@ class RockPaperScissorsCog(commands.Cog):
             inline=False
         )
 
-        
+
 
         result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
 
