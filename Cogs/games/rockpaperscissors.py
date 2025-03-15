@@ -146,35 +146,35 @@ class RockPaperScissorsCog(commands.Cog):
             title="🎮 Rock Paper Scissors Challenge 🎮",
             color=0x9b59b6
         )
-        
+
         # Add player info field
         embed.add_field(
             name="Player",
             value=f"{ctx.author.mention}",
             inline=True
         )
-        
+
         # Add opponent info field
         embed.add_field(
             name="Opponent",
             value="🤖 BetSync Bot",
             inline=True
         )
-        
+
         # Add bet info field
         embed.add_field(
             name="💰 Bet Amount",
             value=bet_description,
             inline=False
         )
-        
+
         # Add instructions
         embed.add_field(
             name="How to Play",
             value="Choose your move by clicking one of the buttons below.\nWin to receive **1.96x** your bet!",
             inline=False
         )
-        
+
         embed.set_thumbnail(url=ctx.bot.user.avatar.url)
         embed.set_footer(text="BetSync Casino • Game will expire in 2 minutes", icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
 
@@ -527,30 +527,30 @@ class RockPaperScissorsCog(commands.Cog):
 
             # Set color based on result
             result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
-            
+
             # Create the enhanced result embed
             result_embed = discord.Embed(
                 title="🎮 Rock Paper Scissors Showdown 🎮",
                 color=result_color
             )
-            
+
             # Add player choice field with emoji
             result_embed.add_field(
                 name=f"{player.name}'s Choice",
                 value=f"**{player_choice.capitalize()}** {self.choice_emojis[player_choice]}",
                 inline=True
             )
-            
+
             # Add opponent choice field with emoji
             result_embed.add_field(
                 name=f"{opponent.name}'s Choice",
                 value=f"**{opponent_choice.capitalize()}** {self.choice_emojis[opponent_choice]}",
                 inline=True
             )
-            
+
             # Add a field separator
             result_embed.add_field(name="\u200b", value="\u200b", inline=False)
-            
+
             # Add bet information
             if total_bet > 0:
                 result_embed.add_field(
@@ -558,7 +558,7 @@ class RockPaperScissorsCog(commands.Cog):
                     value=f"Amount: **{total_bet}**\nMultiplier: **{1.96 if result == 'win' else 0}x**",
                     inline=True
                 )
-                
+
                 # Add winnings information for the winner
                 if result == "win":
                     result_embed.add_field(
@@ -566,11 +566,11 @@ class RockPaperScissorsCog(commands.Cog):
                         value=f"**{total_bet * 1.96}** credits",
                         inline=True
                     )
-            
+
             # Add a field separator if bet info was added
             if total_bet > 0:
                 result_embed.add_field(name="\u200b", value="\u200b", inline=False)
-            
+
             # Add result text as its own field with decorative emoji
             result_emoji = "🏆" if result == "win" else "💔" if result == "loss" else "🤝"
             result_embed.add_field(
@@ -578,7 +578,7 @@ class RockPaperScissorsCog(commands.Cog):
                 value=result_text,
                 inline=False
             )
-            
+
             # Set thumbnail based on result
             if result == "win":
                 result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
@@ -586,8 +586,8 @@ class RockPaperScissorsCog(commands.Cog):
                 result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
             else:
                 result_embed.set_thumbnail(url="https://i.imgur.com/QsZoZRZ.png")  # Handshake or draw icon
-            
-            result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.guild.me.avatar.url if hasattr(player, "guild") else None)
+
+            result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
 
             # Send or update the message
             if message:
@@ -749,29 +749,29 @@ class RockPaperScissorsCog(commands.Cog):
 
         # Set color based on result
         result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
-        
+
         # Create the enhanced result embed
         result_embed = discord.Embed(
             title="🎮 Rock Paper Scissors Results 🎮",
             color=result_color
         )
-        
+
         # Add player and bot choice fields with emojis
         result_embed.add_field(
             name=f"{player.name}'s Choice",
             value=f"**{player_choice.capitalize()}** {self.choice_emojis[player_choice]}",
             inline=True
         )
-        
+
         result_embed.add_field(
             name="Bot's Choice",
             value=f"**{bot_choice.capitalize()}** {self.choice_emojis[bot_choice]}",
             inline=True
         )
-        
+
         # Add a separator
         result_embed.add_field(name="\u200b", value="\u200b", inline=False)
-        
+
         # Add bet information if applicable
         if total_bet > 0:
             result_embed.add_field(
@@ -779,21 +779,21 @@ class RockPaperScissorsCog(commands.Cog):
                 value=f"Amount: **{total_bet}**\nMultiplier: **{1.96 if result == 'win' else 0}x**",
                 inline=False
             )
-        
+
         # Add result text as its own field
         result_embed.add_field(
             name="🏆 Result",
             value=result_text,
             inline=False
         )
-        
+
         # Set thumbnail based on result
         if result == "win":
             result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
         elif result == "loss":
             result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
-        
-        result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.guild.icon.url if player.guild.icon else None)
+
+        result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
 
         # Update the message
         await message.edit(embed=result_embed, view=None)
