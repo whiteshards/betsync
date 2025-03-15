@@ -53,16 +53,26 @@ class CardDrawGameView(discord.ui.View):
 
     async def on_timeout(self):
         if not self.accepted:
+            # Refund the bet to the challenger
+            from Cogs.utils.mongo import Users
+            db = Users()
+            
+            # Process refund based on bet information
+            if self.bet_amount["tokens_used"] > 0:
+                db.update_balance(self.ctx.author.id, self.bet_amount["tokens_used"], "tokens", "$inc")
+            if self.bet_amount["credits_used"] > 0:
+                db.update_balance(self.ctx.author.id, self.bet_amount["credits_used"], "credits", "$inc")
+            
             timeout_embed = discord.Embed(
                 title="⏰ Challenge Expired",
-                description=f"{self.opponent.mention} didn't respond to the Card Draw challenge in time.",
+                description=f"{self.opponent.mention} didn't respond to the Card Draw challenge in time.\nYour bet has been refunded.",
                 color=0xFFA500
             )
             await self.ctx.reply(embed=timeout_embed)
             
             # Try to notify the challenger
             try:
-                await self.ctx.author.send(f"Your Card Draw challenge to {self.opponent.name} has expired.")
+                await self.ctx.author.send(f"Your Card Draw challenge to {self.opponent.name} has expired. Your bet has been refunded.")
             except discord.Forbidden:
                 pass
             
