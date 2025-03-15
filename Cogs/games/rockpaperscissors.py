@@ -530,7 +530,7 @@ class RockPaperScissorsCog(commands.Cog):
             
             # Create the enhanced result embed
             result_embed = discord.Embed(
-                title="🎲 Rock Paper Scissors Results 🎲",
+                title="🎮 Rock Paper Scissors Showdown 🎮",
                 color=result_color
             )
             
@@ -551,12 +551,41 @@ class RockPaperScissorsCog(commands.Cog):
             # Add a field separator
             result_embed.add_field(name="\u200b", value="\u200b", inline=False)
             
-            # Add result text as its own field
+            # Add bet information
+            if total_bet > 0:
+                result_embed.add_field(
+                    name="💰 Bet Information",
+                    value=f"Amount: **{total_bet}**\nMultiplier: **{1.96 if result == 'win' else 0}x**",
+                    inline=True
+                )
+                
+                # Add winnings information for the winner
+                if result == "win":
+                    result_embed.add_field(
+                        name="💸 Winnings",
+                        value=f"**{total_bet * 1.96}** credits",
+                        inline=True
+                    )
+            
+            # Add a field separator if bet info was added
+            if total_bet > 0:
+                result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+            
+            # Add result text as its own field with decorative emoji
+            result_emoji = "🏆" if result == "win" else "💔" if result == "loss" else "🤝"
             result_embed.add_field(
-                name="Result",
+                name=f"{result_emoji} Result",
                 value=result_text,
                 inline=False
             )
+            
+            # Set thumbnail based on result
+            if result == "win":
+                result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
+            elif result == "loss":
+                result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
+            else:
+                result_embed.set_thumbnail(url="https://i.imgur.com/QsZoZRZ.png")  # Handshake or draw icon
             
             result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.guild.me.avatar.url if hasattr(player, "guild") else None)
 
@@ -718,17 +747,53 @@ class RockPaperScissorsCog(commands.Cog):
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
 
-        # Create the result embed
+        # Set color based on result
+        result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
+        
+        # Create the enhanced result embed
         result_embed = discord.Embed(
-            title="🪨 📄 ✂️ Rock Paper Scissors Results",
-            description=(
-                f"{player.mention} chose **{player_choice}** {self.choice_emojis[player_choice]}\n"
-                f"Bot chose **{bot_choice}** {self.choice_emojis[bot_choice]}\n\n"
-                f"{result_text}"
-            ),
-            color=0x00FFAE
+            title="🎮 Rock Paper Scissors Results 🎮",
+            color=result_color
         )
-        result_embed.set_footer(text="BetSync Casino")
+        
+        # Add player and bot choice fields with emojis
+        result_embed.add_field(
+            name=f"{player.name}'s Choice",
+            value=f"**{player_choice.capitalize()}** {self.choice_emojis[player_choice]}",
+            inline=True
+        )
+        
+        result_embed.add_field(
+            name="Bot's Choice",
+            value=f"**{bot_choice.capitalize()}** {self.choice_emojis[bot_choice]}",
+            inline=True
+        )
+        
+        # Add a separator
+        result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+        
+        # Add bet information if applicable
+        if total_bet > 0:
+            result_embed.add_field(
+                name="💰 Bet Information",
+                value=f"Amount: **{total_bet}**\nMultiplier: **{1.96 if result == 'win' else 0}x**",
+                inline=False
+            )
+        
+        # Add result text as its own field
+        result_embed.add_field(
+            name="🏆 Result",
+            value=result_text,
+            inline=False
+        )
+        
+        # Set thumbnail based on result
+        if result == "win":
+            result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
+        elif result == "loss":
+            result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
+        
+        result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.guild.icon.url if player.guild.icon else None)
 
         # Update the message
         await message.edit(embed=result_embed, view=None)
@@ -997,7 +1062,13 @@ class RockPaperScissorsView(discord.ui.View):
             description="You selected **Rock** 🪨",
             color=0x3498db
         )
-        choice_embed.set_footer(text="BetSync Casino", icon_url=interaction.client.user.avatar.url)
+        choice_embed.add_field(
+            name="Waiting for result...",
+            value="Your opponent is making their choice",
+            inline=False
+        )
+        choice_embed.set_thumbnail(url="https://i.imgur.com/jAI4Wvj.png")  # Rock image or similar
+        choice_embed.set_footer(text="BetSync Casino • Good luck!", icon_url=interaction.client.user.avatar.url)
         await interaction.followup.send(embed=choice_embed, ephemeral=True)
 
         # Disable all buttons
@@ -1022,7 +1093,13 @@ class RockPaperScissorsView(discord.ui.View):
             description="You selected **Paper** 📄",
             color=0x3498db
         )
-        choice_embed.set_footer(text="BetSync Casino", icon_url=interaction.client.user.avatar.url)
+        choice_embed.add_field(
+            name="Waiting for result...",
+            value="Your opponent is making their choice",
+            inline=False
+        )
+        choice_embed.set_thumbnail(url="https://i.imgur.com/6HO0KP2.png")  # Paper image or similar
+        choice_embed.set_footer(text="BetSync Casino • Good luck!", icon_url=interaction.client.user.avatar.url)
         await interaction.followup.send(embed=choice_embed, ephemeral=True)
 
         # Disable all buttons
@@ -1047,7 +1124,13 @@ class RockPaperScissorsView(discord.ui.View):
             description="You selected **Scissors** ✂️",
             color=0x3498db
         )
-        choice_embed.set_footer(text="BetSync Casino", icon_url=interaction.client.user.avatar.url)
+        choice_embed.add_field(
+            name="Waiting for result...",
+            value="Your opponent is making their choice",
+            inline=False
+        )
+        choice_embed.set_thumbnail(url="https://i.imgur.com/xw66BxC.png")  # Scissors image or similar
+        choice_embed.set_footer(text="BetSync Casino • Good luck!", icon_url=interaction.client.user.avatar.url)
         await interaction.followup.send(embed=choice_embed, ephemeral=True)
 
         # Disable all buttons
