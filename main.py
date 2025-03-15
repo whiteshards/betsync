@@ -37,7 +37,7 @@ cogs = [
     "Cogs.games.race", "Cogs.games.cases", "Cogs.games.tictactoe", 
     "Cogs.games.hilo", "Cogs.games.poker", "Cogs.games.plinko", 
     "Cogs.games.keno", "Cogs.games.blackjack", "Cogs.games.baccarat",
-    "Cogs.games.carddraw", "Cogs.games.match"
+    "Cogs.games.carddraw", "Cogs.games.match", "Cogs.games.rockpaperscissors"
 ]
 
 @bot.event
