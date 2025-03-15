@@ -580,12 +580,12 @@ class RockPaperScissorsCog(commands.Cog):
             )
 
             # Set thumbnail based on result
-            if result == "win":
-                result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
-            elif result == "loss":
-                result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
-            else:
-                result_embed.set_thumbnail(url="https://i.imgur.com/QsZoZRZ.png")  # Handshake or draw icon
+            #if result == "win":
+                #result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
+            #elif result == "loss":
+                #result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
+            #else:
+                #result_embed.set_thumbnail(url="https://i.imgur.com/QsZoZRZ.png")  # Handshake or draw icon
 
             result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
 
@@ -787,11 +787,7 @@ class RockPaperScissorsCog(commands.Cog):
             inline=False
         )
 
-        # Set thumbnail based on result
-        if result == "win":
-            result_embed.set_thumbnail(url="https://i.imgur.com/7JLzaVh.png")  # Trophy or win icon
-        elif result == "loss":
-            result_embed.set_thumbnail(url="https://i.imgur.com/hca2Fof.png")  # Sad face or loss icon
+        
 
         result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.avatar.url if player.avatar else None)
 
