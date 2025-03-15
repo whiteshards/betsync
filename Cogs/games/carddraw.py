@@ -41,15 +41,25 @@ class CardDrawGameView(discord.ui.View):
         
         await interaction.response.edit_message(view=self)
         
+        # Refund the bet to the challenger
+        from Cogs.utils.mongo import Users
+        db = Users()
+        
+        # Process refund based on bet information
+        if self.bet_amount["tokens_used"] > 0:
+            db.update_balance(self.ctx.author.id, self.bet_amount["tokens_used"], "tokens", "$inc")
+        if self.bet_amount["credits_used"] > 0:
+            db.update_balance(self.ctx.author.id, self.bet_amount["credits_used"], "credits", "$inc")
+        
         decline_embed = discord.Embed(
             title="❌ Challenge Declined",
-            description=f"{self.opponent.mention} declined the Card Draw challenge.",
+            description=f"{self.opponent.mention} declined the Card Draw challenge.\nYour bet has been refunded.",
             color=0xFF0000
         )
         await self.ctx.reply(embed=decline_embed)
         
         # Reset cooldown
-        self.cog.carddraw.reset_cooldown(self.ctx)
+        self.cog.carddraw.reset_cooldown(self.ctx)x)
 
     async def on_timeout(self):
         if not self.accepted:
