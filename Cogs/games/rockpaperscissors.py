@@ -448,7 +448,7 @@ class RockPaperScissorsCog(commands.Cog):
 
                 elif winner_id == initiator_id:
                     # Initiator wins - double the bet
-                    winnings = total_bet * 2
+                    winnings = total_bet * 1.96
                     db.update_balance(initiator_id, winnings, "credits", "$inc")
 
                     result_text = f"{initiator.mention} wins and receives **{winnings}** credits!"
@@ -555,7 +555,7 @@ class RockPaperScissorsCog(commands.Cog):
                 )
 
                 # Add a field separator
-                result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+                #result_embed.add_field(name="\u200b", value="\u200b", inline=False)
 
                 # Add bet information
                 if total_bet > 0:
@@ -575,7 +575,7 @@ class RockPaperScissorsCog(commands.Cog):
 
                 # Add a field separator if bet info was added
                 if total_bet > 0:
-                    result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+                    pass #result_embed.add_field(name="\u200b", value="\u200b", inline=False)
 
                 # Add result text as its own field with decorative emoji
                 result_emoji = "🏆" if result == "win" else "💔" if result == "loss" else "🤝"
