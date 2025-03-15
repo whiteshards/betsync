@@ -864,7 +864,7 @@ class Blackjack(commands.Cog):
         # Timestamp for history entries
         timestamp = int(datetime.datetime.now().timestamp())
         
-        if result == "win" or result == "blackjack":
+        if result == "win" or result == "blackjack" or result == "push":
             # Player wins - add winnings to balance
             user_db.update_balance(user_id, win_amount, "credits", "$inc")
             
@@ -937,36 +937,7 @@ class Blackjack(commands.Cog):
             }
             server_db.update_history(ctx.guild.id, server_history_entry)
             
-        elif result == "push":
-            # Push (tie) - return bet to player
-            user_db.update_balance(user_id, bet_amount, currency_used, "$inc")
-            
-            # Add push to history
-            history_entry = {
-                "type": "draw",
-                "game": "blackjack",
-                "bet": bet_amount,
-                "timestamp": timestamp
-            }
-            
-            user_db.collection.update_one(
-                {"discord_id": user_id},
-                {
-                    "$push": {"history": {"$each": [history_entry], "$slice": -100}},
-                    "$inc": {"total_played": 1}
-                }
-            )
-            
-            # Add to server history
-            server_history_entry = {
-                "type": "draw",
-                "game": "blackjack",
-                "user_id": user_id,
-                "user_name": ctx.author.name,
-                "bet": bet_amount,
-                "timestamp": timestamp
-            }
-            server_db.update_history(ctx.guild.id, server_history_entry)
+        
 
 def setup(bot):
     bot.add_cog(Blackjack(bot))

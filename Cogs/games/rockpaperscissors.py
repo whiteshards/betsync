@@ -18,7 +18,7 @@ class RockPaperScissorsCog(commands.Cog):
         }
 
     @commands.command(aliases=["rps"])
-    async def rockpaperscissors(self, ctx, opponent: discord.Member = None, bet_amount: str = None, currency_type: str = None):
+    async def rockpaperscissors(self, ctx, bet_amount=None, opponent: discord.Member = None, currency_type: str = None):
         """Play Rock Paper Scissors against the bot or another player!"""
         # Show help if no arguments
         if not bet_amount:
@@ -446,7 +446,7 @@ class RockPaperScissorsCog(commands.Cog):
                 if game_info["type"] == "pve":
                     server_db = Servers()
                     server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
-                    server_db.update_server_profit(channel.guild.id, server_profit)
+                    server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
 
                     # Update server bet history
                     server_history = {
@@ -487,7 +487,7 @@ class RockPaperScissorsCog(commands.Cog):
                 if game_info["type"] == "pve":
                     server_db = Servers()
                     server_profit = total_bet  # Server gets the full bet
-                    server_db.update_server_profit(channel.guild.id, server_profit)
+                    server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
 
                     # Update server bet history
                     server_history = {
@@ -590,7 +590,7 @@ class RockPaperScissorsCog(commands.Cog):
             # Update server profit
             server_db = Servers()
             server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
-            server_db.update_server_profit(channel.guild.id, server_profit)
+            server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
 
             # Update server bet history
             server_history = {
@@ -630,7 +630,7 @@ class RockPaperScissorsCog(commands.Cog):
             # Update server profit (only in PVE games, which this is)
             server_db = Servers()
             server_profit = total_bet  # Server gets the full bet
-            server_db.update_server_profit(channel.guild.id, server_profit)
+            server_db.update_server_profit(channel.guild.id, server_profit, game="rockpaperscissors")
 
             # Update server bet history
             server_history = {
