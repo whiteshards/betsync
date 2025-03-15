@@ -421,10 +421,54 @@ class RockPaperScissorsCog(commands.Cog):
 
                 if result == "draw":
                     # Draw - refund the bet
+                    user_db = Users()
+                    # Refund tokens to initiator
                     if tokens_used > 0:
-                        db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
+                        user_db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
+
+                    # Refund credits to initiator
                     if credits_used > 0:
-                        db.update_balance(initiator_id, credits_used, "credits", "$inc")
+                        user_db.update_balance(initiator_id, credits_used, "credits", "$inc")
+
+                    # Log the outcome for initiator
+                    history_entry = {
+                        "type": "draw",
+                        "game": "Rock Paper Scissors",
+                        "bet": total_bet,
+                        "winnings": 0,
+                        "timestamp": int(time.time())
+                    }
+                    user_db.collection.update_one(
+                        {"discord_id": initiator_id},
+                        {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
+                    )
+
+                    # Now handle opponent refund (for PVP games)
+                    if game_info["type"] == "pvp_active" and opponent_id:
+                        # Get opponent bet information
+                        opponent_tokens_used = game_info.get("tokens_used", 0)
+                        opponent_credits_used = game_info.get("credits_used", 0)
+
+                        # Refund tokens to opponent
+                        if opponent_tokens_used > 0:
+                            user_db.update_balance(opponent_id, opponent_tokens_used, "tokens", "$inc")
+
+                        # Refund credits to opponent
+                        if opponent_credits_used > 0:
+                            user_db.update_balance(opponent_id, opponent_credits_used, "credits", "$inc")
+
+                        # Log the outcome for opponent
+                        opponent_history = {
+                            "type": "draw",
+                            "game": "Rock Paper Scissors",
+                            "bet": total_bet,
+                            "winnings": 0,
+                            "timestamp": int(time.time())
+                        }
+                        user_db.collection.update_one(
+                            {"discord_id": opponent_id},
+                            {"$push": {"history": {"$each": [opponent_history], "$slice": -100}}}
+                        )
 
                     result_text = "It's a draw! The bet has been refunded."
 
@@ -445,6 +489,7 @@ class RockPaperScissorsCog(commands.Cog):
                         {"discord_id": initiator_id},
                         {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                     )
+
 
                 elif winner_id == initiator_id:
                     # Initiator wins - double the bet
