@@ -141,17 +141,42 @@ class RockPaperScissorsCog(commands.Cog):
 
     async def start_pve_game(self, ctx, tokens_used, credits_used, total_bet, bet_description):
         """Start a Rock Paper Scissors game against the bot"""
-        # Create the initial embed
+        # Create the enhanced initial embed
         embed = discord.Embed(
-            title="🪨 📄 ✂️ Rock Paper Scissors vs. Bot",
-            description=(
-                f"{ctx.author.mention} has started a game of Rock Paper Scissors against the bot!\n\n"
-                f"{bet_description}\n\n"
-                "Choose your move by clicking one of the buttons below."
-            ),
-            color=0x00FFAE
+            title="🎮 Rock Paper Scissors Challenge 🎮",
+            color=0x9b59b6
         )
-        embed.set_footer(text="BetSync Casino • Game will expire in 2 minutes")
+        
+        # Add player info field
+        embed.add_field(
+            name="Player",
+            value=f"{ctx.author.mention}",
+            inline=True
+        )
+        
+        # Add opponent info field
+        embed.add_field(
+            name="Opponent",
+            value="🤖 BetSync Bot",
+            inline=True
+        )
+        
+        # Add bet info field
+        embed.add_field(
+            name="💰 Bet Amount",
+            value=bet_description,
+            inline=False
+        )
+        
+        # Add instructions
+        embed.add_field(
+            name="How to Play",
+            value="Choose your move by clicking one of the buttons below.\nWin to receive **1.96x** your bet!",
+            inline=False
+        )
+        
+        embed.set_thumbnail(url=ctx.bot.user.avatar.url)
+        embed.set_footer(text="BetSync Casino • Game will expire in 2 minutes", icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
 
         # Create button view
         view = RockPaperScissorsView(self, ctx.author.id, tokens_used, credits_used, total_bet)
@@ -500,17 +525,40 @@ class RockPaperScissorsCog(commands.Cog):
                     }
                     server_db.update_history(channel.guild.id, server_history)
 
-            # Create the result embed
+            # Set color based on result
+            result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
+            
+            # Create the enhanced result embed
             result_embed = discord.Embed(
-                title="🪨 📄 ✂️ Rock Paper Scissors Results",
-                description=(
-                    f"{player.mention} chose **{player_choice}** {self.choice_emojis[player_choice]}\n"
-                    f"{opponent.mention} chose **{opponent_choice}** {self.choice_emojis[opponent_choice]}\n\n"
-                    f"{result_text}"
-                ),
-                color=0x00FFAE
+                title="🎲 Rock Paper Scissors Results 🎲",
+                color=result_color
             )
-            result_embed.set_footer(text="BetSync Casino")
+            
+            # Add player choice field with emoji
+            result_embed.add_field(
+                name=f"{player.name}'s Choice",
+                value=f"**{player_choice.capitalize()}** {self.choice_emojis[player_choice]}",
+                inline=True
+            )
+            
+            # Add opponent choice field with emoji
+            result_embed.add_field(
+                name=f"{opponent.name}'s Choice",
+                value=f"**{opponent_choice.capitalize()}** {self.choice_emojis[opponent_choice]}",
+                inline=True
+            )
+            
+            # Add a field separator
+            result_embed.add_field(name="\u200b", value="\u200b", inline=False)
+            
+            # Add result text as its own field
+            result_embed.add_field(
+                name="Result",
+                value=result_text,
+                inline=False
+            )
+            
+            result_embed.set_footer(text="BetSync Casino • Thanks for playing!", icon_url=player.guild.me.avatar.url if hasattr(player, "guild") else None)
 
             # Send or update the message
             if message:
@@ -943,8 +991,14 @@ class RockPaperScissorsView(discord.ui.View):
         # Properly acknowledge the interaction
         await interaction.response.defer(ephemeral=True)
 
-        # Send feedback message to user
-        await interaction.followup.send("You chose **Rock** 🪨", ephemeral=True)
+        # Send styled feedback message to user
+        choice_embed = discord.Embed(
+            title="🎮 Your Choice",
+            description="You selected **Rock** 🪨",
+            color=0x3498db
+        )
+        choice_embed.set_footer(text="BetSync Casino", icon_url=interaction.client.user.avatar.url)
+        await interaction.followup.send(embed=choice_embed, ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -962,8 +1016,14 @@ class RockPaperScissorsView(discord.ui.View):
         # Properly acknowledge the interaction
         await interaction.response.defer(ephemeral=True)
 
-        # Send feedback message to user
-        await interaction.followup.send("You chose **Paper** 📄", ephemeral=True)
+        # Send styled feedback message to user
+        choice_embed = discord.Embed(
+            title="🎮 Your Choice",
+            description="You selected **Paper** 📄",
+            color=0x3498db
+        )
+        choice_embed.set_footer(text="BetSync Casino", icon_url=interaction.client.user.avatar.url)
+        await interaction.followup.send(embed=choice_embed, ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -981,8 +1041,14 @@ class RockPaperScissorsView(discord.ui.View):
         # Properly acknowledge the interaction
         await interaction.response.defer(ephemeral=True)
 
-        # Send feedback message to user
-        await interaction.followup.send("You chose **Scissors** ✂️", ephemeral=True)
+        # Send styled feedback message to user
+        choice_embed = discord.Embed(
+            title="🎮 Your Choice",
+            description="You selected **Scissors** ✂️",
+            color=0x3498db
+        )
+        choice_embed.set_footer(text="BetSync Casino", icon_url=interaction.client.user.avatar.url)
+        await interaction.followup.send(embed=choice_embed, ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
