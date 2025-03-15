@@ -1,4 +1,3 @@
-
 import discord
 import asyncio
 import random
@@ -156,10 +155,10 @@ class RockPaperScissorsCog(commands.Cog):
 
         # Create button view
         view = RockPaperScissorsView(self, ctx.author.id, tokens_used, credits_used, total_bet)
-        
+
         # Send the game message
         game_message = await ctx.reply(embed=embed, view=view)
-        
+
         # Store game info
         self.ongoing_games[ctx.author.id] = {
             "channel_id": ctx.channel.id,
@@ -168,7 +167,7 @@ class RockPaperScissorsCog(commands.Cog):
             "view": view,
             "start_time": time.time()
         }
-        
+
         # Start timeout task
         self.bot.loop.create_task(
             self.handle_game_timeout(ctx.author.id, ctx.channel.id, game_message.id, 120)
@@ -184,14 +183,14 @@ class RockPaperScissorsCog(commands.Cog):
                 db.update_balance(ctx.author.id, tokens_used, "tokens", "$inc")
             if credits_used > 0:
                 db.update_balance(ctx.author.id, credits_used, "credits", "$inc")
-                
+
             embed = discord.Embed(
                 title="<:no:1344252518305234987> | Opponent Busy",
                 description=f"{opponent.mention} is already in a game. Please try again later.",
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         # Create the challenge embed
         challenge_embed = discord.Embed(
             title="🪨 📄 ✂️ Rock Paper Scissors Challenge",
@@ -203,13 +202,13 @@ class RockPaperScissorsCog(commands.Cog):
             color=0x00FFAE
         )
         challenge_embed.set_footer(text="BetSync Casino • Challenge expires in 60 seconds")
-        
+
         # Create accept/decline view
         view = ChallengeView(self, ctx.author, opponent, tokens_used, credits_used, total_bet)
-        
+
         # Send the challenge message
         challenge_message = await ctx.reply(embed=challenge_embed, view=view)
-        
+
         # Store game info for initiator
         self.ongoing_games[ctx.author.id] = {
             "channel_id": ctx.channel.id,
@@ -222,7 +221,7 @@ class RockPaperScissorsCog(commands.Cog):
             "view": view,
             "start_time": time.time()
         }
-        
+
         # Start timeout task for the challenge
         self.bot.loop.create_task(
             self.handle_challenge_timeout(ctx.author.id, opponent.id, ctx.channel.id, challenge_message.id, 60)
@@ -234,11 +233,11 @@ class RockPaperScissorsCog(commands.Cog):
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return self.clean_up_game(initiator.id, opponent.id)
-            
+
         message = await channel.fetch_message(message_id)
         if not message:
             return self.clean_up_game(initiator.id, opponent.id)
-            
+
         # Update the game status for both players
         self.ongoing_games[initiator.id] = {
             "channel_id": channel_id,
@@ -251,7 +250,7 @@ class RockPaperScissorsCog(commands.Cog):
             "choice": None,
             "start_time": time.time()
         }
-        
+
         self.ongoing_games[opponent.id] = {
             "channel_id": channel_id,
             "message_id": message_id,
@@ -260,7 +259,7 @@ class RockPaperScissorsCog(commands.Cog):
             "choice": None,
             "start_time": time.time()
         }
-        
+
         # Update the embed
         game_embed = discord.Embed(
             title="🪨 📄 ✂️ Rock Paper Scissors Battle",
@@ -273,10 +272,10 @@ class RockPaperScissorsCog(commands.Cog):
             color=0x00FFAE
         )
         game_embed.set_footer(text="BetSync Casino • Game will expire in 2 minutes")
-        
+
         # Update the message
         await message.edit(embed=game_embed, view=None)
-        
+
         # Send DMs to both players
         try:
             initiator_view = PlayerChoiceView(self, initiator.id, opponent.id)
@@ -293,7 +292,7 @@ class RockPaperScissorsCog(commands.Cog):
             # Can't DM initiator
             await self.handle_dm_error(channel, initiator, opponent, tokens_used, credits_used)
             return
-            
+
         try:
             opponent_view = PlayerChoiceView(self, opponent.id, initiator.id)
             opponent_embed = discord.Embed(
@@ -309,7 +308,7 @@ class RockPaperScissorsCog(commands.Cog):
             # Can't DM opponent
             await self.handle_dm_error(channel, initiator, opponent, tokens_used, credits_used)
             return
-            
+
         # Start timeout task
         self.bot.loop.create_task(
             self.handle_pvp_timeout(initiator.id, opponent.id, channel_id, message_id, 120)
@@ -323,10 +322,10 @@ class RockPaperScissorsCog(commands.Cog):
             db.update_balance(initiator.id, tokens_used, "tokens", "$inc")
         if credits_used > 0:
             db.update_balance(initiator.id, credits_used, "credits", "$inc")
-            
+
         # Clean up the games
         self.clean_up_game(initiator.id, opponent.id)
-        
+
         # Send error message
         error_embed = discord.Embed(
             title="<:no:1344252518305234987> | DM Error",
@@ -339,26 +338,26 @@ class RockPaperScissorsCog(commands.Cog):
         """Process a player's choice in a PvP game"""
         if player_id not in self.ongoing_games or self.ongoing_games[player_id]["type"] != "pvp_active":
             return False
-            
+
         # Store the player's choice
         self.ongoing_games[player_id]["choice"] = choice
-        
+
         # Get opponent info
         opponent_id = self.ongoing_games[player_id]["opponent_id"]
-        
+
         # Check if both players have made their choices
         if opponent_id in self.ongoing_games and self.ongoing_games[opponent_id]["choice"] is not None:
             # Both players have chosen, resolve the game
             channel_id = self.ongoing_games[player_id]["channel_id"]
             message_id = self.ongoing_games[player_id]["message_id"]
-            
+
             player_choice = self.ongoing_games[player_id]["choice"]
             opponent_choice = self.ongoing_games[opponent_id]["choice"]
-            
+
             # Get player and opponent objects
             player = self.bot.get_user(player_id)
             opponent = self.bot.get_user(opponent_id)
-            
+
             # Determine who initiated the game (who placed the bet)
             if "tokens_used" in self.ongoing_games[player_id]:
                 initiator_id = player_id
@@ -372,38 +371,38 @@ class RockPaperScissorsCog(commands.Cog):
                 tokens_used = self.ongoing_games[opponent_id]["tokens_used"]
                 credits_used = self.ongoing_games[opponent_id]["credits_used"]
                 total_bet = self.ongoing_games[opponent_id]["total_bet"]
-            
+
             # Get the channel and message
             channel = self.bot.get_channel(channel_id)
             if not channel:
                 return self.clean_up_game(player_id, opponent_id)
-                
+
             try:
                 message = await channel.fetch_message(message_id)
             except:
                 message = None
-            
+
             # Determine the winner
             result, winner_id = self.determine_winner(player_id, player_choice, opponent_id, opponent_choice)
-            
+
             # Handle the result
             db = Users()
-            
+
             if result == "draw":
                 # Draw - refund the bet
                 if tokens_used > 0:
                     db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
                 if credits_used > 0:
                     db.update_balance(initiator_id, credits_used, "credits", "$inc")
-                
+
                 result_text = "It's a draw! The bet has been refunded."
-                
+
                 # Update player statistics
                 db.collection.update_one(
                     {"discord_id": initiator_id},
                     {"$inc": {"total_played": 0}}  # No change since we already incremented
                 )
-                
+
                 # Log the game in history
                 history_entry = {
                     "type": "draw",
@@ -415,20 +414,20 @@ class RockPaperScissorsCog(commands.Cog):
                     {"discord_id": initiator_id},
                     {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                 )
-                
+
             elif winner_id == initiator_id:
                 # Initiator wins - double the bet
                 winnings = total_bet * 2
                 db.update_balance(initiator_id, winnings, "credits", "$inc")
-                
+
                 result_text = f"{initiator.mention} wins and receives **{winnings}** credits!"
-                
+
                 # Update player statistics
                 db.collection.update_one(
                     {"discord_id": initiator_id},
                     {"$inc": {"total_won": 1, "total_earned": winnings}}
                 )
-                
+
                 # Log the game in history
                 history_entry = {
                     "type": "win",
@@ -442,12 +441,12 @@ class RockPaperScissorsCog(commands.Cog):
                     {"discord_id": initiator_id},
                     {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                 )
-                
+
                 # Update server profit
                 server_db = Servers()
                 server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
                 server_db.update_server_profit(channel.guild.id, server_profit)
-                
+
                 # Update server bet history
                 server_history = {
                     "type": "win",
@@ -460,17 +459,17 @@ class RockPaperScissorsCog(commands.Cog):
                     "timestamp": int(time.time())
                 }
                 server_db.update_history(channel.guild.id, server_history)
-                
+
             else:
                 # Opponent wins - initiator loses the bet
                 result_text = f"{opponent.mention} wins! {initiator.mention} loses the bet."
-                
+
                 # Update player statistics
                 db.collection.update_one(
                     {"discord_id": initiator_id},
                     {"$inc": {"total_lost": 1}}
                 )
-                
+
                 # Log the game in history
                 history_entry = {
                     "type": "loss",
@@ -482,12 +481,12 @@ class RockPaperScissorsCog(commands.Cog):
                     {"discord_id": initiator_id},
                     {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                 )
-                
+
                 # Update server profit
                 server_db = Servers()
                 server_profit = total_bet  # Server gets the full bet
                 server_db.update_server_profit(channel.guild.id, server_profit)
-                
+
                 # Update server bet history
                 server_history = {
                     "type": "loss",
@@ -498,7 +497,7 @@ class RockPaperScissorsCog(commands.Cog):
                     "timestamp": int(time.time())
                 }
                 server_db.update_history(channel.guild.id, server_history)
-            
+
             # Create the result embed
             result_embed = discord.Embed(
                 title="🪨 📄 ✂️ Rock Paper Scissors Results",
@@ -510,68 +509,68 @@ class RockPaperScissorsCog(commands.Cog):
                 color=0x00FFAE
             )
             result_embed.set_footer(text="BetSync Casino")
-            
+
             # Send or update the message
             if message:
                 await message.edit(embed=result_embed, view=None)
             else:
                 await channel.send(embed=result_embed, content=f"{player.mention} {opponent.mention}")
-            
+
             # Clean up the game
             self.clean_up_game(player_id, opponent_id)
-            
+
             return True
-        
+
         return True
 
     async def process_bot_choice(self, player_id, player_choice):
         """Process the result of a game against the bot"""
         if player_id not in self.ongoing_games or self.ongoing_games[player_id]["type"] != "pve":
             return False
-            
+
         # Get game info
         channel_id = self.ongoing_games[player_id]["channel_id"]
         message_id = self.ongoing_games[player_id]["message_id"]
         view = self.ongoing_games[player_id]["view"]
-        
+
         # Get the channel and message
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return self.clean_up_game(player_id)
-            
+
         try:
             message = await channel.fetch_message(message_id)
         except:
             return self.clean_up_game(player_id)
-            
+
         # Bot makes a random choice
         bot_choice = random.choice(self.choices)
-        
+
         # Determine the winner
         player = self.bot.get_user(player_id)
         result = self.determine_bot_winner(player_choice, bot_choice)
-        
+
         # Get bet info from the view
         tokens_used = view.tokens_used
         credits_used = view.credits_used
         total_bet = view.total_bet
-        
+
         # Handle the result
         db = Users()
-        
+
         if result == "win":
             # Player wins - double the bet
             winnings = total_bet * 2
             db.update_balance(player_id, winnings, "credits", "$inc")
-            
+
             result_text = f"{player.mention} wins and receives **{winnings}** credits!"
-            
+
             # Update player statistics
             db.collection.update_one(
                 {"discord_id": player_id},
                 {"$inc": {"total_won": 1, "total_earned": winnings}}
             )
-            
+
             # Log the game in history
             history_entry = {
                 "type": "win",
@@ -585,12 +584,12 @@ class RockPaperScissorsCog(commands.Cog):
                 {"discord_id": player_id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
-            
+
             # Update server profit
             server_db = Servers()
             server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
             server_db.update_server_profit(channel.guild.id, server_profit)
-            
+
             # Update server bet history
             server_history = {
                 "type": "win",
@@ -603,17 +602,17 @@ class RockPaperScissorsCog(commands.Cog):
                 "timestamp": int(time.time())
             }
             server_db.update_history(channel.guild.id, server_history)
-            
+
         elif result == "loss":
             # Player loses the bet
             result_text = f"{player.mention} loses the bet."
-            
+
             # Update player statistics
             db.collection.update_one(
                 {"discord_id": player_id},
                 {"$inc": {"total_lost": 1}}
             )
-            
+
             # Log the game in history
             history_entry = {
                 "type": "loss",
@@ -625,12 +624,12 @@ class RockPaperScissorsCog(commands.Cog):
                 {"discord_id": player_id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
-            
+
             # Update server profit
             server_db = Servers()
             server_profit = total_bet  # Server gets the full bet
             server_db.update_server_profit(channel.guild.id, server_profit)
-            
+
             # Update server bet history
             server_history = {
                 "type": "loss",
@@ -641,22 +640,22 @@ class RockPaperScissorsCog(commands.Cog):
                 "timestamp": int(time.time())
             }
             server_db.update_history(channel.guild.id, server_history)
-            
+
         else:  # Draw
             # Refund the bet
             if tokens_used > 0:
                 db.update_balance(player_id, tokens_used, "tokens", "$inc")
             if credits_used > 0:
                 db.update_balance(player_id, credits_used, "credits", "$inc")
-                
+
             result_text = "It's a draw! The bet has been refunded."
-            
+
             # Update player statistics
             db.collection.update_one(
                 {"discord_id": player_id},
                 {"$inc": {"total_played": 0}}  # No change since we already incremented
             )
-            
+
             # Log the game in history
             history_entry = {
                 "type": "draw",
@@ -668,7 +667,7 @@ class RockPaperScissorsCog(commands.Cog):
                 {"discord_id": player_id},
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
-        
+
         # Create the result embed
         result_embed = discord.Embed(
             title="🪨 📄 ✂️ Rock Paper Scissors Results",
@@ -680,86 +679,86 @@ class RockPaperScissorsCog(commands.Cog):
             color=0x00FFAE
         )
         result_embed.set_footer(text="BetSync Casino")
-        
+
         # Update the message
         await message.edit(embed=result_embed, view=None)
-        
+
         # Clean up the game
         self.clean_up_game(player_id)
-        
+
         return True
 
     def determine_bot_winner(self, player_choice, bot_choice):
         """Determine the winner between player and bot"""
         if player_choice == bot_choice:
             return "draw"
-            
+
         if (player_choice == "rock" and bot_choice == "scissors") or \
            (player_choice == "paper" and bot_choice == "rock") or \
            (player_choice == "scissors" and bot_choice == "paper"):
             return "win"
-            
+
         return "loss"
 
     def determine_winner(self, player1_id, player1_choice, player2_id, player2_choice):
         """Determine the winner between two players, returns (result, winner_id)"""
         if player1_choice == player2_choice:
             return "draw", None
-            
+
         if (player1_choice == "rock" and player2_choice == "scissors") or \
            (player1_choice == "paper" and player2_choice == "rock") or \
            (player1_choice == "scissors" and player2_choice == "paper"):
             return "win", player1_id
-            
+
         return "win", player2_id
 
     def clean_up_game(self, player1_id, player2_id=None):
         """Clean up game data for one or two players"""
         if player1_id in self.ongoing_games:
             del self.ongoing_games[player1_id]
-            
+
         if player2_id and player2_id in self.ongoing_games:
             del self.ongoing_games[player2_id]
 
     async def handle_game_timeout(self, player_id, channel_id, message_id, timeout):
         """Handle timeout for single player games"""
         await asyncio.sleep(timeout)
-        
+
         # Check if the game is still active
         if player_id not in self.ongoing_games:
             return
-            
+
         game_info = self.ongoing_games[player_id]
-        
+
         # Check if it's the same game instance
         if game_info["channel_id"] != channel_id or game_info["message_id"] != message_id:
             return
-            
+
         # Game has timed out
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return self.clean_up_game(player_id)
-            
+
         try:
             message = await channel.fetch_message(message_id)
         except:
             return self.clean_up_game(player_id)
-            
+
         # Get player
         player = self.bot.get_user(player_id)
-        
+
         # Refund the bet if it's a PvE game
         if game_info["type"] == "pve":
             view = game_info["view"]
             tokens_used = view.tokens_used
             credits_used = view.credits_used
-            
+
             db = Users()
             if tokens_used > 0:
                 db.update_balance(player_id, tokens_used, "tokens", "$inc")
             if credits_used > 0:
                 db.update_balance(player_id, credits_used, "credits", "$inc")
-        
+
         # Create timeout embed
         timeout_embed = discord.Embed(
             title="⏱️ Game Timed Out",
@@ -767,10 +766,10 @@ class RockPaperScissorsCog(commands.Cog):
             color=0xFF0000
         )
         timeout_embed.set_footer(text="BetSync Casino")
-        
+
         # Update the message
         await message.edit(embed=timeout_embed, view=None)
-        
+
         # Try to notify the player via DM
         try:
             await player.send(
@@ -782,44 +781,44 @@ class RockPaperScissorsCog(commands.Cog):
             )
         except:
             pass
-            
+
         # Clean up the game
         self.clean_up_game(player_id)
 
     async def handle_pvp_timeout(self, player1_id, player2_id, channel_id, message_id, timeout):
         """Handle timeout for PvP games"""
         await asyncio.sleep(timeout)
-        
+
         # Check if the game is still active
         if player1_id not in self.ongoing_games or player2_id not in self.ongoing_games:
             return
-            
+
         game1_info = self.ongoing_games[player1_id]
         game2_info = self.ongoing_games[player2_id]
-        
+
         # Check if it's the same game instance
         if game1_info["channel_id"] != channel_id or game1_info["message_id"] != message_id:
             return
-            
+
         # Check if both players have made their choices
         if "choice" in game1_info and game1_info["choice"] is not None and \
            "choice" in game2_info and game2_info["choice"] is not None:
             return  # Game is already being processed
-            
+
         # Game has timed out
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return self.clean_up_game(player1_id, player2_id)
-            
+
         try:
             message = await channel.fetch_message(message_id)
         except:
             return self.clean_up_game(player1_id, player2_id)
-            
+
         # Get players
         player1 = self.bot.get_user(player1_id)
         player2 = self.bot.get_user(player2_id)
-        
+
         # Determine who initiated the game (who placed the bet)
         if "tokens_used" in game1_info:
             initiator_id = player1_id
@@ -831,14 +830,14 @@ class RockPaperScissorsCog(commands.Cog):
             initiator = player2
             tokens_used = game2_info["tokens_used"]
             credits_used = game2_info["credits_used"]
-        
+
         # Refund the bet
         db = Users()
         if tokens_used > 0:
             db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
         if credits_used > 0:
             db.update_balance(initiator_id, credits_used, "credits", "$inc")
-        
+
         # Create timeout embed
         timeout_embed = discord.Embed(
             title="⏱️ Game Timed Out",
@@ -846,68 +845,68 @@ class RockPaperScissorsCog(commands.Cog):
             color=0xFF0000
         )
         timeout_embed.set_footer(text="BetSync Casino")
-        
+
         # Update the message
         await message.edit(embed=timeout_embed, view=None)
-        
+
         # Try to notify both players via DM
         timeout_dm_embed = discord.Embed(
             title="⏱️ Game Timed Out",
             description="Your Rock Paper Scissors game has timed out. Any bets have been refunded.",
             color=0xFF0000
         )
-        
+
         try:
             await player1.send(embed=timeout_dm_embed)
         except:
             pass
-            
+
         try:
             await player2.send(embed=timeout_dm_embed)
         except:
             pass
-            
+
         # Clean up the game
         self.clean_up_game(player1_id, player2_id)
 
     async def handle_challenge_timeout(self, initiator_id, opponent_id, channel_id, message_id, timeout):
         """Handle timeout for challenge requests"""
         await asyncio.sleep(timeout)
-        
+
         # Check if the challenge is still active
         if initiator_id not in self.ongoing_games:
             return
-            
+
         game_info = self.ongoing_games[initiator_id]
-        
+
         # Check if it's the same challenge
         if game_info["type"] != "pvp_pending" or game_info["channel_id"] != channel_id or game_info["message_id"] != message_id:
             return
-            
+
         # Challenge has timed out
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return self.clean_up_game(initiator_id)
-            
+
         try:
             message = await channel.fetch_message(message_id)
         except:
             return self.clean_up_game(initiator_id)
-            
+
         # Get players
         initiator = self.bot.get_user(initiator_id)
         opponent = self.bot.get_user(opponent_id)
-        
+
         # Refund the bet
         tokens_used = game_info["tokens_used"]
         credits_used = game_info["credits_used"]
-        
+
         db = Users()
         if tokens_used > 0:
             db.update_balance(initiator_id, tokens_used, "tokens", "$inc")
         if credits_used > 0:
             db.update_balance(initiator_id, credits_used, "credits", "$inc")
-        
+
         # Create timeout embed
         timeout_embed = discord.Embed(
             title="⏱️ Challenge Expired",
@@ -915,12 +914,12 @@ class RockPaperScissorsCog(commands.Cog):
             color=0xFF0000
         )
         timeout_embed.set_footer(text="BetSync Casino")
-        
+
         # Update the message
         for child in game_info["view"].children:
             child.disabled = True
         await message.edit(embed=timeout_embed, view=game_info["view"])
-        
+
         # Clean up the game
         self.clean_up_game(initiator_id)
 
@@ -938,42 +937,48 @@ class RockPaperScissorsView(discord.ui.View):
     async def rock_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
-            
+
+        # Properly acknowledge the interaction first
+        await interaction.response.defer()
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Process the choice
-        await interaction.response.defer()
         await self.cog.process_bot_choice(self.player_id, "rock")
 
     @discord.ui.button(label="Paper", style=discord.ButtonStyle.primary, emoji="📄")
     async def paper_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
-            
+
+        # Properly acknowledge the interaction first
+        await interaction.response.defer()
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Process the choice
-        await interaction.response.defer()
         await self.cog.process_bot_choice(self.player_id, "paper")
 
     @discord.ui.button(label="Scissors", style=discord.ButtonStyle.primary, emoji="✂️")
     async def scissors_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
-            
+
+        # Properly acknowledge the interaction first
+        await interaction.response.defer()
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Process the choice
-        await interaction.response.defer()
         await self.cog.process_bot_choice(self.player_id, "scissors")
 
 
@@ -988,12 +993,15 @@ class PlayerChoiceView(discord.ui.View):
     async def rock_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
-            
+
+        # Properly acknowledge the interaction first
+        await interaction.response.defer()
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Process the choice
         await interaction.response.send_message("You chose **Rock** 🪨. Waiting for your opponent...", ephemeral=True)
         await self.cog.process_pvp_choice(self.player_id, "rock")
@@ -1002,12 +1010,15 @@ class PlayerChoiceView(discord.ui.View):
     async def paper_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
-            
+
+        # Properly acknowledge the interaction first
+        await interaction.response.defer()
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Process the choice
         await interaction.response.send_message("You chose **Paper** 📄. Waiting for your opponent...", ephemeral=True)
         await self.cog.process_pvp_choice(self.player_id, "paper")
@@ -1016,12 +1027,15 @@ class PlayerChoiceView(discord.ui.View):
     async def scissors_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
-            
+
+        # Properly acknowledge the interaction first
+        await interaction.response.defer()
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Process the choice
         await interaction.response.send_message("You chose **Scissors** ✂️. Waiting for your opponent...", ephemeral=True)
         await self.cog.process_pvp_choice(self.player_id, "scissors")
@@ -1041,12 +1055,12 @@ class ChallengeView(discord.ui.View):
     async def accept_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.opponent.id:
             return await interaction.response.send_message("This challenge is not for you.", ephemeral=True)
-            
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Start the game
         await interaction.response.defer()
         await self.cog.handle_pvp_game(
@@ -1063,19 +1077,19 @@ class ChallengeView(discord.ui.View):
     async def decline_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.opponent.id:
             return await interaction.response.send_message("This challenge is not for you.", ephemeral=True)
-            
+
         # Disable all buttons
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
+
         # Refund the initiator
         db = Users()
         if self.tokens_used > 0:
             db.update_balance(self.initiator.id, self.tokens_used, "tokens", "$inc")
         if self.credits_used > 0:
             db.update_balance(self.initiator.id, self.credits_used, "credits", "$inc")
-        
+
         # Update the message
         declined_embed = discord.Embed(
             title="❌ Challenge Declined",
@@ -1083,9 +1097,9 @@ class ChallengeView(discord.ui.View):
             color=0xFF0000
         )
         declined_embed.set_footer(text="BetSync Casino")
-        
+
         await interaction.message.edit(embed=declined_embed, view=self)
-        
+
         # Clean up the game
         if self.initiator.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.initiator.id]
