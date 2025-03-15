@@ -561,8 +561,8 @@ class RockPaperScissorsCog(commands.Cog):
         db = Users()
 
         if result == "win":
-            # Player wins - double the bet
-            winnings = total_bet * 2
+            # Player wins - 1.96x the bet
+            winnings = total_bet * 1.96
             db.update_balance(player_id, winnings, "credits", "$inc")
 
             result_text = f"{player.mention} wins and receives **{winnings}** credits!"
@@ -579,7 +579,7 @@ class RockPaperScissorsCog(commands.Cog):
                 "game": "Rock Paper Scissors",
                 "bet": total_bet,
                 "amount": winnings,
-                "multiplier": 2,
+                "multiplier": 1.96,
                 "timestamp": int(time.time())
             }
             db.collection.update_one(
@@ -600,7 +600,7 @@ class RockPaperScissorsCog(commands.Cog):
                 "user_name": player.name,
                 "bet": total_bet,
                 "amount": winnings,
-                "multiplier": 2,
+                "multiplier": 1.96,
                 "timestamp": int(time.time())
             }
             server_db.update_history(channel.guild.id, server_history)
@@ -942,7 +942,7 @@ class RockPaperScissorsView(discord.ui.View):
 
         # Properly acknowledge the interaction
         await interaction.response.defer(ephemeral=True)
-        
+
         # Send feedback message to user
         await interaction.followup.send("You chose **Rock** 🪨", ephemeral=True)
 
@@ -961,7 +961,7 @@ class RockPaperScissorsView(discord.ui.View):
 
         # Properly acknowledge the interaction
         await interaction.response.defer(ephemeral=True)
-        
+
         # Send feedback message to user
         await interaction.followup.send("You chose **Paper** 📄", ephemeral=True)
 
@@ -980,7 +980,7 @@ class RockPaperScissorsView(discord.ui.View):
 
         # Properly acknowledge the interaction
         await interaction.response.defer(ephemeral=True)
-        
+
         # Send feedback message to user
         await interaction.followup.send("You chose **Scissors** ✂️", ephemeral=True)
 
