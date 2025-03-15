@@ -793,7 +793,7 @@ class RockPaperScissorsCog(commands.Cog):
                 "user_id": player_id,
                 "user_name": player.name,
                 "bet": total_bet,
-                "timestamp": int(time())
+                "timestamp": int(time.time())
             }
             server_db.update_history(channel.guild.id, server_history)
 
