@@ -442,23 +442,24 @@ class RockPaperScissorsCog(commands.Cog):
                     {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                 )
 
-                # Update server profit
-                server_db = Servers()
-                server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
-                server_db.update_server_profit(channel.guild.id, server_profit)
+                # Update server profit only in PVE games
+                if game_info["type"] == "pve":
+                    server_db = Servers()
+                    server_profit = -(winnings - total_bet)  # Server loses the winnings minus the original bet
+                    server_db.update_server_profit(channel.guild.id, server_profit)
 
-                # Update server bet history
-                server_history = {
-                    "type": "win",
-                    "game": "Rock Paper Scissors",
-                    "user_id": initiator_id,
-                    "user_name": initiator.name,
-                    "bet": total_bet,
-                    "amount": winnings,
-                    "multiplier": 2,
-                    "timestamp": int(time.time())
-                }
-                server_db.update_history(channel.guild.id, server_history)
+                    # Update server bet history
+                    server_history = {
+                        "type": "win",
+                        "game": "Rock Paper Scissors",
+                        "user_id": initiator_id,
+                        "user_name": initiator.name,
+                        "bet": total_bet,
+                        "amount": winnings,
+                        "multiplier": 2,
+                        "timestamp": int(time.time())
+                    }
+                    server_db.update_history(channel.guild.id, server_history)
 
             else:
                 # Opponent wins - initiator loses the bet
@@ -482,21 +483,22 @@ class RockPaperScissorsCog(commands.Cog):
                     {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
                 )
 
-                # Update server profit
-                server_db = Servers()
-                server_profit = total_bet  # Server gets the full bet
-                server_db.update_server_profit(channel.guild.id, server_profit)
+                # Update server profit only in PVE games
+                if game_info["type"] == "pve":
+                    server_db = Servers()
+                    server_profit = total_bet  # Server gets the full bet
+                    server_db.update_server_profit(channel.guild.id, server_profit)
 
-                # Update server bet history
-                server_history = {
-                    "type": "loss",
-                    "game": "Rock Paper Scissors",
-                    "user_id": initiator_id,
-                    "user_name": initiator.name,
-                    "bet": total_bet,
-                    "timestamp": int(time.time())
-                }
-                server_db.update_history(channel.guild.id, server_history)
+                    # Update server bet history
+                    server_history = {
+                        "type": "loss",
+                        "game": "Rock Paper Scissors",
+                        "user_id": initiator_id,
+                        "user_name": initiator.name,
+                        "bet": total_bet,
+                        "timestamp": int(time.time())
+                    }
+                    server_db.update_history(channel.guild.id, server_history)
 
             # Create the result embed
             result_embed = discord.Embed(
@@ -625,7 +627,7 @@ class RockPaperScissorsCog(commands.Cog):
                 {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}
             )
 
-            # Update server profit
+            # Update server profit (only in PVE games, which this is)
             server_db = Servers()
             server_profit = total_bet  # Server gets the full bet
             server_db.update_server_profit(channel.guild.id, server_profit)
@@ -938,8 +940,11 @@ class RockPaperScissorsView(discord.ui.View):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
 
-        # Properly acknowledge the interaction first
-        await interaction.response.defer()
+        # Properly acknowledge the interaction
+        await interaction.response.defer(ephemeral=True)
+        
+        # Send feedback message to user
+        await interaction.followup.send("You chose **Rock** 🪨", ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -954,8 +959,11 @@ class RockPaperScissorsView(discord.ui.View):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
 
-        # Properly acknowledge the interaction first
-        await interaction.response.defer()
+        # Properly acknowledge the interaction
+        await interaction.response.defer(ephemeral=True)
+        
+        # Send feedback message to user
+        await interaction.followup.send("You chose **Paper** 📄", ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -970,8 +978,11 @@ class RockPaperScissorsView(discord.ui.View):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
 
-        # Properly acknowledge the interaction first
-        await interaction.response.defer()
+        # Properly acknowledge the interaction
+        await interaction.response.defer(ephemeral=True)
+        
+        # Send feedback message to user
+        await interaction.followup.send("You chose **Scissors** ✂️", ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -994,8 +1005,8 @@ class PlayerChoiceView(discord.ui.View):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
 
-        # Properly acknowledge the interaction first
-        await interaction.response.defer()
+        # Properly acknowledge the interaction
+        await interaction.response.defer(ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -1003,7 +1014,7 @@ class PlayerChoiceView(discord.ui.View):
         await interaction.message.edit(view=self)
 
         # Process the choice
-        await interaction.response.send_message("You chose **Rock** 🪨. Waiting for your opponent...", ephemeral=True)
+        await interaction.followup.send("You chose **Rock** 🪨. Waiting for your opponent...", ephemeral=True)
         await self.cog.process_pvp_choice(self.player_id, "rock")
 
     @discord.ui.button(label="Paper", style=discord.ButtonStyle.primary, emoji="📄")
@@ -1011,8 +1022,8 @@ class PlayerChoiceView(discord.ui.View):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
 
-        # Properly acknowledge the interaction first
-        await interaction.response.defer()
+        # Properly acknowledge the interaction
+        await interaction.response.defer(ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -1020,7 +1031,7 @@ class PlayerChoiceView(discord.ui.View):
         await interaction.message.edit(view=self)
 
         # Process the choice
-        await interaction.response.send_message("You chose **Paper** 📄. Waiting for your opponent...", ephemeral=True)
+        await interaction.followup.send("You chose **Paper** 📄. Waiting for your opponent...", ephemeral=True)
         await self.cog.process_pvp_choice(self.player_id, "paper")
 
     @discord.ui.button(label="Scissors", style=discord.ButtonStyle.primary, emoji="✂️")
@@ -1028,8 +1039,8 @@ class PlayerChoiceView(discord.ui.View):
         if interaction.user.id != self.player_id:
             return await interaction.response.send_message("This is not your game.", ephemeral=True)
 
-        # Properly acknowledge the interaction first
-        await interaction.response.defer()
+        # Properly acknowledge the interaction
+        await interaction.response.defer(ephemeral=True)
 
         # Disable all buttons
         for child in self.children:
@@ -1037,7 +1048,7 @@ class PlayerChoiceView(discord.ui.View):
         await interaction.message.edit(view=self)
 
         # Process the choice
-        await interaction.response.send_message("You chose **Scissors** ✂️. Waiting for your opponent...", ephemeral=True)
+        await interaction.followup.send("You chose **Scissors** ✂️. Waiting for your opponent...", ephemeral=True)
         await self.cog.process_pvp_choice(self.player_id, "scissors")
 
 
