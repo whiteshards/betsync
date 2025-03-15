@@ -531,6 +531,32 @@ class RockPaperScissorsCog(commands.Cog):
                         }
                         server_db.update_history(channel.guild.id, server_history)
 
+                    # Record win for opponent
+                    db.collection.update_one(
+                        {"discord_id": opponent_id},
+                        {"$inc": {"total_won": 1}}
+                    )
+
+                    # Calculate winnings for opponent (1.96x bet)
+                    opponent_winnings = round(total_bet * 1.96)
+
+                    # Credit the opponent's tokens
+                    db.update_balance(opponent_id, opponent_winnings, "tokens", "$inc")
+
+                    # Log the game in history for opponent
+                    opponent_history = {
+                        "type": "win",
+                        "game": "Rock Paper Scissors",
+                        "bet": total_bet,
+                        "winnings": opponent_winnings,
+                        "timestamp": int(time.time())
+                    }
+                    db.collection.update_one(
+                        {"discord_id": opponent_id},
+                        {"$push": {"history": {"$each": [opponent_history], "$slice": -100}}}
+                    )
+
+
                 # Set color based on result
                 result_color = 0x2ecc71 if result == "win" else 0xe74c3c if result == "loss" else 0xf1c40f  # Green for win, Red for loss, Yellow for draw
 
@@ -1225,6 +1251,56 @@ class ChallengeView(discord.ui.View):
 
         # Start the game
         await interaction.response.defer()
+        self.accepted = True
+        challenge_id = f"{self.initiator.id}_{self.opponent.id}"
+
+        # Deduct bet from opponent's balance
+        db = Users()
+        opponent_data = db.fetch_user(self.opponent.id)
+
+        if not opponent_data:
+            # Create a new user if they don't exist
+            dump = {"discord_id": self.opponent.id, "tokens": 0, "credits": 0, "history": [], 
+                    "total_deposit_amount": 0, "total_withdraw_amount": 0, "total_spent": 0, 
+                    "total_earned": 0, 'total_played': 0, 'total_won': 0, 'total_lost': 0}
+            db.register_new_user(dump)
+            opponent_data = db.fetch_user(self.opponent.id)
+
+        tokens_to_use = min(opponent_data.get('tokens', 0), self.total_bet)
+        credits_to_use = min(opponent_data.get('credits', 0), self.total_bet - tokens_to_use)
+
+        # Check if opponent has enough funds
+        if tokens_to_use + credits_to_use < self.total_bet:
+            await interaction.response.send_message("You don't have enough funds to accept this challenge.", ephemeral=True)
+            self.accepted = False
+            return False
+
+        # Deduct tokens first
+        if tokens_to_use > 0:
+            db.update_balance(self.opponent.id, opponent_data['tokens'] - tokens_to_use, "tokens")
+
+        # Then deduct credits if needed
+        if credits_to_use > 0:
+            db.update_balance(self.opponent.id, opponent_data['credits'] - credits_to_use, "credits")
+
+        # Update opponent's stats
+        db.collection.update_one(
+            {"discord_id": self.opponent.id},
+            {"$inc": {"total_played": 1, "total_spent": self.total_bet}}
+        )
+
+        # Get or create the challenge data
+        if challenge_id not in self.cog.ongoing_games:
+            self.cog.ongoing_games[challenge_id] = {
+                "initiator_id": self.initiator.id,
+                "opponent_id": self.opponent.id,
+                "tokens_used": self.tokens_used,
+                "credits_used": self.credits_used,
+                "opponent_tokens_used": tokens_to_use,
+                "opponent_credits_used": credits_to_use,
+                "total_bet": self.total_bet,
+                "view": self
+            }
         await self.cog.handle_pvp_game(
             self.initiator, 
             self.opponent, 
