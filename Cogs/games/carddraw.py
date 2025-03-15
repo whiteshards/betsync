@@ -59,7 +59,7 @@ class CardDrawGameView(discord.ui.View):
         await self.ctx.reply(embed=decline_embed)
         
         # Reset cooldown
-        self.cog.carddraw.reset_cooldown(self.ctx)x)
+        self.cog.carddraw.reset_cooldown(self.ctx)
 
     async def on_timeout(self):
         if not self.accepted:
