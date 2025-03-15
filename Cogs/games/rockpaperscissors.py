@@ -29,7 +29,7 @@ class RockPaperScissorsCog(commands.Cog):
                     "**Usage:** `!rps [opponent] <amount> [currency_type]`\n"
                     "**Example:** `!rps 100` or `!rps @Friend 100 credits`\n\n"
                     "- **Play against the bot or challenge another player**\n"
-                    "- **Win and receive 2x your bet!**\n"
+                    "- **Win and receive 1.96x your bet!**\n"
                     "- **If it's a draw, you get your bet back**\n"
                     "- **Games timeout after 120 seconds of inactivity**\n"
                 ),
