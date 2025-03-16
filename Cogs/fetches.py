@@ -914,12 +914,18 @@ class Fetches(commands.Cog):
             
         embed.set_footer(text="BetSync Casino • Rakeback Rewards", icon_url=self.bot.user.avatar.url)
         
-        # If no rakeback tokens or viewing someone else's rakeback, don't show claim button
-        if rakeback_tokens < 1 or user.id != ctx.author.id:
+        # If viewing someone else's rakeback, don't show any button
+        if user.id != ctx.author.id:
             return await ctx.reply(embed=embed)
         
         # Create view with claim button
         view = self.RakebackButton(self, ctx.author.id, rakeback_tokens)
+        
+        # If rakeback tokens are less than 1, disable the button
+        if rakeback_tokens < 1:
+            for child in view.children:
+                child.disabled = True
+                child.label = "Insufficient Rakeback"
         
         # Send the message with the view and save the returned message object
         # This allows the view to properly reference the message for updates
