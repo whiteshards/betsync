@@ -286,7 +286,7 @@ async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=Non
 
     now = datetime.datetime.now()
     rn = now.strftime("%X")
-    print(f"{Back.CYAN}  {Style.DIM}{user.id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{tokens_used + credits_used} ({round((tokens_used + credits_used)*0.0212, 3)}$){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}process_bet{Fore.WHITE}")
+    print(f"{Back.CYAN}  {Style.DIM}{user.id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{tokens_used + credits_used} ({round((tokens_used + credits_used)*0.0212, 3)}$){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}process_bet{Fore.WHITE}")
 
     # Add debug log for rakeback
     if rakeback_amount > 0:
