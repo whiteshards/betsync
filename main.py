@@ -1,5 +1,9 @@
 import datetime
 import os
+import time
+os.system("pip uninstall discord.py discord py-cord -y && pip install py-cord")
+time.sleep(3)
+os.system("clear")
 import discord
 import asyncio
 from colorama import Fore, Back, Style
