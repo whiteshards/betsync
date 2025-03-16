@@ -5,27 +5,27 @@
     "rakeback_percentage": 0.25
   },
   "Silver": {
-    "level_requirement": 15,
+    "level_requirement": 25,
     "emoji": "<:namets:1350085520536899635>",
     "rakeback_percentage": 0.5
   },
   "Gold": {
-    "level_requirement": 30,
+    "level_requirement": 45,
     "emoji": "<:gold:1350085318677889066>",
     "rakeback_percentage": 1.25
   },
   "Platinum": {
-    "level_requirement": 70,
+    "level_requirement": 150,
     "emoji": "<:krizznameem:1350085466652803082>",
     "rakeback_percentage": 1.5
   },
   "Diamond": {
-    "level_requirement": 100,
+    "level_requirement": 200,
     "emoji": "<:aquamarine:1350085252655091712>",
     "rakeback_percentage": 1.75
   },
   "Ascendant": {
-    "level_requirement": 150,
+    "level_requirement": 250,
     "emoji": "<:omega:1350085057037209684>",
     "rakeback_percentage": 2
   }
