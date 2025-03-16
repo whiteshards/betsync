@@ -86,7 +86,8 @@ async def on_command(ctx):
             db = Users()
             if not db.fetch_user(ctx.author.id):
                 dump = {
-                "discord_id": ctx.author.id, 
+                "discord_id": ctx.author.id,
+                "name": ctx.author.name,
                 "tokens": 0, 
                 "credits": 0, 
                 "history": [], 
@@ -100,6 +101,7 @@ async def on_command(ctx):
                 'xp': 0,
                 'level': 1,
                 'rank': 0,
+                'rakeback_tokens': 0
                 }
                 db.register_new_user(dump)
                 rn = datetime.datetime.now().strftime("%X")
