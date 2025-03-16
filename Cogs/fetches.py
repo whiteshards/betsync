@@ -921,7 +921,9 @@ class Fetches(commands.Cog):
         # Create view with claim button
         view = self.RakebackButton(self, ctx.author.id, rakeback_tokens)
         
-        await ctx.reply(embed=embed, view=view)
+        # Send the message with the view and save the returned message object
+        # This allows the view to properly reference the message for updates
+        view.message = await ctx.reply(embed=embed, view=view)
 
 
 def setup(bot):
