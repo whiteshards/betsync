@@ -758,6 +758,161 @@ class Fetches(commands.Cog):
         
         await ctx.reply(embed=embed)
 
+    class RakebackButton(discord.ui.View):
+        def __init__(self, cog, user_id, rakeback_amount):
+            super().__init__(timeout=60)
+            self.cog = cog
+            self.user_id = user_id
+            self.rakeback_amount = rakeback_amount
+            
+        @discord.ui.button(label="Claim Rakeback", style=discord.ButtonStyle.green, emoji="💰")
+        async def claim_button(self, button, interaction):
+            # Only the user who initiated can claim
+            if interaction.user.id != self.user_id:
+                return await interaction.response.send_message("You cannot claim someone else's rakeback!", ephemeral=True)
+            
+            # Process the claim
+            db = Users()
+            user_data = db.fetch_user(self.user_id)
+            
+            if not user_data:
+                return await interaction.response.send_message("Error: User data not found.", ephemeral=True)
+                
+            rakeback_tokens = user_data.get("rakeback_tokens", 0)
+            
+            if rakeback_tokens <= 0:
+                return await interaction.response.send_message("You don't have any rakeback tokens to claim!", ephemeral=True)
+            
+            # Update rakeback tokens to 0
+            db.collection.update_one(
+                {"discord_id": self.user_id},
+                {"$set": {"rakeback_tokens": 0}}
+            )
+            
+            # Add the rakeback tokens to user's tokens
+            db.update_balance(self.user_id, rakeback_tokens, "tokens", "$inc")
+            
+            # Disable the button
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+            
+            # Send success message
+            claim_embed = discord.Embed(
+                title="💰 Rakeback Claimed Successfully",
+                description=f"You have claimed **{rakeback_tokens:.2f} tokens** from your rakeback rewards.",
+                color=0x00FFAE
+            )
+            claim_embed.set_footer(text="BetSync Casino • Rakeback Rewards", icon_url=self.cog.bot.user.avatar.url)
+            
+            await interaction.response.send_message(embed=claim_embed)
+
+    @commands.command(name="rakeback", aliases=["rb"])
+    async def rakeback(self, ctx, user: discord.Member = None):
+        """View and claim your rakeback rewards"""
+        if not user:
+            user = ctx.author
+            
+        db = Users()
+        user_data = db.fetch_user(user.id)
+        
+        if not user_data:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | User Not Registered",
+                description="This user doesn't have an account yet. Please wait for auto-registration or use commands to interact with the bot.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Get rakeback percentage from rank data
+        with open('static_data/ranks.json', 'r') as f:
+            rank_data = json.load(f)
+            
+        current_rank_requirement = user_data.get('rank', 0)
+        rakeback_percentage = 0
+        rank_name = "None"
+        rank_emoji = ""
+        
+        # Find current rank and its rakeback percentage
+        for name, info in rank_data.items():
+            if info['level_requirement'] == current_rank_requirement:
+                rakeback_percentage = info['rakeback_percentage']
+                rank_name = name
+                rank_emoji = info['emoji']
+                break
+        
+        # Get accumulated rakeback tokens
+        rakeback_tokens = user_data.get('rakeback_tokens', 0)
+        
+        # Create embed
+        if user == ctx.author:
+            title = f"{rank_emoji} Your Rakeback Rewards"
+        else:
+            title = f"{rank_emoji} {user.name}'s Rakeback Rewards"
+            
+        embed = discord.Embed(
+            title=title,
+            color=0x00FFAE,
+            description=f"Earn rakeback rewards every time you place a bet"
+        )
+        
+        embed.add_field(
+            name="Current Rank",
+            value=f"{rank_emoji} **{rank_name}**",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Rakeback Percentage",
+            value=f"**{rakeback_percentage}%** of bets",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Accumulated Rakeback",
+            value=f"**{rakeback_tokens:.2f} tokens**",
+            inline=False
+        )
+        
+        if rakeback_tokens < 1:
+            embed.add_field(
+                name="Claim Status",
+                value="You need at least **1 token** of rakeback to claim.",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="Claim Status",
+                value="Click the button below to claim your rakeback tokens.",
+                inline=False
+            )
+        
+        # Add information on how rakeback works
+        embed.add_field(
+            name="How Rakeback Works",
+            value=(
+                "**Rakeback** is a reward program that returns a percentage of your bets back to you.\n"
+                "• Every bet you place earns you rakeback tokens based on your rank percentage\n"
+                "• Higher ranks get higher rakeback percentages\n"
+                "• Rakeback tokens can be claimed and converted to regular tokens"
+            ),
+            inline=False
+        )
+        
+        if user.avatar:
+            embed.set_thumbnail(url=user.avatar.url)
+            
+        embed.set_footer(text="BetSync Casino • Rakeback Rewards", icon_url=self.bot.user.avatar.url)
+        
+        # If no rakeback tokens or viewing someone else's rakeback, don't show claim button
+        if rakeback_tokens < 1 or user.id != ctx.author.id:
+            return await ctx.reply(embed=embed)
+        
+        # Create view with claim button
+        view = self.RakebackButton(self, ctx.author.id, rakeback_tokens)
+        
+        await ctx.reply(embed=embed, view=view)
+
 
 def setup(bot):
     bot.add_cog(Fetches(bot))
