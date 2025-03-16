@@ -619,6 +619,144 @@ class Fetches(commands.Cog):
         message = await ctx.reply(embed=view.get_current_page_embed(), view=view)
         view.message = message
 
+    @commands.command(name="rank")
+    async def rank(self, ctx, user: discord.Member = None):
+        """View your current rank, progress, and benefits"""
+        if not user:
+            user = ctx.author
+            
+        db = Users()
+        user_data = db.fetch_user(user.id)
+        
+        if not user_data:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | User Not Registered",
+                description="This user doesn't have an account yet. Please wait for auto-registration or use commands to interact with the bot.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Load rank data from JSON
+        with open('static_data/ranks.json', 'r') as f:
+            rank_data = json.load(f)
+            
+        # Get current user level and XP
+        current_level = user_data.get('level', 1)
+        current_xp = user_data.get('xp', 0)
+        current_rank_requirement = user_data.get('rank', 0)
+        
+        # Calculate XP needed for next level
+        xp_limit = 10 * (1 + (current_level - 1) * 0.1)
+        xp_limit = round(xp_limit)
+        
+        # Find current rank name and emoji
+        current_rank_name = "None"
+        current_emoji = ""
+        current_rakeback = 0
+        
+        # Find next rank
+        next_rank_name = None
+        next_rank_level = float('inf')
+        next_rank_emoji = None
+        
+        # Sort ranks by level requirement
+        sorted_ranks = sorted(rank_data.items(), key=lambda x: x[1]['level_requirement'])
+        
+        # Find current rank and next rank
+        for rank_name, rank_info in sorted_ranks:
+            level_req = rank_info['level_requirement']
+            
+            # Check if this is the current rank
+            if level_req == current_rank_requirement:
+                current_rank_name = rank_name
+                current_emoji = rank_info['emoji']
+                current_rakeback = rank_info['rakeback_percentage']
+            
+            # Check if this is the next rank
+            if level_req > current_level and level_req < next_rank_level:
+                next_rank_name = rank_name
+                next_rank_level = level_req
+                next_rank_emoji = rank_info['emoji']
+        
+        # If we couldn't find a next rank, user is at max rank
+        if next_rank_name is None:
+            next_rank_name = "Max Rank"
+            next_rank_level = current_level
+            next_rank_emoji = "🔥"
+            levels_needed = 0
+        else:
+            levels_needed = next_rank_level - current_level
+        
+        # Create embed
+        embed = discord.Embed(
+            title=f"{current_emoji} Rank Information for {user.name}",
+            color=0x00FFAE,
+            description=f"Your progress through the BetSync rank system"
+        )
+        
+        # Current rank section
+        embed.add_field(
+            name="Current Rank",
+            value=f"{current_emoji} **{current_rank_name}**\n"
+                  f"Level: **{current_level}**\n"
+                  f"XP: **{current_xp}/{xp_limit}**\n"
+                  f"Rakeback: **{current_rakeback}%**",
+            inline=True
+        )
+        
+        # Next rank section
+        embed.add_field(
+            name="Next Rank",
+            value=f"{next_rank_emoji} **{next_rank_name}**\n"
+                  f"Required Level: **{next_rank_level}**\n"
+                  f"Levels Needed: **{levels_needed}**",
+            inline=True
+        )
+        
+        # Progress bar
+        progress = min(1.0, current_xp / xp_limit)
+        bar_length = 12
+        filled_bars = round(progress * bar_length)
+        empty_bars = bar_length - filled_bars
+        
+        progress_bar = "**Level Progress:**\n"
+        progress_bar += "```\n"
+        progress_bar += f"[{'■' * filled_bars}{' ' * empty_bars}] {int(progress * 100)}%\n"
+        progress_bar += "```"
+        
+        embed.add_field(
+            name="Level Progress",
+            value=progress_bar,
+            inline=False
+        )
+        
+        # All ranks section
+        all_ranks = ""
+        for rank_name, rank_info in sorted_ranks:
+            emoji = rank_info['emoji']
+            level_req = rank_info['level_requirement']
+            rakeback = rank_info['rakeback_percentage']
+            
+            # Highlight current rank
+            if rank_name == current_rank_name:
+                all_ranks += f"➤ {emoji} **{rank_name}** (Lv. {level_req}) - {rakeback}% rakeback\n"
+            else:
+                all_ranks += f"{emoji} {rank_name} (Lv. {level_req}) - {rakeback}% rakeback\n"
+        
+        embed.add_field(
+            name="All Ranks",
+            value=all_ranks,
+            inline=False
+        )
+        
+        # Set thumbnail to user avatar
+        if user.avatar:
+            embed.set_thumbnail(url=user.avatar.url)
+            
+        embed.set_footer(text="BetSync Casino • Rank up by playing games", icon_url=self.bot.user.avatar.url)
+        
+        await ctx.reply(embed=embed)
+
 
 def setup(bot):
     bot.add_cog(Fetches(bot))
