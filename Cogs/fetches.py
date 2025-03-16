@@ -1,6 +1,7 @@
 import os
 import requests
 import discord
+import json
 from discord.ext import commands
 from Cogs.utils.emojis import emoji
 from Cogs.utils.mongo import Users, Servers
