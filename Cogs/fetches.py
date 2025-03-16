@@ -807,12 +807,28 @@ class Fetches(commands.Cog):
                 child.disabled = True
             await interaction.message.edit(view=self)
             
-            # Send success message
+            # Send success message with enhanced styling
             claim_embed = discord.Embed(
                 title="💰 Rakeback Claimed Successfully",
-                description=f"You have claimed **{rakeback_tokens:.2f} tokens** from your rakeback rewards.",
+                description=f"You have successfully claimed your rakeback rewards!",
                 color=0x00FFAE
             )
+            
+            # Add field for claimed amount with styled box
+            claim_embed.add_field(
+                name="🎉 Claimed Amount",
+                value=f"```ini\n[{rakeback_tokens:,.2f} tokens added to your balance]\n```",
+                inline=False
+            )
+            
+            # Add a field showing new balance
+            new_balance = db.fetch_user(self.user_id).get('tokens', 0)
+            claim_embed.add_field(
+                name="💵 New Token Balance",
+                value=f"**{new_balance:,.2f} tokens**",
+                inline=True
+            )
+            
             claim_embed.set_footer(text="BetSync Casino • Rakeback Rewards", icon_url=self.cog.bot.user.avatar.url)
             
             await interaction.response.send_message(embed=claim_embed)
@@ -854,57 +870,72 @@ class Fetches(commands.Cog):
         # Get accumulated rakeback tokens
         rakeback_tokens = user_data.get('rakeback_tokens', 0)
         
+        # Format tokens with commas for better readability
+        formatted_rakeback = f"{rakeback_tokens:,.2f}"
+        
         # Create embed
         if user == ctx.author:
-            title = f"{rank_emoji} Your Rakeback Rewards"
+            title = f"💰 Rakeback Rewards"
         else:
-            title = f"{rank_emoji} {user.name}'s Rakeback Rewards"
+            title = f"💰 {user.name}'s Rakeback Rewards"
             
         embed = discord.Embed(
             title=title,
             color=0x00FFAE,
-            description=f"Earn rakeback rewards every time you place a bet"
+            description=f"**Earn cashback rewards based on your betting activity**\nㅤㅤㅤ"
         )
         
+        # Add a rank section with emoji and styled text
         embed.add_field(
-            name="Current Rank",
-            value=f"{rank_emoji} **{rank_name}**",
+            name="🏆 Current Rank",
+            value=f"{rank_emoji} **{rank_name}**\nRakeback Rate: **{rakeback_percentage}%**",
             inline=True
         )
         
+        # Add tokens section with styled text
         embed.add_field(
-            name="Rakeback Percentage",
-            value=f"**{rakeback_percentage}%** of bets",
+            name="💵 Available Rakeback",
+            value=f"```ini\n[{formatted_rakeback} tokens]\n```",
             inline=True
         )
         
+        # Add a spacer field to create 2 columns
+        embed.add_field(name="\u200b", value="\u200b", inline=False)
+        
+        # Create a progress-style display for claim eligibility
+        if rakeback_tokens < 1:
+            progress = min(rakeback_tokens, 1.0)
+            bar_length = 10
+            filled_bars = round(progress * bar_length)
+            empty_bars = bar_length - filled_bars
+            
+            claim_status = (
+                "🔒 **Claim Status: Locked**\n"
+                f"Progress to claim: `{rakeback_tokens:.2f}/1.00`\n"
+                f"```\n[{'■' * filled_bars}{' ' * empty_bars}] {int(progress * 100)}%\n```"
+                "You need at least **1.00 tokens** to claim your rakeback rewards."
+            )
+        else:
+            claim_status = (
+                "✅ **Claim Status: Ready**\n"
+                "Your rakeback tokens are ready to claim!\n"
+                "Click the button below to add these tokens to your balance."
+            )
+        
         embed.add_field(
-            name="Accumulated Rakeback",
-            value=f"**{rakeback_tokens:.2f} tokens**",
+            name="📊 Claim Eligibility",
+            value=claim_status,
             inline=False
         )
         
-        if rakeback_tokens < 1:
-            embed.add_field(
-                name="Claim Status",
-                value="You need at least **1 token** of rakeback to claim.",
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="Claim Status",
-                value="Click the button below to claim your rakeback tokens.",
-                inline=False
-            )
-        
-        # Add information on how rakeback works
+        # Add information on how rakeback works with improved formatting
         embed.add_field(
-            name="How Rakeback Works",
+            name="ℹ️ About Rakeback",
             value=(
-                "**Rakeback** is a reward program that returns a percentage of your bets back to you.\n"
-                "• Every bet you place earns you rakeback tokens based on your rank percentage\n"
-                "• Higher ranks get higher rakeback percentages\n"
-                "• Rakeback tokens can be claimed and converted to regular tokens"
+                "```\nRakeback is a loyalty reward system that returns a percentage of your bets.\n```\n"
+                f"• Every bet earns {rank_emoji} **{rank_name}** rank members **{rakeback_percentage}%** rakeback\n"
+                "• Higher ranks receive higher rakeback percentages\n"
+                "• Claim your rakeback tokens to convert them to spendable tokens"
             ),
             inline=False
         )
