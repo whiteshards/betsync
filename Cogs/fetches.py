@@ -2,10 +2,11 @@ import os
 import requests
 import discord
 import json
+import datetime
 from discord.ext import commands
 from Cogs.utils.emojis import emoji
 from Cogs.utils.mongo import Users, Servers
-from colorama import Fore
+from colorama import Fore, Back, Style
 
 class Fetches(commands.Cog):
     def __init__(self, bot):
@@ -776,21 +777,30 @@ class Fetches(commands.Cog):
             user_data = db.fetch_user(self.user_id)
             
             if not user_data:
+                print(f"{Back.RED}  {Style.DIM}{self.user_id}{Style.RESET_ALL}{Back.RESET}{Fore.RED}    ERROR    {Fore.WHITE}User data not found when claiming rakeback{Style.RESET_ALL}")
                 return await interaction.response.send_message("Error: User data not found.", ephemeral=True)
                 
             rakeback_tokens = user_data.get("rakeback_tokens", 0)
             
             if rakeback_tokens <= 0:
+                print(f"{Back.YELLOW}  {Style.DIM}{self.user_id}{Style.RESET_ALL}{Back.RESET}{Fore.YELLOW}    WARNING    {Fore.WHITE}Attempted to claim zero rakeback tokens{Style.RESET_ALL}")
                 return await interaction.response.send_message("You don't have any rakeback tokens to claim!", ephemeral=True)
             
+            # Log before claiming
+            rn = datetime.datetime.now().strftime("%X")
+            print(f"{Back.CYAN}  {Style.DIM}{self.user_id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}Claiming {rakeback_tokens:.2f} rakeback tokens{Style.RESET_ALL}  {Fore.MAGENTA}rakeback_claim{Fore.WHITE}")
+            
             # Update rakeback tokens to 0
-            db.collection.update_one(
+            update_result = db.collection.update_one(
                 {"discord_id": self.user_id},
                 {"$set": {"rakeback_tokens": 0}}
             )
             
             # Add the rakeback tokens to user's tokens
-            db.update_balance(self.user_id, rakeback_tokens, "tokens", "$inc")
+            balance_result = db.update_balance(self.user_id, rakeback_tokens, "tokens", "$inc")
+            
+            # Log after claiming
+            print(f"{Back.GREEN}  {Style.DIM}{self.user_id}{Style.RESET_ALL}{Back.RESET}{Fore.GREEN}    SUCCESS    {Fore.WHITE}Rakeback claimed: {rakeback_tokens:.2f} tokens | DB updates: {update_result.modified_count}, {balance_result}{Style.RESET_ALL}")
             
             # Disable the button
             for child in self.children:
