@@ -1095,12 +1095,12 @@ class AdminCommands(commands.Cog):
         total_profit = sum(server.get("profit", 0) for server in server_profits)
         avg_profit = total_profit / len(server_profits) if server_profits else 0
         
-        # Calculate USD equivalents (based on the rate seen in the code: 1 token = 0.0212 USD)
+        # Calculate USD equivalents (based on the rate: 1 token = 0.0212 USD)
         total_profit_usd = total_profit * 0.0212
         avg_profit_usd = avg_profit * 0.0212
         
-        # Create the plot with a modern gray background
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), gridspec_kw={'height_ratios': [2, 1]}, dpi=100)
+        # Create the plot with a clean modern background
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9), gridspec_kw={'height_ratios': [2, 1]}, dpi=100)
         fig.patch.set_facecolor('#2B2D31')  # Dark gray for outer background
         
         # Prepare data for the current page
@@ -1108,47 +1108,69 @@ class AdminCommands(commands.Cog):
         end_idx = min(start_idx + servers_per_page, len(server_profits))
         current_page_servers = server_profits[start_idx:end_idx]
         
-        # Prepare data for top 10 bar chart
+        # Prepare data for top 10 bar chart, handling negative values properly
         top_servers = server_profits[:10]  # Get top 10 servers
-        server_names = [s.get("server_name", f"Server {s.get('server_id')}")[:15] for s in top_servers]
+        server_names = [s.get("server_name", f"Server {s.get('server_id')}")[:12] for s in top_servers]
         profits = [s.get("profit", 0) for s in top_servers]
         
-        # Create bar chart for top 10 servers
+        # Create bar chart for top 10 servers with improved styling
         ax1.set_facecolor('#36393F')  # Slightly lighter gray for plot area
-        bars = ax1.bar(server_names, profits, color='#00FFAE', alpha=0.8)
         
-        # Add profit values on top of bars
+        # Use different colors for positive and negative values
+        colors = ['#00FFAE' if p >= 0 else '#FF5252' for p in profits]
+        bars = ax1.bar(server_names, profits, color=colors, alpha=0.9, width=0.7)
+        
+        # Add profit values above/below the bars
         for bar in bars:
             height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width()/2., height + 5,
-                    f'{height:,.0f}',
-                    ha='center', va='bottom', color='white', fontsize=9)
+            y_pos = max(height + 5, 5) if height >= 0 else min(height - 20, -20)
+            ax1.text(bar.get_x() + bar.get_width()/2., y_pos,
+                    f'{abs(height):,.0f}',
+                    ha='center', va='bottom' if height >= 0 else 'top', 
+                    color='white', fontsize=9, fontweight='bold')
+        
+        # Clean up axes for minimal look
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+        ax1.spines['left'].set_color('#555555')
+        ax1.spines['bottom'].set_color('#555555')
         
         # Format the axes
-        ax1.set_xlabel("Server", color='white', fontsize=12)
+        ax1.set_xlabel("", color='white', fontsize=12)  # Remove label for cleaner look
         ax1.set_ylabel("Profit (Tokens)", color='white', fontsize=12)
-        ax1.set_title(f"Top 10 Server Profits - {date}", color='white', fontsize=16, pad=20)
+        ax1.set_title(f"Top Server Profits - {date}", color='white', fontsize=16, pad=15)
+        
+        # Add horizontal line at y=0 for better visualization of positive/negative
+        ax1.axhline(y=0, color='#555555', linestyle='-', alpha=0.7, zorder=0)
         
         # Rotate x-axis labels for better readability
-        plt.setp(ax1.get_xticklabels(), rotation=45, ha='right', fontsize=9)
+        plt.setp(ax1.get_xticklabels(), rotation=30, ha='right', fontsize=9)
         
-        # Style the axes and ticks
+        # Style the ticks
         ax1.tick_params(colors='white', which='both')
-        for spine in ax1.spines.values():
-            spine.set_edgecolor('#555555')
+        ax1.tick_params(axis='x', length=0)  # Hide x tick marks for cleaner look
         
-        # Add grid lines for readability
-        ax1.grid(True, linestyle='--', alpha=0.3, zorder=0)
+        # Add subtle grid lines for y-axis only
+        ax1.grid(True, axis='y', linestyle='--', alpha=0.2, zorder=0)
         
         # Create pie chart showing proportion of total profit
-        if len(top_servers) > 0:
-            # Get data for pie chart (top 5 servers plus "Others")
-            top_5_servers = server_profits[:5]
+        ax2.set_facecolor('#36393F')  # Match background color
+        
+        # Get data for pie chart - only use positive profits to avoid issues
+        positive_servers = [s for s in server_profits if s.get("profit", 0) > 0]
+        
+        if positive_servers:
+            # Get top 5 positive servers for pie chart
+            top_5_servers = positive_servers[:5]
             top_5_profits = [s.get("profit", 0) for s in top_5_servers]
-            top_5_names = [s.get("server_name", f"Server {s.get('server_id')}")[:15] for s in top_5_servers]
+            top_5_names = [s.get("server_name", f"Server {s.get('server_id')}")[:12] for s in top_5_servers]
             
-            other_profit = total_profit - sum(top_5_profits)
+            # Calculate "Others" category if needed
+            total_positive = sum(s.get("profit", 0) for s in positive_servers)
+            top_5_sum = sum(top_5_profits)
+            other_profit = total_positive - top_5_sum if len(positive_servers) > 5 else 0
             
+            # Prepare pie data
             if other_profit > 0:
                 pie_data = top_5_profits + [other_profit]
                 pie_labels = top_5_names + ["Others"]
@@ -1156,55 +1178,58 @@ class AdminCommands(commands.Cog):
                 pie_data = top_5_profits
                 pie_labels = top_5_names
             
-            # Create custom colormap
-            colors = ['#00FFAE', '#00D6A4', '#00AE9E', '#00867A', '#005E55', '#3A3A3A']
+            # Create modern color palette
+            colors = ['#00FFAE', '#00D6A4', '#00BEA9', '#00A7B5', '#008EBF', '#6A7280']
             
-            # Create pie chart - convert pie_data to integers to avoid 'wedge sizes x must be an integer value' error
-            ax2.set_facecolor('#36393F')
-            # Round float values to integers for pie chart
-            integer_pie_data = [int(value) for value in pie_data]
-            
-            # Initialize wedges as empty list
-            wedges = []
-            
-            # Only create pie chart if there are non-zero values
-            if sum(integer_pie_data) > 0:
+            # Create pie chart - use float values with explode for better appearance
+            if sum(pie_data) > 0:
+                # Add small explode to separate segments slightly
+                explode = [0.02] * len(pie_data)
+                
                 pie_results = ax2.pie(
-                    integer_pie_data, 
+                    pie_data, 
                     labels=None, 
                     autopct='%1.1f%%',
                     startangle=90, 
                     colors=colors,
-                    wedgeprops={'width': 0.5, 'edgecolor': '#2B2D31', 'linewidth': 1}
+                    explode=explode,
+                    wedgeprops={'width': 0.4, 'edgecolor': '#2B2D31', 'linewidth': 1, 'antialiased': True},
+                    shadow=False
                 )
                 
                 # Unpack pie chart results
                 wedges, texts, autotexts = pie_results
                 
-                # Style the pie chart text - only when autotexts is defined
+                # Style the pie chart text
                 for autotext in autotexts:
                     autotext.set_color('white')
                     autotext.set_fontsize(9)
+                    autotext.set_fontweight('bold')
+                
+                # Create streamlined legend with server names only
+                legend_labels = [f"{label}" for i, label in enumerate(pie_labels)]
+                ax2.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5), 
+                          frameon=False, labelcolor='white', fontsize=9)
             else:
-                # If no data, just show empty plot
-                ax2.text(0.5, 0.5, "No profit data", ha='center', va='center', color='white', fontsize=14)
-            
-            # Add legend with percentage and absolute values, only if there are wedges
-            if wedges:
-                legend_labels = [f"{label} ({pie_data[i]/total_profit*100:.1f}%)" for i, label in enumerate(pie_labels)]
-                ax2.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False, labelcolor='white')
-            
-            ax2.set_title("Profit Distribution", color='white', fontsize=14, pad=20)
+                ax2.text(0.5, 0.5, "Insufficient profit data for chart", 
+                        ha='center', va='center', color='white', fontsize=12)
+        else:
+            ax2.text(0.5, 0.5, "No positive profit data to display", 
+                    ha='center', va='center', color='white', fontsize=12)
         
-        # Add BetSync watermark
-        plt.figtext(0.5, 0.01, "BetSync Casino", fontsize=10, color='white', alpha=0.4, ha='center')
+        # Clean up pie chart
+        ax2.set_title("Profit Distribution", color='white', fontsize=14, pad=10)
         
-        # Adjust layout for better padding
+        # Add subtle watermark
+        plt.figtext(0.5, 0.01, "BetSync Casino", fontsize=9, color='white', alpha=0.4, ha='center')
+        
+        # Adjust layout for cleaner spacing
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.subplots_adjust(hspace=0.25)  # Adjust spacing between plots
         
         # Save to bytes buffer
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', facecolor=fig.get_facecolor())
+        plt.savefig(buf, format='png', facecolor=fig.get_facecolor(), bbox_inches='tight')
         buf.seek(0)
         
         # Close the figure to prevent memory leaks
@@ -1213,10 +1238,10 @@ class AdminCommands(commands.Cog):
         # Create Discord file
         file = discord.File(buf, filename="server_profit_graph.png")
         
-        # Create embed with relevant information
+        # Create streamlined embed with relevant information
         embed = discord.Embed(
             title=f"Server Profits - {date}",
-            description=f"Showing data for {len(server_profits)} servers",
+            description=f"Data for {len(server_profits)} servers",
             color=0x2B2D31
         )
         
@@ -1233,19 +1258,22 @@ class AdminCommands(commands.Cog):
             inline=True
         )
         
-        embed.add_field(
-            name="Top Server",
-            value=f"**{server_profits[0].get('server_name', 'Unknown')}**\n{server_profits[0].get('profit', 0):,.2f} tokens",
-            inline=True
-        )
+        if server_profits:
+            top_server = server_profits[0]
+            top_profit = top_server.get("profit", 0)
+            embed.add_field(
+                name="Top Server",
+                value=f"**{top_server.get('server_name', 'Unknown')}**\n{top_profit:,.2f} tokens",
+                inline=True
+            )
         
-        # Add server rankings for current page
+        # Add streamlined server rankings for current page
         server_list = []
         for i, server in enumerate(current_page_servers, start=start_idx + 1):
             server_name = server.get("server_name", f"Server {server.get('server_id')}")
             profit = server.get("profit", 0)
-            profit_usd = profit * 0.0212
-            server_list.append(f"**{i}. {server_name}** - {profit:,.2f} tokens (${profit_usd:,.2f})")
+            profit_display = f"{profit:,.2f} tokens" + (f" (${profit*0.0212:,.2f})" if abs(profit) >= 1000 else "")
+            server_list.append(f"**{i}.** {server_name} — {profit_display}")
         
         if server_list:
             embed.add_field(
