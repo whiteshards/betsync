@@ -1163,9 +1163,13 @@ class AdminCommands(commands.Cog):
             ax2.set_facecolor('#36393F')
             # Round float values to integers for pie chart
             integer_pie_data = [int(value) for value in pie_data]
+            
+            # Initialize wedges as empty list
+            wedges = []
+            
             # Only create pie chart if there are non-zero values
             if sum(integer_pie_data) > 0:
-                wedges, texts, autotexts = ax2.pie(
+                pie_results = ax2.pie(
                     integer_pie_data, 
                     labels=None, 
                     autopct='%1.1f%%',
@@ -1173,6 +1177,9 @@ class AdminCommands(commands.Cog):
                     colors=colors,
                     wedgeprops={'width': 0.5, 'edgecolor': '#2B2D31', 'linewidth': 1}
                 )
+                
+                # Unpack pie chart results
+                wedges, texts, autotexts = pie_results
                 
                 # Style the pie chart text - only when autotexts is defined
                 for autotext in autotexts:
@@ -1182,9 +1189,10 @@ class AdminCommands(commands.Cog):
                 # If no data, just show empty plot
                 ax2.text(0.5, 0.5, "No profit data", ha='center', va='center', color='white', fontsize=14)
             
-            # Add legend with percentage and absolute values
-            legend_labels = [f"{label} ({pie_data[i]/total_profit*100:.1f}%)" for i, label in enumerate(pie_labels)]
-            ax2.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False, labelcolor='white')
+            # Add legend with percentage and absolute values, only if there are wedges
+            if wedges:
+                legend_labels = [f"{label} ({pie_data[i]/total_profit*100:.1f}%)" for i, label in enumerate(pie_labels)]
+                ax2.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False, labelcolor='white')
             
             ax2.set_title("Profit Distribution", color='white', fontsize=14, pad=20)
         
