@@ -1173,14 +1173,14 @@ class AdminCommands(commands.Cog):
                     colors=colors,
                     wedgeprops={'width': 0.5, 'edgecolor': '#2B2D31', 'linewidth': 1}
                 )
+                
+                # Style the pie chart text - only when autotexts is defined
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontsize(9)
             else:
                 # If no data, just show empty plot
                 ax2.text(0.5, 0.5, "No profit data", ha='center', va='center', color='white', fontsize=14)
-            
-            # Style the pie chart text
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontsize(9)
             
             # Add legend with percentage and absolute values
             legend_labels = [f"{label} ({pie_data[i]/total_profit*100:.1f}%)" for i, label in enumerate(pie_labels)]
