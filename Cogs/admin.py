@@ -1104,9 +1104,6 @@ class AdminCommands(commands.Cog):
         end_idx = min(start_idx + servers_per_page, len(server_profits))
         current_page_servers = server_profits[start_idx:end_idx]
         
-        # Prepare top 10 servers for display
-        top_servers = server_profits[:10]  # Get top 10 servers
-        
         # Count positive and negative servers
         positive_servers = len([s for s in server_profits if s.get("profit", 0) > 0])
         negative_servers = len([s for s in server_profits if s.get("profit", 0) < 0])
@@ -1115,94 +1112,45 @@ class AdminCommands(commands.Cog):
         # Calculate the total positive profit (for profit distribution)
         total_positive_profit = sum(max(0, s.get("profit", 0)) for s in server_profits)
         
-        # Create a rich, modern embed
+        # Create a clean, concise embed
         embed = discord.Embed(
-            title=f"📊 Server Profits | {date}",
+            title=f"Server Profits | {date}",
             description=f"Performance data across {len(server_profits):,} servers",
-            color=0x00FFAE  # Use the casino's aqua brand color
+            color=0x00FFAE
         )
         
-        # Add summary statistics in a clean, modern style
-        embed.add_field(
-            name="💰 Total Profit",
-            value=f"`{total_profit:,.2f}` tokens\n`${total_profit_usd:,.2f}` USD",
-            inline=True
+        # Consolidate all stats into a single field with backticks for values
+        stats_text = (
+            f"**Total Profit:** `{total_profit:,.2f}` tokens (`${total_profit_usd:,.2f}`)\n"
+            f"**Average Per Server:** `{avg_profit:,.2f}` tokens (`${avg_profit_usd:,.2f}`)\n"
+            f"**Server Distribution:**\n"
+            f"Profitable: `{positive_servers}` servers\n"
+            f"Unprofitable: `{negative_servers}` servers\n"
+            f"Neutral: `{zero_servers}` servers\n\n"
         )
         
-        embed.add_field(
-            name="📈 Average Per Server",
-            value=f"`{avg_profit:,.2f}` tokens\n`${avg_profit_usd:,.2f}` USD",
-            inline=True
-        )
-        
-        # Add server profit overview
-        profit_overview = (
-            f"✅ Profitable: **{positive_servers}** servers\n"
-            f"❌ Unprofitable: **{negative_servers}** servers\n"
-            f"⚖️ Neutral: **{zero_servers}** servers"
-        )
-        embed.add_field(
-            name="📊 Server Overview",
-            value=profit_overview,
-            inline=True
-        )
-        
-        # Add top 5 most profitable servers in a clean format
-        top5_text = ""
-        for i, server in enumerate(top_servers[:5], 1):
-            server_name = server.get("server_name", f"Server {server.get('server_id')}")
-            profit = server.get("profit", 0)
-            profit_usd = profit * 0.0212
-            emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "✨"
-            
-            top5_text += f"{emoji} **{server_name}**\n`{profit:,.2f}` tokens (`${profit_usd:,.2f}`)\n"
-        
-        if top5_text:
-            embed.add_field(
-                name="🏆 Top Performing Servers",
-                value=top5_text,
-                inline=False
-            )
-        
-        # Add bottom 3 servers (if there are any negative profits)
-        bottom_servers = [s for s in server_profits if s.get("profit", 0) < 0]
-        if bottom_servers:
-            bottom3_text = ""
-            for i, server in enumerate(bottom_servers[:3]):
-                server_name = server.get("server_name", f"Server {server.get('server_id')}")
-                profit = server.get("profit", 0)
-                profit_usd = profit * 0.0212
-                bottom3_text += f"⚠️ **{server_name}**\n`{profit:,.2f}` tokens (`${profit_usd:,.2f}`)\n"
-            
-            embed.add_field(
-                name="📉 Underperforming Servers",
-                value=bottom3_text,
-                inline=False
-            )
-        
-        # Add profit distribution (percentage of top 5 servers vs others)
+        # Add profit distribution info if available
         if total_positive_profit > 0:
-            distribution_text = ""
-            top5_positive = [s for s in top_servers[:5] if s.get("profit", 0) > 0]
-            top5_sum = sum(s.get("profit", 0) for s in top5_positive)
+            # Calculate top 5 servers contribution
+            top5_servers = server_profits[:5]
+            top5_sum = sum(max(0, s.get("profit", 0)) for s in top5_servers)
             top5_percent = (top5_sum / total_positive_profit) * 100 if total_positive_profit > 0 else 0
-            
-            others_profit = total_positive_profit - top5_sum
             others_percent = 100 - top5_percent
             
-            if top5_percent > 0:
-                distribution_text += f"🔷 **Top 5 Servers**: `{top5_percent:.1f}%` (`{top5_sum:,.2f}` tokens)\n"
-            if others_percent > 0:
-                distribution_text += f"🔶 **Other Servers**: `{others_percent:.1f}%` (`{others_profit:,.2f}` tokens)\n"
-            
-            if distribution_text:
-                embed.add_field(
-                    name="📊 Profit Distribution",
-                    value=distribution_text,
-                    inline=False
-                )
+            stats_text += (
+                f"**Profit Distribution:**\n"
+                f"Top 5 Servers: `{top5_percent:.1f}%` (`{top5_sum:,.2f}` tokens)\n"
+                f"Other Servers: `{others_percent:.1f}%` (`{total_positive_profit - top5_sum:,.2f}` tokens)\n"
+            )
         
-        # Add server rankings for current page in a clean list
+        # Add the consolidated stats field
+        embed.add_field(
+            name="Server Statistics",
+            value=stats_text,
+            inline=False
+        )
+        
+        # Add server rankings in a single field with cleaner formatting
         if current_page_servers:
             rankings_text = ""
             for i, server in enumerate(current_page_servers, start=start_idx + 1):
@@ -1210,17 +1158,14 @@ class AdminCommands(commands.Cog):
                 profit = server.get("profit", 0)
                 profit_usd = profit * 0.0212
                 
-                # Add different indicators based on profit
-                indicator = "💎" if i <= 3 else "✅" if profit > 0 else "⚠️" if profit < 0 else "⚖️"
-                
-                # Format the line with clean spacing and alignment
-                rankings_text += f"{indicator} `#{i}` **{server_name}** — `{profit:,.2f}` tokens"
+                # Simplified ranking format
+                rankings_text += f"`#{i}` **{server_name}** — `{profit:,.2f}` tokens"
                 if abs(profit) >= 1000:
                     rankings_text += f" (`${profit_usd:,.2f}`)"
                 rankings_text += "\n"
             
             embed.add_field(
-                name=f"📋 Server Rankings (Page {page + 1})",
+                name=f"Server Rankings (Page {page + 1})",
                 value=rankings_text,
                 inline=False
             )
