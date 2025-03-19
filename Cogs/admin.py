@@ -1159,16 +1159,23 @@ class AdminCommands(commands.Cog):
             # Create custom colormap
             colors = ['#00FFAE', '#00D6A4', '#00AE9E', '#00867A', '#005E55', '#3A3A3A']
             
-            # Create pie chart
+            # Create pie chart - convert pie_data to integers to avoid 'wedge sizes x must be an integer value' error
             ax2.set_facecolor('#36393F')
-            wedges, texts, autotexts = ax2.pie(
-                pie_data, 
-                labels=None, 
-                autopct='%1.1f%%',
-                startangle=90, 
-                colors=colors,
-                wedgeprops={'width': 0.5, 'edgecolor': '#2B2D31', 'linewidth': 1}
-            )
+            # Round float values to integers for pie chart
+            integer_pie_data = [int(value) for value in pie_data]
+            # Only create pie chart if there are non-zero values
+            if sum(integer_pie_data) > 0:
+                wedges, texts, autotexts = ax2.pie(
+                    integer_pie_data, 
+                    labels=None, 
+                    autopct='%1.1f%%',
+                    startangle=90, 
+                    colors=colors,
+                    wedgeprops={'width': 0.5, 'edgecolor': '#2B2D31', 'linewidth': 1}
+                )
+            else:
+                # If no data, just show empty plot
+                ax2.text(0.5, 0.5, "No profit data", ha='center', va='center', color='white', fontsize=14)
             
             # Style the pie chart text
             for autotext in autotexts:
