@@ -1074,7 +1074,7 @@ class AdminCommands(commands.Cog):
             return embed, file
     
     async def generate_server_profit_data(self, date=None, page=0, servers_per_page=20):
-        """Generate a server profit graph and data for the specified date"""
+        """Generate server profit data for the specified date"""
         # Get server profit data from MongoDB
         server_profit_db = ServerProfit()
         
@@ -1099,193 +1099,139 @@ class AdminCommands(commands.Cog):
         total_profit_usd = total_profit * 0.0212
         avg_profit_usd = avg_profit * 0.0212
         
-        # Create the plot with a clean modern background
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9), gridspec_kw={'height_ratios': [2, 1]}, dpi=100)
-        fig.patch.set_facecolor('#2B2D31')  # Dark gray for outer background
-        
         # Prepare data for the current page
         start_idx = page * servers_per_page
         end_idx = min(start_idx + servers_per_page, len(server_profits))
         current_page_servers = server_profits[start_idx:end_idx]
         
-        # Prepare data for top 10 bar chart, handling negative values properly
+        # Prepare top 10 servers for display
         top_servers = server_profits[:10]  # Get top 10 servers
-        server_names = [s.get("server_name", f"Server {s.get('server_id')}")[:12] for s in top_servers]
-        profits = [s.get("profit", 0) for s in top_servers]
         
-        # Create bar chart for top 10 servers with improved styling
-        ax1.set_facecolor('#36393F')  # Slightly lighter gray for plot area
+        # Count positive and negative servers
+        positive_servers = len([s for s in server_profits if s.get("profit", 0) > 0])
+        negative_servers = len([s for s in server_profits if s.get("profit", 0) < 0])
+        zero_servers = len([s for s in server_profits if s.get("profit", 0) == 0])
         
-        # Use different colors for positive and negative values
-        colors = ['#00FFAE' if p >= 0 else '#FF5252' for p in profits]
-        bars = ax1.bar(server_names, profits, color=colors, alpha=0.9, width=0.7)
+        # Calculate the total positive profit (for profit distribution)
+        total_positive_profit = sum(max(0, s.get("profit", 0)) for s in server_profits)
         
-        # Add profit values above/below the bars
-        for bar in bars:
-            height = bar.get_height()
-            y_pos = max(height + 5, 5) if height >= 0 else min(height - 20, -20)
-            ax1.text(bar.get_x() + bar.get_width()/2., y_pos,
-                    f'{abs(height):,.0f}',
-                    ha='center', va='bottom' if height >= 0 else 'top', 
-                    color='white', fontsize=9, fontweight='bold')
-        
-        # Clean up axes for minimal look
-        ax1.spines['top'].set_visible(False)
-        ax1.spines['right'].set_visible(False)
-        ax1.spines['left'].set_color('#555555')
-        ax1.spines['bottom'].set_color('#555555')
-        
-        # Format the axes
-        ax1.set_xlabel("", color='white', fontsize=12)  # Remove label for cleaner look
-        ax1.set_ylabel("Profit (Tokens)", color='white', fontsize=12)
-        ax1.set_title(f"Top Server Profits - {date}", color='white', fontsize=16, pad=15)
-        
-        # Add horizontal line at y=0 for better visualization of positive/negative
-        ax1.axhline(y=0, color='#555555', linestyle='-', alpha=0.7, zorder=0)
-        
-        # Rotate x-axis labels for better readability
-        plt.setp(ax1.get_xticklabels(), rotation=30, ha='right', fontsize=9)
-        
-        # Style the ticks
-        ax1.tick_params(colors='white', which='both')
-        ax1.tick_params(axis='x', length=0)  # Hide x tick marks for cleaner look
-        
-        # Add subtle grid lines for y-axis only
-        ax1.grid(True, axis='y', linestyle='--', alpha=0.2, zorder=0)
-        
-        # Create pie chart showing proportion of total profit
-        ax2.set_facecolor('#36393F')  # Match background color
-        
-        # Get data for pie chart - only use positive profits to avoid issues
-        positive_servers = [s for s in server_profits if s.get("profit", 0) > 0]
-        
-        if positive_servers:
-            # Get top 5 positive servers for pie chart
-            top_5_servers = positive_servers[:5]
-            top_5_profits = [s.get("profit", 0) for s in top_5_servers]
-            top_5_names = [s.get("server_name", f"Server {s.get('server_id')}")[:12] for s in top_5_servers]
-            
-            # Calculate "Others" category if needed
-            total_positive = sum(s.get("profit", 0) for s in positive_servers)
-            top_5_sum = sum(top_5_profits)
-            other_profit = total_positive - top_5_sum if len(positive_servers) > 5 else 0
-            
-            # Prepare pie data
-            if other_profit > 0:
-                pie_data = top_5_profits + [other_profit]
-                pie_labels = top_5_names + ["Others"]
-            else:
-                pie_data = top_5_profits
-                pie_labels = top_5_names
-            
-            # Create modern color palette
-            colors = ['#00FFAE', '#00D6A4', '#00BEA9', '#00A7B5', '#008EBF', '#6A7280']
-            
-            # Create pie chart - use float values with explode for better appearance
-            if sum(pie_data) > 0:
-                # Add small explode to separate segments slightly
-                explode = [0.02] * len(pie_data)
-                
-                pie_results = ax2.pie(
-                    pie_data, 
-                    labels=None, 
-                    autopct='%1.1f%%',
-                    startangle=90, 
-                    colors=colors,
-                    explode=explode,
-                    wedgeprops={'width': 0.4, 'edgecolor': '#2B2D31', 'linewidth': 1, 'antialiased': True},
-                    shadow=False
-                )
-                
-                # Unpack pie chart results
-                wedges, texts, autotexts = pie_results
-                
-                # Style the pie chart text
-                for autotext in autotexts:
-                    autotext.set_color('white')
-                    autotext.set_fontsize(9)
-                    autotext.set_fontweight('bold')
-                
-                # Create streamlined legend with server names only
-                legend_labels = [f"{label}" for i, label in enumerate(pie_labels)]
-                ax2.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5), 
-                          frameon=False, labelcolor='white', fontsize=9)
-            else:
-                ax2.text(0.5, 0.5, "Insufficient profit data for chart", 
-                        ha='center', va='center', color='white', fontsize=12)
-        else:
-            ax2.text(0.5, 0.5, "No positive profit data to display", 
-                    ha='center', va='center', color='white', fontsize=12)
-        
-        # Clean up pie chart
-        ax2.set_title("Profit Distribution", color='white', fontsize=14, pad=10)
-        
-        # Add subtle watermark
-        plt.figtext(0.5, 0.01, "BetSync Casino", fontsize=9, color='white', alpha=0.4, ha='center')
-        
-        # Adjust layout for cleaner spacing
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.subplots_adjust(hspace=0.25)  # Adjust spacing between plots
-        
-        # Save to bytes buffer
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', facecolor=fig.get_facecolor(), bbox_inches='tight')
-        buf.seek(0)
-        
-        # Close the figure to prevent memory leaks
-        plt.close(fig)
-        
-        # Create Discord file
-        file = discord.File(buf, filename="server_profit_graph.png")
-        
-        # Create streamlined embed with relevant information
+        # Create a rich, modern embed
         embed = discord.Embed(
-            title=f"Server Profits - {date}",
-            description=f"Data for {len(server_profits)} servers",
-            color=0x2B2D31
+            title=f"📊 Server Profits | {date}",
+            description=f"Performance data across {len(server_profits):,} servers",
+            color=0x00FFAE  # Use the casino's aqua brand color
         )
         
-        # Add summary statistics
+        # Add summary statistics in a clean, modern style
         embed.add_field(
-            name="Total Profit",
-            value=f"**{total_profit:,.2f}** tokens\n(${total_profit_usd:,.2f})",
+            name="💰 Total Profit",
+            value=f"`{total_profit:,.2f}` tokens\n`${total_profit_usd:,.2f}` USD",
             inline=True
         )
         
         embed.add_field(
-            name="Average Per Server",
-            value=f"**{avg_profit:,.2f}** tokens\n(${avg_profit_usd:,.2f})",
+            name="📈 Average Per Server",
+            value=f"`{avg_profit:,.2f}` tokens\n`${avg_profit_usd:,.2f}` USD",
             inline=True
         )
         
-        if server_profits:
-            top_server = server_profits[0]
-            top_profit = top_server.get("profit", 0)
-            embed.add_field(
-                name="Top Server",
-                value=f"**{top_server.get('server_name', 'Unknown')}**\n{top_profit:,.2f} tokens",
-                inline=True
-            )
+        # Add server profit overview
+        profit_overview = (
+            f"✅ Profitable: **{positive_servers}** servers\n"
+            f"❌ Unprofitable: **{negative_servers}** servers\n"
+            f"⚖️ Neutral: **{zero_servers}** servers"
+        )
+        embed.add_field(
+            name="📊 Server Overview",
+            value=profit_overview,
+            inline=True
+        )
         
-        # Add streamlined server rankings for current page
-        server_list = []
-        for i, server in enumerate(current_page_servers, start=start_idx + 1):
+        # Add top 5 most profitable servers in a clean format
+        top5_text = ""
+        for i, server in enumerate(top_servers[:5], 1):
             server_name = server.get("server_name", f"Server {server.get('server_id')}")
             profit = server.get("profit", 0)
-            profit_display = f"{profit:,.2f} tokens" + (f" (${profit*0.0212:,.2f})" if abs(profit) >= 1000 else "")
-            server_list.append(f"**{i}.** {server_name} — {profit_display}")
+            profit_usd = profit * 0.0212
+            emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "✨"
+            
+            top5_text += f"{emoji} **{server_name}**\n`{profit:,.2f}` tokens (`${profit_usd:,.2f}`)\n"
         
-        if server_list:
+        if top5_text:
             embed.add_field(
-                name=f"Server Rankings (Page {page + 1})",
-                value="\n".join(server_list),
+                name="🏆 Top Performing Servers",
+                value=top5_text,
                 inline=False
             )
         
-        embed.set_image(url="attachment://server_profit_graph.png")
-        embed.set_footer(text=f"Page {page + 1}/{(len(server_profits) + servers_per_page - 1) // servers_per_page}")
+        # Add bottom 3 servers (if there are any negative profits)
+        bottom_servers = [s for s in server_profits if s.get("profit", 0) < 0]
+        if bottom_servers:
+            bottom3_text = ""
+            for i, server in enumerate(bottom_servers[:3]):
+                server_name = server.get("server_name", f"Server {server.get('server_id')}")
+                profit = server.get("profit", 0)
+                profit_usd = profit * 0.0212
+                bottom3_text += f"⚠️ **{server_name}**\n`{profit:,.2f}` tokens (`${profit_usd:,.2f}`)\n"
+            
+            embed.add_field(
+                name="📉 Underperforming Servers",
+                value=bottom3_text,
+                inline=False
+            )
         
-        return embed, file
+        # Add profit distribution (percentage of top 5 servers vs others)
+        if total_positive_profit > 0:
+            distribution_text = ""
+            top5_positive = [s for s in top_servers[:5] if s.get("profit", 0) > 0]
+            top5_sum = sum(s.get("profit", 0) for s in top5_positive)
+            top5_percent = (top5_sum / total_positive_profit) * 100 if total_positive_profit > 0 else 0
+            
+            others_profit = total_positive_profit - top5_sum
+            others_percent = 100 - top5_percent
+            
+            if top5_percent > 0:
+                distribution_text += f"🔷 **Top 5 Servers**: `{top5_percent:.1f}%` (`{top5_sum:,.2f}` tokens)\n"
+            if others_percent > 0:
+                distribution_text += f"🔶 **Other Servers**: `{others_percent:.1f}%` (`{others_profit:,.2f}` tokens)\n"
+            
+            if distribution_text:
+                embed.add_field(
+                    name="📊 Profit Distribution",
+                    value=distribution_text,
+                    inline=False
+                )
+        
+        # Add server rankings for current page in a clean list
+        if current_page_servers:
+            rankings_text = ""
+            for i, server in enumerate(current_page_servers, start=start_idx + 1):
+                server_name = server.get("server_name", f"Server {server.get('server_id')}")
+                profit = server.get("profit", 0)
+                profit_usd = profit * 0.0212
+                
+                # Add different indicators based on profit
+                indicator = "💎" if i <= 3 else "✅" if profit > 0 else "⚠️" if profit < 0 else "⚖️"
+                
+                # Format the line with clean spacing and alignment
+                rankings_text += f"{indicator} `#{i}` **{server_name}** — `{profit:,.2f}` tokens"
+                if abs(profit) >= 1000:
+                    rankings_text += f" (`${profit_usd:,.2f}`)"
+                rankings_text += "\n"
+            
+            embed.add_field(
+                name=f"📋 Server Rankings (Page {page + 1})",
+                value=rankings_text,
+                inline=False
+            )
+        
+        # Add custom footer with pagination info
+        total_pages = (len(server_profits) + servers_per_page - 1) // servers_per_page
+        embed.set_footer(
+            text=f"BetSync Casino | Page {page + 1}/{total_pages} | Data for {date}"
+        )
+        
+        return embed, None  # Return None for file since we're not using images anymore
     
     @commands.command(name="sp", aliases=["serverprofit"])
     async def server_profit(self, ctx, date=None):
@@ -1328,13 +1274,13 @@ class AdminCommands(commands.Cog):
         
         try:
             # Generate the server profit data
-            embed, file = await self.generate_server_profit_data(date)
+            embed, _ = await self.generate_server_profit_data(date)
             
             # Create the view with pagination buttons
             view = ServerProfitView(self, ctx.author.id, date=date)
             
             # Edit the loading message with the data
-            await loading_message.edit(embed=embed, file=file, view=view)
+            await loading_message.edit(embed=embed, view=view)
             
         except ValueError as e:
             # Handle no data available
@@ -1594,7 +1540,8 @@ class ServerProfitView(discord.ui.View):
         
         # Add pagination buttons
         self.add_item(discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary, custom_id="prev", disabled=page == 0))
-        self.add_item(discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary, custom_id="next"))
+        self.add_item(discord.ui.Button(label="Next", style=discord.ButtonStyle.primary, custom_id="next"))
+        self.add_item(discord.ui.Button(label="Refresh", style=discord.ButtonStyle.success, custom_id="refresh"))
     
     async def interaction_check(self, interaction):
         """Check if the person clicking is the same as the command author"""
@@ -1614,17 +1561,20 @@ class ServerProfitView(discord.ui.View):
             self.page -= 1
         elif custom_id == "next":
             self.page += 1
+        elif custom_id == "refresh":
+            # Just refresh the current page
+            pass
             
         # Update buttons
         for child in self.children:
             if child.custom_id == "prev":
                 child.disabled = self.page == 0
         
-        # Generate new embed and file
-        embed, file = await self.cog.generate_server_profit_data(self.date, self.page, self.servers_per_page)
+        # Generate new embed
+        embed, _ = await self.cog.generate_server_profit_data(self.date, self.page, self.servers_per_page)
         
         # Update the message
-        await interaction.response.edit_message(embed=embed, file=file, view=self)
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 def setup(bot):
