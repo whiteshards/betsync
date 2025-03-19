@@ -7,7 +7,7 @@ import matplotlib.dates as mdates
 import numpy as np
 import io
 from discord.ext import commands
-from Cogs.utils.mongo import Users, Servers, ProfitData
+from Cogs.utils.mongo import Users, Servers, ProfitData, ServerProfit
 from Cogs.utils.emojis import emoji
 
 class AdminCommands(commands.Cog):
@@ -1073,6 +1073,243 @@ class AdminCommands(commands.Cog):
             
             return embed, file
     
+    async def generate_server_profit_data(self, date=None, page=0, servers_per_page=20):
+        """Generate a server profit graph and data for the specified date"""
+        # Get server profit data from MongoDB
+        server_profit_db = ServerProfit()
+        
+        # Default to today if no date provided
+        if date is None:
+            date = datetime.datetime.now().date().strftime("%Y-%m-%d")
+            
+        # Get all server profits for the date
+        server_profits = server_profit_db.get_all_server_profits(date)
+        
+        if not server_profits:
+            raise ValueError(f"No server profit data available for {date}")
+        
+        # Sort servers by profit (highest to lowest)
+        server_profits.sort(key=lambda x: x.get("profit", 0), reverse=True)
+        
+        # Calculate total and average
+        total_profit = sum(server.get("profit", 0) for server in server_profits)
+        avg_profit = total_profit / len(server_profits) if server_profits else 0
+        
+        # Calculate USD equivalents (based on the rate seen in the code: 1 token = 0.0212 USD)
+        total_profit_usd = total_profit * 0.0212
+        avg_profit_usd = avg_profit * 0.0212
+        
+        # Create the plot with a modern gray background
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), gridspec_kw={'height_ratios': [2, 1]}, dpi=100)
+        fig.patch.set_facecolor('#2B2D31')  # Dark gray for outer background
+        
+        # Prepare data for the current page
+        start_idx = page * servers_per_page
+        end_idx = min(start_idx + servers_per_page, len(server_profits))
+        current_page_servers = server_profits[start_idx:end_idx]
+        
+        # Prepare data for top 10 bar chart
+        top_servers = server_profits[:10]  # Get top 10 servers
+        server_names = [s.get("server_name", f"Server {s.get('server_id')}")[:15] for s in top_servers]
+        profits = [s.get("profit", 0) for s in top_servers]
+        
+        # Create bar chart for top 10 servers
+        ax1.set_facecolor('#36393F')  # Slightly lighter gray for plot area
+        bars = ax1.bar(server_names, profits, color='#00FFAE', alpha=0.8)
+        
+        # Add profit values on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height + 5,
+                    f'{height:,.0f}',
+                    ha='center', va='bottom', color='white', fontsize=9)
+        
+        # Format the axes
+        ax1.set_xlabel("Server", color='white', fontsize=12)
+        ax1.set_ylabel("Profit (Tokens)", color='white', fontsize=12)
+        ax1.set_title(f"Top 10 Server Profits - {date}", color='white', fontsize=16, pad=20)
+        
+        # Rotate x-axis labels for better readability
+        plt.setp(ax1.get_xticklabels(), rotation=45, ha='right', fontsize=9)
+        
+        # Style the axes and ticks
+        ax1.tick_params(colors='white', which='both')
+        for spine in ax1.spines.values():
+            spine.set_edgecolor('#555555')
+        
+        # Add grid lines for readability
+        ax1.grid(True, linestyle='--', alpha=0.3, zorder=0)
+        
+        # Create pie chart showing proportion of total profit
+        if len(top_servers) > 0:
+            # Get data for pie chart (top 5 servers plus "Others")
+            top_5_servers = server_profits[:5]
+            top_5_profits = [s.get("profit", 0) for s in top_5_servers]
+            top_5_names = [s.get("server_name", f"Server {s.get('server_id')}")[:15] for s in top_5_servers]
+            
+            other_profit = total_profit - sum(top_5_profits)
+            
+            if other_profit > 0:
+                pie_data = top_5_profits + [other_profit]
+                pie_labels = top_5_names + ["Others"]
+            else:
+                pie_data = top_5_profits
+                pie_labels = top_5_names
+            
+            # Create custom colormap
+            colors = ['#00FFAE', '#00D6A4', '#00AE9E', '#00867A', '#005E55', '#3A3A3A']
+            
+            # Create pie chart
+            ax2.set_facecolor('#36393F')
+            wedges, texts, autotexts = ax2.pie(
+                pie_data, 
+                labels=None, 
+                autopct='%1.1f%%',
+                startangle=90, 
+                colors=colors,
+                wedgeprops={'width': 0.5, 'edgecolor': '#2B2D31', 'linewidth': 1}
+            )
+            
+            # Style the pie chart text
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontsize(9)
+            
+            # Add legend with percentage and absolute values
+            legend_labels = [f"{label} ({pie_data[i]/total_profit*100:.1f}%)" for i, label in enumerate(pie_labels)]
+            ax2.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5), frameon=False, labelcolor='white')
+            
+            ax2.set_title("Profit Distribution", color='white', fontsize=14, pad=20)
+        
+        # Add BetSync watermark
+        plt.figtext(0.5, 0.01, "BetSync Casino", fontsize=10, color='white', alpha=0.4, ha='center')
+        
+        # Adjust layout for better padding
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # Save to bytes buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', facecolor=fig.get_facecolor())
+        buf.seek(0)
+        
+        # Close the figure to prevent memory leaks
+        plt.close(fig)
+        
+        # Create Discord file
+        file = discord.File(buf, filename="server_profit_graph.png")
+        
+        # Create embed with relevant information
+        embed = discord.Embed(
+            title=f"Server Profits - {date}",
+            description=f"Showing data for {len(server_profits)} servers",
+            color=0x2B2D31
+        )
+        
+        # Add summary statistics
+        embed.add_field(
+            name="Total Profit",
+            value=f"**{total_profit:,.2f}** tokens\n(${total_profit_usd:,.2f})",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Average Per Server",
+            value=f"**{avg_profit:,.2f}** tokens\n(${avg_profit_usd:,.2f})",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Top Server",
+            value=f"**{server_profits[0].get('server_name', 'Unknown')}**\n{server_profits[0].get('profit', 0):,.2f} tokens",
+            inline=True
+        )
+        
+        # Add server rankings for current page
+        server_list = []
+        for i, server in enumerate(current_page_servers, start=start_idx + 1):
+            server_name = server.get("server_name", f"Server {server.get('server_id')}")
+            profit = server.get("profit", 0)
+            profit_usd = profit * 0.0212
+            server_list.append(f"**{i}. {server_name}** - {profit:,.2f} tokens (${profit_usd:,.2f})")
+        
+        if server_list:
+            embed.add_field(
+                name=f"Server Rankings (Page {page + 1})",
+                value="\n".join(server_list),
+                inline=False
+            )
+        
+        embed.set_image(url="attachment://server_profit_graph.png")
+        embed.set_footer(text=f"Page {page + 1}/{(len(server_profits) + servers_per_page - 1) // servers_per_page}")
+        
+        return embed, file
+    
+    @commands.command(name="sp", aliases=["serverprofit"])
+    async def server_profit(self, ctx, date=None):
+        """Display server profit data with rankings and visualization
+        
+        Usage: !sp [YYYY-MM-DD]
+        """
+        # Check if command user is an admin
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+            
+        # Use today's date if none provided
+        if date is None:
+            date = datetime.datetime.now().date().strftime("%Y-%m-%d")
+        else:
+            # Validate date format
+            try:
+                datetime.datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                embed = discord.Embed(
+                    title="<:no:1344252518305234987> | Invalid Date Format",
+                    description="Please use the format YYYY-MM-DD (e.g., 2023-12-31)",
+                    color=0xFF0000
+                )
+                return await ctx.reply(embed=embed)
+        
+        # Send loading message
+        loading_emoji = emoji()["loading"]
+        loading_embed = discord.Embed(
+            title=f"{loading_emoji} | Generating Server Profit Data",
+            description="Please wait while we generate the server profit report...",
+            color=0x00FFAE
+        )
+        loading_message = await ctx.reply(embed=loading_embed)
+        
+        try:
+            # Generate the server profit data
+            embed, file = await self.generate_server_profit_data(date)
+            
+            # Create the view with pagination buttons
+            view = ServerProfitView(self, ctx.author.id, date=date)
+            
+            # Edit the loading message with the data
+            await loading_message.edit(embed=embed, file=file, view=view)
+            
+        except ValueError as e:
+            # Handle no data available
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | No Data Available",
+                description=f"{str(e)}",
+                color=0xFF0000
+            )
+            await loading_message.edit(embed=error_embed)
+        except Exception as e:
+            # Handle any other errors
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"An error occurred while generating the server profit data: ```{str(e)}```",
+                color=0xFF0000
+            )
+            await loading_message.edit(embed=error_embed)
+    
     @commands.command(name="tp")
     async def total_profit(self, ctx, view_type: str = "daily"):
         """Display total profit graph with daily/monthly/all-time views
@@ -1302,6 +1539,50 @@ class TotalProfitView(discord.ui.View):
                 color=0xFF0000
             )
             await interaction.response.send_message(embed=error_embed, ephemeral=True)
+
+class ServerProfitView(discord.ui.View):
+    def __init__(self, cog, author_id, page=0, date=None):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.author_id = author_id
+        self.page = page
+        self.servers_per_page = 20
+        self.date = date if date else datetime.datetime.now().date().strftime("%Y-%m-%d")
+        
+        # Add pagination buttons
+        self.add_item(discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary, custom_id="prev", disabled=page == 0))
+        self.add_item(discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary, custom_id="next"))
+    
+    async def interaction_check(self, interaction):
+        """Check if the person clicking is the same as the command author"""
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("You cannot use these controls.", ephemeral=True)
+            return False
+            
+        # Handle the button click
+        await self.button_callback(interaction)
+        return False  # Return False to prevent the default handling
+    
+    async def button_callback(self, interaction):
+        """Handle button interactions"""
+        custom_id = interaction.data.get("custom_id")
+        
+        if custom_id == "prev" and self.page > 0:
+            self.page -= 1
+        elif custom_id == "next":
+            self.page += 1
+            
+        # Update buttons
+        for child in self.children:
+            if child.custom_id == "prev":
+                child.disabled = self.page == 0
+        
+        # Generate new embed and file
+        embed, file = await self.cog.generate_server_profit_data(self.date, self.page, self.servers_per_page)
+        
+        # Update the message
+        await interaction.response.edit_message(embed=embed, file=file, view=self)
+
 
 def setup(bot):
     bot.add_cog(AdminCommands(bot))

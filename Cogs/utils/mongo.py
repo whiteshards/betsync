@@ -157,10 +157,16 @@ class Servers:
             return self.collection.find_one({"server_id": server_id})
 
     def update_server_profit(self, server_id, amount, game=None):
+        """Update server profit statistics"""
         npc = self.db["net_profit"]
         profit_tracker = ProfitData()
-        """Update server profit statistics"""
+        server_profit_tracker = ServerProfit()
+        
         try:
+            # Get server name
+            server_info = self.collection.find_one({"server_id": server_id})
+            server_name = server_info.get("server_name", f"Unknown Server ({server_id})")
+            
             # Update server profit
             self.collection.update_one(
                 {"server_id": server_id},
@@ -170,8 +176,11 @@ class Servers:
             # Update daily profit tracking
             profit_tracker.update_daily_profit(amount)
             
+            # Update server-specific profit tracking
+            server_profit_tracker.update_server_profit(server_id, server_name, amount)
+            
             # Update net profit
-
+            
             # Update game-specific profit
             if game:
                 if npc.count_documents({"game": game}):
@@ -214,6 +223,79 @@ class Servers:
             return self.collection.find_one({"server_id": server_id})
         else:
             return False
+
+
+class ServerProfit:
+    def __init__(self):
+        self.db = mongodb["BetSync"]
+        self.collection = self.db["server_profit"]
+        
+    def get_server_profit(self, server_id=None, date=None):
+        """
+        Get server profit data for a specific server, date, or all servers
+        
+        Args:
+            server_id: Optional server ID to filter by
+            date: Optional date to filter by (defaults to today)
+            
+        Returns:
+            A single document or list of documents matching the criteria
+        """
+        # Default to today if no date specified
+        if date is None:
+            date = datetime.date.today().strftime("%Y-%m-%d")
+        
+        # If server_id is provided, return just that server's data
+        if server_id:
+            return self.collection.find_one({"server_id": server_id, "date": date})
+        
+        # Otherwise return all servers for the date
+        return list(self.collection.find({"date": date}))
+    
+    def update_server_profit(self, server_id, server_name, amount):
+        """
+        Update server profit for today
+        
+        Args:
+            server_id: The Discord server ID
+            server_name: The name of the server
+            amount: The profit amount to add
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get today's date
+            today = datetime.date.today().strftime("%Y-%m-%d")
+            
+            # Use upsert to handle both new records and updates
+            result = self.collection.update_one(
+                {"server_id": server_id, "date": today},
+                {
+                    "$inc": {"profit": amount},
+                    "$setOnInsert": {
+                        "date": today,
+                        "server_id": server_id,
+                        "server_name": server_name
+                    }
+                },
+                upsert=True
+            )
+            
+            rn = datetime.datetime.now().strftime("%X")
+            print(f"{Back.CYAN}  {Style.DIM}{server_id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{amount} ({round((amount)*0.0212, 3)}$){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}sv_profit_record{Fore.WHITE}")
+            
+            return True
+        except Exception as e:
+            print(f"Error updating server profit: {e}")
+            return False
+    
+    def get_all_server_profits(self, date=None):
+        """Get profit data for all servers on a specific date"""
+        if date is None:
+            date = datetime.date.today().strftime("%Y-%m-%d")
+            
+        return list(self.collection.find({"date": date}))
 
 
 class ProfitData:
