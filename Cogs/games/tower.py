@@ -63,23 +63,23 @@ class TowerGameView(discord.ui.View):
         if self.difficulty == "easy":
             self.tiles_per_row = 4
             self.diamonds_per_row = 3
-            self.multipliers = [1.31, 1.74, 2.32, 3.10, 4.13, 5.51, 7.34, 9.79, 13.05]
+            self.multipliers = [1.27, 1.69, 2.25, 3.00, 4.00, 5.34, 7.12, 9.49, 12.65]
         elif self.difficulty == "medium":
             self.tiles_per_row = 3
             self.diamonds_per_row = 2
-            self.multipliers = [1.47, 2.21, 3.31, 4.96, 7.44, 11.16, 16.74, 25.11, 37.67]
+            self.multipliers = [1.43, 2.14, 3.21, 4.81, 7.21, 10.82, 16.23, 24.35, 36.52]
         elif self.difficulty == "hard":
             self.tiles_per_row = 2
             self.diamonds_per_row = 1
-            self.multipliers = [1.96, 3.92, 7.84, 15.68, 31.36, 62.72, 125.44, 250.44, 501.76]
+            self.multipliers = [1.90, 3.80, 7.60, 15.20, 30.40, 60.80, 121.60, 243.20, 486.40]
         elif self.difficulty == "expert":
             self.tiles_per_row = 2
             self.diamonds_per_row = 1
-            self.multipliers = [2.94, 8.82, 26.46, 79.38, 238.14, 714.42, 2143.26, 6429.78, 19289.34]
+            self.multipliers = [2.85, 8.55, 25.65, 76.95, 230.85, 693.55, 2077.65, 6232.95, 18798.85]
         elif self.difficulty == "master":
             self.tiles_per_row = 4
             self.diamonds_per_row = 1
-            self.multipliers = [3.92, 15.68, 62.72, 250.88, 1003.52, 4014.08, 16056.32, 64225.28, 256901.12]
+            self.multipliers = [3.80, 15.20, 60.80, 243.20, 972.80, 3891.20, 15564.80, 62259.20, 249036.80]
 
         # Current multiplier (starts at the first level multiplier)
         self.current_multiplier = self.multipliers[0]
