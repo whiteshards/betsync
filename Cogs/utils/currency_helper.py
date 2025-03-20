@@ -292,8 +292,8 @@ async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=Non
     if rakeback_amount > 0:
         print(f"{Back.YELLOW}  {Style.DIM}{user.id}{Style.RESET_ALL}{Back.RESET}{Fore.YELLOW}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}+{rakeback_amount:.2f} ({rank_name} {rakeback_percentage}%){Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}rakeback{Fore.WHITE}")
 
-    # Add debug log for rank change
-    if rank_changed:
+    # Add debug log for rank change only if rank actually changed
+    if rank_changed and new_rank != current_rank:
         print(f"{Back.MAGENTA}  {Style.DIM}{user.id}{Style.RESET_ALL}{Back.RESET}{Fore.MAGENTA}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}RANK UP: {rank_name}{Fore.WHITE}{Style.RESET_ALL}  {Fore.MAGENTA}rank_change{Fore.WHITE}")
 
     # Update loading message if provided
