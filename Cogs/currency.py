@@ -141,7 +141,18 @@ class Deposit(commands.Cog):
             self.client = None
         else:
             try:
-                self.client = Client(api_key=self.binance_api_key, api_secret=self.binance_secret, testnet=True)
+                self.client = Client(
+                    api_key=self.binance_api_key, 
+                    api_secret=self.binance_secret,
+                    testnet=True,
+                    tld='com'  # Specify API endpoint
+                )
+                # Test API connection
+                try:
+                    self.client.get_system_status()
+                except Exception as e:
+                    print(f"Failed to connect to Binance API: {e}")
+                    self.client = None
             except Exception as e:
                 print(f"Failed to initialize Binance client: {e}")
                 self.client = None
@@ -335,8 +346,7 @@ class Deposit(commands.Cog):
                     # Include user ID in address generation params
                     address_data = self.client.get_deposit_address(
                         coin=currency,
-                        network=self.networks[currency],
-                        params={'userId': str(ctx.author.id)}
+                        network=self.networks[currency]
                     )
 
                     if not address_data or 'address' not in address_data:
