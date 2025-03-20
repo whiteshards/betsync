@@ -159,85 +159,8 @@ class Start(commands.Cog):
                 title="BetSync Casino Commands",
                 description=f"**{total_commands} Commands Available** • Type any command to see usage\n─────────────────────────",
                 color=0x00FFAE
-
-
-class TNCPaginator(discord.ui.View):
-        def __init__(self, embeds):
-            super().__init__(timeout=60)
-            self.embeds = embeds
-            self.current_page = 0
-
-        @discord.ui.button(label="Previous", style=discord.ButtonStyle.gray)
-        async def previous(self, button: discord.ui.Button, interaction: discord.Interaction):
-            if self.current_page > 0:
-                self.current_page -= 1
-                await interaction.response.edit_message(embed=self.embeds[self.current_page])
-
-        @discord.ui.button(label="Next", style=discord.ButtonStyle.gray)
-        async def next(self, button: discord.ui.Button, interaction: discord.Interaction):
-            if self.current_page < len(self.embeds) - 1:
-                self.current_page += 1
-                await interaction.response.edit_message(embed=self.embeds[self.current_page])
-
-    @commands.command(name="tnc")
-    async def tnc(self, ctx):
-        tnc_sections = [
-            {
-                "name": "1. Introduction & 2. Acceptance",
-                "value": "Welcome to BetSync – a Discord bot designed to simulate betting and gambling-style games. By using BetSync, you confirm that you have read, understood, and agree to be bound by these Terms."
-            },
-            {
-                "name": "3. Eligibility",
-                "value": "• You must be at least 18 years old\n• You confirm meeting age requirements\n• You have legal capacity to enter this agreement"
-            },
-            {
-                "name": "4. Use of BetSync",
-                "value": "• For entertainment purposes only\n• Simulated gambling with 98.5% RTP\n• Fair play ensured through RNG\n• No guaranteed individual outcomes"
-            },
-            {
-                "name": "5. Virtual Currency",
-                "value": "• All currency is virtual with no real value\n• Simulated betting only\n• No real-money gambling"
-            },
-            {
-                "name": "6. Responsible Gambling",
-                "value": "• Use responsibly\n• Don't wager more than affordable\n• Seek help if needed"
-            },
-            {
-                "name": "7. Limitation of Liability",
-                "value": "• Service provided 'as is'\n• No warranties\n• No liability for damages"
-            },
-            {
-                "name": "8. Modifications",
-                "value": "• Terms may be modified\n• Changes effective when posted\n• May terminate access at discretion"
-            },
-            {
-                "name": "9. Intellectual Property",
-                "value": "All content and IP owned by creators. Non-exclusive license granted for personal use."
-            },
-            {
-                "name": "10. Governing Law",
-                "value": "Terms governed by applicable laws. Disputes resolved through informal negotiations or arbitration."
-            }
-        ]
-
-        embeds = []
-        for i in range(0, len(tnc_sections), 4):
-            embed = discord.Embed(
-                title="BetSync Terms & Conditions",
-                color=0x00FFAE,
-                description="_Last Updated: March 2024_"
             )
             
-            for section in tnc_sections[i:i+4]:
-                embed.add_field(name=section["name"], value=section["value"], inline=False)
-                
-            embed.set_footer(text=f"Page {i//4 + 1}/{(len(tnc_sections)+3)//4}")
-            embeds.append(embed)
-
-        view = TNCPaginator(embeds)
-        await ctx.reply(embed=embeds[0], view=view)
-
-
             commands_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_commands])
             embed.description += f"\n\n{commands_list}"
             

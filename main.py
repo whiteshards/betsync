@@ -118,7 +118,7 @@ async def on_command(ctx):
                 description="**Type** `!guide` **to get started**"
                 )
                 embed.set_footer(text="BetSync Casino", icon_url=bot.user.avatar.url)
-                await ctx.reply("By using BetSync, you agree to our Terms and conditions. Type `!tnc` to know more.", embed=embed)
+                await ctx.reply("By using BetSync, you agree to our TOS. Type `!tos` to know more.", embed=embed)
         except Exception as e:
             #print(f"{Fore.RED}[!] {Fore.WHITE}Error in on_command: {Fore.RED}{e}")
             pass
