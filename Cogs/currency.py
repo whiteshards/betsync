@@ -2,7 +2,6 @@ import discord
 import requests
 import qrcode
 import io
-import os
 import asyncio
 
 import datetime
@@ -12,7 +11,6 @@ from PIL import Image, ImageFont, ImageDraw
 from discord.ext import commands
 from Cogs.utils.mongo import Users
 from Cogs.utils.emojis import emoji
-from binance import Client, ThreadedWebsocketManager, ThreadedDepthCacheManager
 from colorama import Fore
 import re
 
@@ -133,42 +131,14 @@ class DepositCancelView(discord.ui.View):
 class Deposit(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.binance_api_key = os.getenv('BINANCE_API_KEY', '').strip()
-        self.binance_secret = os.getenv('BINANCE_SECRET_KEY', '').strip()
-
-        if not self.binance_api_key or not self.binance_secret:
-            print("Binance API credentials not found")
-            self.client = None
-        else:
-            try:
-                self.client = Client(
-                    api_key=self.binance_api_key, 
-                    api_secret=self.binance_secret,
-                    testnet=True,
-                    tld='com'  # Specify API endpoint
-                )
-                # Test API connection
-                try:
-                    self.client.get_system_status()
-                except Exception as e:
-                    print(f"Failed to connect to Binance API: {e}")
-                    self.client = None
-            except Exception as e:
-                print(f"Failed to initialize Binance client: {e}")
-                self.client = None
+        self.target_currency = "usdcalgo"
+        self.api_key = "d676247c-fbc2-4490-9fbf-e0e60a4e2066"
         self.supported_currencies = {
             "BTC": "btc",
-            "LTC": "ltc", 
+            "LTC": "ltc",
             "SOL": "sol",
             "ETH": "eth",
             "USDT": "usdt"
-        }
-        self.networks = {
-            "BTC": "BTC",
-            "LTC": "LTC",
-            "SOL": "SOL",
-            "ETH": "ETH",
-            "USDT": "TRX"  # Using TRC20 network for USDT
         }
         self.pending_deposits = {}
         self.deposit_timeout = 600  # 10 minutes
@@ -294,135 +264,9 @@ class Deposit(commands.Cog):
             )
             await ctx.reply(embed=embed)
 
-    @commands.command(aliases=["deposit"])
-    @commands.cooldown(1, 6, commands.BucketType.user)  # 6 second cooldown
-    async def dep(self, ctx, currency: str = None):
-        if not currency:
-            embed = discord.Embed(
-                title="❌ Invalid Usage",
-                description="**Usage:** `!dep <crypto>`\n**Example:** `!dep BTC`\n\n**Supported Cryptocurrencies:**\n" + 
-                          "\n".join([f"• {symbol} ({name})" for symbol, name in self.supported_currencies.items()]),
-                color=discord.Color.red()
-            )
-            return await ctx.reply(embed=embed)
-
-        currency = currency.upper()
-        if currency not in self.supported_currencies:
-            return await ctx.reply(
-                embed=discord.Embed(
-                    title="❌ Invalid Currency",
-                    description=f"`{currency}` is not supported. Use: {', '.join(self.supported_currencies.keys())}",
-                    color=discord.Color.red()
-                )
-            )
-
-        loading_embed = discord.Embed(
-            title="⏳ Processing...",
-            description="Generating your deposit address...",
-            color=discord.Color.gold()
-        )
-        message = await ctx.reply(embed=loading_embed)
-
-        try:
-            # Check if user has existing address
-            db = Users()
-            user_data = db.fetch_user(ctx.author.id)
-
-            deposit_addresses = user_data.get('deposit_addresses', {})
-            address = deposit_addresses.get(currency)
-
-            if not address:
-                # Generate new address with user-specific params
-                if not self.client:
-                    return await message.edit(
-                        embed=discord.Embed(
-                            title="❌ Service Unavailable",
-                            description="Deposit service is temporarily unavailable. Please try again later.",
-                            color=discord.Color.red()
-                        )
-                    )
-
-                try:
-                    # Include user ID in address generation params
-                    address_data = self.client.get_deposit_address(
-                        coin=currency,
-                        network=self.networks[currency]
-                    )
-
-                    if not address_data or 'address' not in address_data:
-                        raise Exception("Failed to generate unique address")
-
-                    address = address_data['address']
-
-                    # Verify address uniqueness
-                    existing_user = db.collection.find_one({
-                        f"deposit_addresses.{currency}": address,
-                        "discord_id": {"$ne": ctx.author.id}
-                    })
-
-                    if existing_user:
-                        raise Exception("Generated duplicate address")
-
-                    # Save unique address to database
-                    deposit_addresses[currency] = address
-                    db.collection.update_one(
-                        {"discord_id": ctx.author.id},
-                        {"$set": {"deposit_addresses": deposit_addresses}}
-                    )
-                except Exception as e:
-                    print(f"Address generation error: {e}")
-                    return await message.edit(
-                        embed=discord.Embed(
-                            title="❌ Error",
-                            description="Failed to generate a unique deposit address. Please try again.",
-                            color=discord.Color.red()
-                        )
-                    )
-
-            # Generate QR code
-            qr = qrcode.QRCode(version=1, box_size=10, border=4)
-            qr.add_data(address)
-            qr.make(fit=True)
-            qr_img = qr.make_image(fill_color="black", back_color="white")
-
-            # Add BetSync branding
-            final_img = Image.new('RGB', (400, 460), 'white')
-            final_img.paste(qr_img.resize((300, 300)), (50, 50))
-
-            # Add text
-            draw = ImageDraw.Draw(final_img)
-            font = ImageFont.truetype("roboto.ttf", 24)
-            draw.text((200, 380), "BETSYNC", font=font, fill="black", anchor="mm")
-            draw.text((200, 420), f"Deposit {currency}", font=font, fill="black", anchor="mm")
-
-            # Save QR code
-            buffer = io.BytesIO()
-            final_img.save(buffer, format='PNG')
-            buffer.seek(0)
-            file = discord.File(buffer, filename='deposit_qr.png')
-
-            # Create embed
-            embed = discord.Embed(
-                title=f"💎 {currency} Deposit Address",
-                description=f"Network: **{self.networks[currency]}**\n\nSend only {currency} to this address. Other currencies will be lost.",
-                color=0x2ecc71
-            )
-            embed.add_field(name="Address", value=f"```{address}```", inline=False)
-            embed.set_image(url="attachment://deposit_qr.png")
-            embed.set_footer(text="Click 'Check Deposits' to verify your transaction • Valid for 20 minutes")
-
-            # Create button view
-            view = DepositCheckView(self, ctx.author.id, currency, address)
-            await message.edit(content=f"`{address}`", embed=embed, file=file, view=view)
-
-        except Exception as e:
-            print(f"Deposit error: {e}")
-            error_embed = discord.Embed(
-                title="❌ Error",
-                description="Failed to generate deposit address. Please try again later.",
-                color=discord.Color.red()
-            )
-            await message.edit(embed=error_embed)
+    @commands.command(aliases=["depo"])
+    @commands.cooldown(1, 600, commands.BucketType.user)  # 10 minute cooldown
+    async def dep(self, ctx, currency: str = None, amount: float = None):
         """
         Deposit command: !dep <currency> <amount in USD>
         Example: !dep BTC 50
@@ -691,7 +535,7 @@ class Deposit(commands.Cog):
         db = Users()
         # Update balance
         resp = db.update_balance(user_id, tokens_amount, "tokens", "$inc")
-
+        
         # Add to history
         history_entry = {
             "type": "deposit",
@@ -702,13 +546,13 @@ class Deposit(commands.Cog):
             {"discord_id": user_id},
             {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}  # Keep last 100 entries
         )
-
+        
         # Update total deposit amount
         db.collection.update_one(
             {"discord_id": user_id},
             {"$inc": {"total_deposit_amount": tokens_amount}}
         )
-
+        
         user = self.bot.get_user(user_id)
         if user:
             embed = discord.Embed(
@@ -745,7 +589,7 @@ class Deposit(commands.Cog):
                     except Exception as e:
                         print(f"[ERROR] Processing deposit: {e}")
                         await ctx.author.send("There was an error processing your deposit. Please contact support.")
-                        return                
+                        return
                 else:
                     # Optionally re-fetch the current minimum deposit for this currency
                     current_minimum = self.get_minimum_deposit(currency)
@@ -803,102 +647,3 @@ class Deposit(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Deposit(bot))
-class DepositCheckView(discord.ui.View):
-    def __init__(self, cog, user_id, currency, address):
-        super().__init__(timeout=1200)  # 20 minute timeout
-        self.cog = cog
-        self.user_id = user_id
-        self.currency = currency
-        self.address = address
-        self.checking = False
-
-    async def on_timeout(self):
-        for child in self.children:
-            child.disabled = True
-        embed = discord.Embed(
-            title="⏰ Embed Timed Out",
-            description="Please use `!dep <crypto>` again to generate a new deposit interface.",
-            color=discord.Color.orange()
-        )
-        try:
-            await self.message.edit(embed=embed, view=self)
-        except:
-            pass
-
-    @discord.ui.button(label="Check Deposits", style=discord.ButtonStyle.green)
-    async def check_deposits(self, button: discord.ui.Button, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message("You cannot check someone else's deposits.", ephemeral=True)
-
-        if self.checking:
-            return await interaction.response.send_message("Already checking deposits...", ephemeral=True)
-
-        self.checking = True
-        await interaction.response.defer()
-
-        try:
-            # Get deposit history
-            history = self.cog.client.get_deposit_history(coin=self.currency)
-            recent_deposits = [
-                deposit for deposit in history
-                if deposit['address'] == self.address 
-                and deposit['status'] == 1  # Completed
-                and int(time.time()) - deposit['insertTime'] < 3600  # Within last hour
-            ]
-
-            if not recent_deposits:
-                self.checking = False
-                return await interaction.followup.send("No new deposits found. Please wait for blockchain confirmation and try again.", ephemeral=True)
-
-            # Process deposits
-            total_amount = sum(float(d['amount']) for d in recent_deposits)
-
-            # Get USD value from CoinGecko
-            gecko_id = self.cog.supported_currencies[self.currency].lower()
-            price_response = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={gecko_id}&vs_currencies=usd")
-            usd_price = price_response.json()[gecko_id]['usd']
-            usd_value = total_amount * usd_price
-
-            # Calculate tokens (1 token = 0.0212 USD)
-            tokens = usd_value / 0.0212
-
-            # Update user balance and stats
-            db = Users()
-            db.update_balance(self.user_id, tokens, "tokens", "$inc")
-
-            # Update deposit history
-            history_entry = {
-                "type": "deposit",
-                "currency": self.currency,
-                "amount": total_amount,
-                "usd_value": usd_value,
-                "tokens": tokens,
-                "timestamp": int(time.time())
-            }
-            db.collection.update_one(
-                {"discord_id": self.user_id},
-                {
-                    "$push": {"history": {"$each": [history_entry], "$slice": -100}},
-                    "$inc": {"total_deposit_amount": tokens}
-                }
-            )
-
-            # Update embed
-            success_embed = discord.Embed(
-                title="✅ Deposit Successful!",
-                description=f"Your deposit has been credited!\n\n"
-                          f"Amount: **{total_amount} {self.currency}**\n"
-                          f"USD Value: **${usd_value:.2f}**\n"
-                          f"Tokens Credited: **{tokens:.2f}**",
-                color=discord.Color.green()
-            )
-
-            for child in self.children:
-                child.disabled = True
-
-            await interaction.message.edit(embed=success_embed, view=self)
-
-        except Exception as e:
-            print(f"Error checking deposits: {e}")
-            self.checking = False
-            await interaction.followup.send("Failed to check deposits. Please try again.", ephemeral=True)

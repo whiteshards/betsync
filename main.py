@@ -105,8 +105,7 @@ async def on_command(ctx):
                 'xp': 0,
                 'level': 1,
                 'rank': 0,
-                'rakeback_tokens': 0,
-                "deposit_addresses": {}
+                'rakeback_tokens': 0
                 }
                 db.register_new_user(dump)
                 rn = datetime.datetime.now().strftime("%X")
