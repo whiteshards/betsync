@@ -133,27 +133,18 @@ class DepositCancelView(discord.ui.View):
 class Deposit(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.binance_api_key = os.getenv('BINANCE_API_KEY')
-        self.binance_secret = os.getenv('BINANCE_SECRET_KEY')
-        self.supported_currencies = {
-            "BTC": "Bitcoin",
-            "ETH": "Ethereum",
-            "USDT": "Tether",
-            "SOL": "Solana",
-            "LTC": "Litecoin"
-        }
-        self.networks = {
-            "BTC": "BTC",
-            "ETH": "ETH",
-            "USDT": "TRC20",
-            "SOL": "SOL",
-            "LTC": "LTC"
-        }
-        try:
-            self.client = Client(self.binance_api_key, self.binance_secret)
-        except Exception as e:
-            print(f"Failed to initialize Binance client: {e}")
+        self.binance_api_key = os.getenv('BINANCE_API_KEY', '').strip()
+        self.binance_secret = os.getenv('BINANCE_SECRET_KEY', '').strip()
+
+        if not self.binance_api_key or not self.binance_secret:
+            print("Binance API credentials not found")
             self.client = None
+        else:
+            try:
+                self.client = Client(api_key=self.binance_api_key, api_secret=self.binance_secret, testnet=True)
+            except Exception as e:
+                print(f"Failed to initialize Binance client: {e}")
+                self.client = None
         self.supported_currencies = {
             "BTC": "btc",
             "LTC": "ltc",
@@ -318,7 +309,7 @@ class Deposit(commands.Cog):
             # Check if user has existing address
             db = Users()
             user_data = db.fetch_user(ctx.author.id)
-            
+
             deposit_addresses = user_data.get('deposit_addresses', {})
             address = deposit_addresses.get(currency)
 
@@ -340,21 +331,21 @@ class Deposit(commands.Cog):
                         network=self.networks[currency],
                         params={'userId': str(ctx.author.id)}
                     )
-                    
+
                     if not address_data or 'address' not in address_data:
                         raise Exception("Failed to generate unique address")
-                        
+
                     address = address_data['address']
-                    
+
                     # Verify address uniqueness
                     existing_user = db.collection.find_one({
                         f"deposit_addresses.{currency}": address,
                         "discord_id": {"$ne": ctx.author.id}
                     })
-                    
+
                     if existing_user:
                         raise Exception("Generated duplicate address")
-                    
+
                     # Save unique address to database
                     deposit_addresses[currency] = address
                     db.collection.update_one(
@@ -380,7 +371,7 @@ class Deposit(commands.Cog):
             # Add BetSync branding
             final_img = Image.new('RGB', (400, 460), 'white')
             final_img.paste(qr_img.resize((300, 300)), (50, 50))
-            
+
             # Add text
             draw = ImageDraw.Draw(final_img)
             font = ImageFont.truetype("roboto.ttf", 24)
@@ -683,7 +674,7 @@ class Deposit(commands.Cog):
         db = Users()
         # Update balance
         resp = db.update_balance(user_id, tokens_amount, "tokens", "$inc")
-        
+
         # Add to history
         history_entry = {
             "type": "deposit",
@@ -694,13 +685,13 @@ class Deposit(commands.Cog):
             {"discord_id": user_id},
             {"$push": {"history": {"$each": [history_entry], "$slice": -100}}}  # Keep last 100 entries
         )
-        
+
         # Update total deposit amount
         db.collection.update_one(
             {"discord_id": user_id},
             {"$inc": {"total_deposit_amount": tokens_amount}}
         )
-        
+
         user = self.bot.get_user(user_id)
         if user:
             embed = discord.Embed(
@@ -737,8 +728,7 @@ class Deposit(commands.Cog):
                     except Exception as e:
                         print(f"[ERROR] Processing deposit: {e}")
                         await ctx.author.send("There was an error processing your deposit. Please contact support.")
-                        return
-                else:
+                        return                else:
                     # Optionally re-fetch the current minimum deposit for this currency
                     current_minimum = self.get_minimum_deposit(currency)
                     message = f":warning: Partial payment detected. You sent **{received_amount:.6f} {currency}** but **{expected_amount:.6f} {currency}** is required."
@@ -821,7 +811,7 @@ class DepositCheckView(discord.ui.View):
     async def check_deposits(self, button: discord.ui.Button, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("You cannot check someone else's deposits.", ephemeral=True)
-        
+
         if self.checking:
             return await interaction.response.send_message("Already checking deposits...", ephemeral=True)
 
@@ -844,20 +834,20 @@ class DepositCheckView(discord.ui.View):
 
             # Process deposits
             total_amount = sum(float(d['amount']) for d in recent_deposits)
-            
+
             # Get USD value from CoinGecko
             gecko_id = self.cog.supported_currencies[self.currency].lower()
             price_response = requests.get(f"https://api.coingecko.com/api/v3/simple/price?ids={gecko_id}&vs_currencies=usd")
             usd_price = price_response.json()[gecko_id]['usd']
             usd_value = total_amount * usd_price
-            
+
             # Calculate tokens (1 token = 0.0212 USD)
             tokens = usd_value / 0.0212
 
             # Update user balance and stats
             db = Users()
             db.update_balance(self.user_id, tokens, "tokens", "$inc")
-            
+
             # Update deposit history
             history_entry = {
                 "type": "deposit",
@@ -884,12 +874,12 @@ class DepositCheckView(discord.ui.View):
                           f"Tokens Credited: **{tokens:.2f}**",
                 color=discord.Color.green()
             )
-            
+
             for child in self.children:
                 child.disabled = True
-            
+
             await interaction.message.edit(embed=success_embed, view=self)
-            
+
         except Exception as e:
             print(f"Error checking deposits: {e}")
             self.checking = False
