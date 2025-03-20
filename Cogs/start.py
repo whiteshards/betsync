@@ -121,6 +121,23 @@ class Start(commands.Cog):
         total_games = len(sorted_games)
         
         # Create pages
+        for i in range(0, len(sorted_games), games_per_page):
+            page_games = sorted_games[i:i + games_per_page]
+            
+            embed = discord.Embed(
+                title="BetSync Casino Games",
+                description=f"**{total_games} Games Available** • Type any command to see usage\n─────────────────────────",
+                color=0x00FFAE
+            )
+            
+            games_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_games])
+            embed.description += f"\n\n{games_list}"
+            
+            embed.set_footer(text=f"Page {i//games_per_page + 1}/{(len(sorted_games) + games_per_page - 1)//games_per_page}")
+            embeds.append(embed)
+        
+        view = GamePaginator(embeds)
+        await ctx.reply(embed=embeds[0], view=view)
 
     @commands.command(name="commands")
     async def show_commands(self, ctx):
