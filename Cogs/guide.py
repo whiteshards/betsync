@@ -11,6 +11,41 @@ class Guide(commands.Cog):
 		self.bot = bot
 
 	@commands.command()
+	async def help(self, ctx):
+		embed = discord.Embed(
+			title="BetSync Casino Commands",
+			description="Welcome to BetSync Casino. Here's everything you need to know.\n\n**Getting Started**\n`!guide` View the complete guide\n`!toc` Terms and conditions",
+			color=0x00FFAE
+		)
+
+		embed.add_field(
+			name="Currency Information",
+			value="**Tokens & Credits**\n1 Token/Credit = $0.0212\nTokens: Used for betting\nCredits: Used for withdrawals\n`!rate <amount> <currency>` Convert between currencies",
+			inline=False
+		)
+
+		embed.add_field(
+			name="Banking",
+			value="**Deposits**\n`!dep <currency> <amount>` Make a deposit\nMinimum varies by currency\n\n**Withdrawals**\n`!withdraw <amount>` Withdraw credits\nMinimum: 20 Credits",
+			inline=False
+		)
+
+		embed.add_field(
+			name="Popular Games",
+			value="`!blackjack` Classic card game\n`!mines` Find gems, avoid mines\n`!crash` Cash out before crash\n`!coinflip` Heads or tails betting\n`!cases` Open cases for rewards\n\nAll payouts are in credits",
+			inline=False
+		)
+
+		embed.add_field(
+			name="Account",
+			value="`!profile` View your stats\n`!history` Transaction history\n`!daily` Daily reward\n`!rakeback` Get betting cashback",
+			inline=False
+		)
+
+		embed.set_footer(text="BetSync Casino • Type any command for detailed usage", icon_url=self.bot.user.avatar.url)
+		await ctx.reply(embed=embed)
+
+	@commands.command()
 	async def guide(self, ctx):
 		embed = discord.Embed(title=":slot_machine: **Welcome to BetSync Casino!**", color=0x00FFAE, description="**BetSync** is a **Crypto Powered Casino** where you can bet, win, and enjoy a variety of games. We offer **fast deposits**, **fair games**, and **multiple earning methods**! Here\'s everything you need to know to get started:\n")
 		embed.add_field(name=f"{self.required[0]} **Tokens & Credits**", value="- **Tokens**: Used for **betting and playing games**.Use `!deposit` to get tokens\n- **Credits**: Rewarded after **winning a bet**, Used for **withdrawals**`!withdraw <credits` and **Betting**.\n- **Conversion Rates**:\n```\n1 Token/Credit = $0.0212\n```\nUse `!rate <amount> <currency>` to convert between **Tokens**, **Credits**, and **crypto**.\n", inline=False)
