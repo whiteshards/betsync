@@ -2,6 +2,7 @@ import discord
 import requests
 import qrcode
 import io
+import os
 import asyncio
 
 import datetime
@@ -11,6 +12,7 @@ from PIL import Image, ImageFont, ImageDraw
 from discord.ext import commands
 from Cogs.utils.mongo import Users
 from Cogs.utils.emojis import emoji
+from binance import Client, ThreadedWebsocketManager, ThreadedDepthCacheManager
 from colorama import Fore
 import re
 
