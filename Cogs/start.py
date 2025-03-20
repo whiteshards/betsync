@@ -53,6 +53,25 @@ class GamePaginator(discord.ui.View):
 class Start(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.command_descriptions = {
+            "profile": "View your casino profile and statistics",
+            "deposit": "Get deposit address for supported currencies",
+            "withdraw": "Withdraw your credits to crypto",
+            "history": "View your transaction history",
+            "rakeback": "Get cashback on your bets",
+            "tip": "Send tokens to other players",
+            "guide": "View the complete casino guide",
+            "help": "Quick overview of main commands",
+            "support": "Get help from support team",
+            "multiplayer": "View available PvP games",
+            "stats": "View your gambling statistics",
+            "games": "List all available casino games",
+            "signup": "Create a new casino account",
+            "commands": "Show all available commands",
+            "leaderboard": "View top players by winnings",
+            "daily": "Claim your daily reward"
+        }
+        
         self.game_descriptions = {
             "blackjack": "A classic casino card game where you compete against the dealer to get closest to 21",
             "baccarat": "An elegant card game where you bet on either the Player or Banker hand",
@@ -86,6 +105,36 @@ class Start(commands.Cog):
         total_games = len(sorted_games)
         
         # Create pages
+
+    @commands.command(name="commands")
+    async def show_commands(self, ctx):
+        embeds = []
+        commands_per_page = 10
+        
+        # Sort commands alphabetically
+        sorted_commands = sorted(self.command_descriptions.items())
+        total_commands = len(sorted_commands)
+        
+        # Create pages
+        for i in range(0, len(sorted_commands), commands_per_page):
+            page_commands = sorted_commands[i:i + commands_per_page]
+            
+            embed = discord.Embed(
+                title="BetSync Casino Commands",
+                description=f"**{total_commands} Commands Available** • Type any command to see usage\n─────────────────────────",
+                color=0x00FFAE
+            )
+            
+            commands_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_commands])
+            embed.description += f"\n\n{commands_list}"
+            
+            embed.set_footer(text=f"Page {i//commands_per_page + 1}/{(len(sorted_commands) + commands_per_page - 1)//commands_per_page}")
+            embeds.append(embed)
+        
+        view = GamePaginator(embeds)
+        await ctx.reply(embed=embeds[0], view=view)
+
+
         for i in range(0, len(sorted_games), games_per_page):
             page_games = sorted_games[i:i + games_per_page]
             
