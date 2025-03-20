@@ -728,7 +728,8 @@ class Deposit(commands.Cog):
                     except Exception as e:
                         print(f"[ERROR] Processing deposit: {e}")
                         await ctx.author.send("There was an error processing your deposit. Please contact support.")
-                        return                else:
+                        return                
+                else:
                     # Optionally re-fetch the current minimum deposit for this currency
                     current_minimum = self.get_minimum_deposit(currency)
                     message = f":warning: Partial payment detected. You sent **{received_amount:.6f} {currency}** but **{expected_amount:.6f} {currency}** is required."
