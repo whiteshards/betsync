@@ -61,7 +61,7 @@ class Start(commands.Cog):
             "leaderboard": "View top players by winnings",
             
             # Currency & Banking
-            "deposit": "Get deposit address for supported currencies",
+            "deposit": "Deposit currency for tokens",
             "withdraw": "Withdraw your credits to crypto",
             "tip": "Send tokens to other players",
             
@@ -93,6 +93,8 @@ class Start(commands.Cog):
             "baccarat": "An elegant card game where you bet on either the Player or Banker hand",
             "coinflip": "A simple heads or tails game with 2x payout",
             "crash": "Watch the multiplier rise and cash out before it crashes",
+            "carddraw": "Higher card wielder wins (PvP Only)",
+            "cases": "Draw multipliers from cases",
             "crosstheroad": "Guide your character across increasing multipliers without crashing",
             "dice": "Roll the dice and win based on the number prediction",
             "hilo": "Predict if the next card will be higher or lower",
@@ -106,7 +108,8 @@ class Start(commands.Cog):
             "progressivecf": "Coinflip with increasing multipliers on win streaks",
             "pump": "Pump up the balloon but don't let it pop",
             "race": "Bet on racers and win based on their position",
-            "rockpaperscissors": "Play the classic game against other players",
+            "rockpaperscissors": "Play the classic game against other players (PvP + PvE)",
+            'tictactoe': "Play classic tictactoe with friends (PvP Only)",
             "tower": "Climb the tower avoiding wrong choices",
             "wheel": "Spin the wheel for various multipliers"
         }

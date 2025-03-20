@@ -26,7 +26,7 @@ class Guide(commands.Cog):
 
 		embed.add_field(
 			name="Banking",
-			value="**Deposits**\n`!dep <currency> <amount>`\n**Withdrawals**\n`!withdraw <amount>` (Min: 20 Credits)",
+			value="**Deposits**\n`!dep <currency>`\n**Withdrawals**\n`!withdraw <amount> <address>` (Min: 20 Credits)",
 			inline=False
 		)
 
