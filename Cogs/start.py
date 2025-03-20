@@ -54,22 +54,48 @@ class Start(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.command_descriptions = {
+            # Profile & Stats
             "profile": "View your casino profile and statistics",
-            "deposit": "Get deposit address for supported currencies",
-            "withdraw": "Withdraw your credits to crypto",
             "history": "View your transaction history",
-            "rakeback": "Get cashback on your bets",
+            "stats": "View your gambling statistics",
+            "leaderboard": "View top players by winnings",
+            
+            # Currency & Banking
+            "deposit": "Get deposit address for supported currencies", 
+            "dep": "Alternative command for deposits",
+            "withdraw": "Withdraw your credits to crypto",
             "tip": "Send tokens to other players",
+            "give": "Alternative command for tipping",
+            "donate": "Alternative command for tipping",
+            
+            # Information
             "guide": "View the complete casino guide",
             "help": "Quick overview of main commands",
-            "support": "Get help from support team",
-            "multiplayer": "View available PvP games",
-            "stats": "View your gambling statistics",
-            "games": "List all available casino games",
-            "signup": "Create a new casino account",
             "commands": "Show all available commands",
-            "leaderboard": "View top players by winnings",
-            "daily": "Claim your daily reward"
+            
+            # Account Management
+            "signup": "Create a new casino account",
+            "rakeback": "Get cashback on your bets",
+            
+            # Server Features
+            "serverstats": "View server statistics and earnings",
+            "ss": "Alternative command for server stats",
+            "serverbethistory": "View server's betting history",
+            "sbh": "Alternative command for server bet history",
+            "airdrop": "Create a token/credit airdrop",
+            "ad": "Alternative command for airdrop",
+            "gw": "Alternative command for airdrop",
+            "giveaway": "Alternative command for airdrop",
+            
+            # Lottery System
+            "loterry": "View or participate in the current lottery",
+            "lottery": "Alternative command for lottery",
+            "loterryhistory": "View past lottery results",
+            "lh": "Alternative command for lottery history",
+            
+            # Games List 
+            "games": "List all available casino games",
+            "multiplayer": "View available PvP games"
         }
         
         self.game_descriptions = {
