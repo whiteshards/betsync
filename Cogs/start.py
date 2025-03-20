@@ -32,9 +32,80 @@ class MainView(discord.ui.View):
         embed.set_footer(text="BetSync Casino • Best Casino", icon_url=self.user.avatar.url)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+class GamePaginator(discord.ui.View):
+    def __init__(self, embeds):
+        super().__init__(timeout=60)
+        self.embeds = embeds
+        self.current_page = 0
+
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.gray)
+    async def previous(self, button: discord.ui.Button, interaction: discord.Interaction):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.embeds[self.current_page])
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.gray)
+    async def next(self, button: discord.ui.Button, interaction: discord.Interaction):
+        if self.current_page < len(self.embeds) - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.embeds[self.current_page])
+
 class Start(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.game_descriptions = {
+            "blackjack": "A classic casino card game where you compete against the dealer to get closest to 21",
+            "baccarat": "An elegant card game where you bet on either the Player or Banker hand",
+            "coinflip": "A simple heads or tails game with 2x payout",
+            "crash": "Watch the multiplier rise and cash out before it crashes",
+            "crosstheroad": "Guide your character across increasing multipliers without crashing",
+            "dice": "Roll the dice and win based on the number prediction",
+            "hilo": "Predict if the next card will be higher or lower",
+            "keno": "Pick numbers and win based on how many match the draw",
+            "limbo": "Choose a target multiplier and win if the result goes over it",
+            "match": "Match pairs of cards to win prizes",
+            "mines": "Navigate through a minefield collecting gems without hitting mines",
+            "penalty": "Score penalty kicks to win tokens",
+            "plinko": "Drop balls through pegs for random multipliers",
+            "poker": "Classic Texas Hold'em poker against other players",
+            "progressivecf": "Coinflip with increasing multipliers on win streaks",
+            "pump": "Pump up the balloon but don't let it pop",
+            "race": "Bet on racers and win based on their position",
+            "rockpaperscissors": "Play the classic game against other players",
+            "tower": "Climb the tower avoiding wrong choices",
+            "wheel": "Spin the wheel for various multipliers"
+        }
+
+    @commands.command(name="games")
+    async def games(self, ctx):
+        embeds = []
+        games_per_page = 5
+        
+        # Sort games alphabetically
+        sorted_games = sorted(self.game_descriptions.items())
+        
+        # Create pages
+        for i in range(0, len(sorted_games), games_per_page):
+            page_games = sorted_games[i:i + games_per_page]
+            
+            embed = discord.Embed(
+                title="BetSync Casino Games",
+                description="Browse through our selection of exciting casino games!",
+                color=0x00FFAE
+            )
+            
+            for game_name, description in page_games:
+                embed.add_field(
+                    name=f"!{game_name}",
+                    value=f"**{description}**",
+                    inline=False
+                )
+            
+            embed.set_footer(text=f"Page {i//games_per_page + 1}/{(len(sorted_games) + games_per_page - 1)//games_per_page}")
+            embeds.append(embed)
+        
+        view = GamePaginator(embeds)
+        await ctx.send(embed=embeds[0], view=view)
 
     @commands.command(name="signup")
     async def signup(self, ctx):
