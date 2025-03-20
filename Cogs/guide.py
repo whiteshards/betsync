@@ -14,31 +14,31 @@ class Guide(commands.Cog):
 	async def help(self, ctx):
 		embed = discord.Embed(
 			title="BetSync Casino Commands",
-			description="Welcome to BetSync Casino. Here's everything you need to know.\n\n**Getting Started**\n`!guide` View the complete guide\n`!toc` Terms and conditions",
+			description="Welcome to BetSync Casino. Use `!guide` for detailed information.",
 			color=0x00FFAE
 		)
 
 		embed.add_field(
 			name="Currency Information",
-			value="**Tokens & Credits**\n1 Token/Credit = $0.0212\nTokens: Used for betting\nCredits: Used for withdrawals\n`!rate <amount> <currency>` Convert between currencies",
+			value="**Tokens & Credits**\nTokens: Used for betting\nCredits: Used for withdrawals",
 			inline=False
 		)
 
 		embed.add_field(
 			name="Banking",
-			value="**Deposits**\n`!dep <currency> <amount>` Make a deposit\nMinimum varies by currency\n\n**Withdrawals**\n`!withdraw <amount>` Withdraw credits\nMinimum: 20 Credits",
+			value="**Deposits**\n`!dep <currency> <amount>`\n**Withdrawals**\n`!withdraw <amount>` (Min: 20 Credits)",
 			inline=False
 		)
 
 		embed.add_field(
 			name="Popular Games",
-			value="`!blackjack` Classic card game\n`!mines` Find gems, avoid mines\n`!crash` Cash out before crash\n`!coinflip` Heads or tails betting\n`!cases` Open cases for rewards\n\nAll payouts are in credits",
+			value="`!blackjack` Classic card game\n`!mines` Find gems\n`!crash` Multiplier game\n`!coinflip` Heads or tails\n`!cases` Open cases",
 			inline=False
 		)
 
 		embed.add_field(
 			name="Account",
-			value="`!profile` View your stats\n`!history` Transaction history\n`!daily` Daily reward\n`!rakeback` Get betting cashback",
+			value="`!profile` View stats\n`!history` Transaction history\n`!rakeback` Get cashback",
 			inline=False
 		)
 
