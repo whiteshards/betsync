@@ -61,12 +61,9 @@ class Start(commands.Cog):
             "leaderboard": "View top players by winnings",
             
             # Currency & Banking
-            "deposit": "Get deposit address for supported currencies", 
-            "dep": "Alternative command for deposits",
+            "deposit": "Get deposit address for supported currencies",
             "withdraw": "Withdraw your credits to crypto",
             "tip": "Send tokens to other players",
-            "give": "Alternative command for tipping",
-            "donate": "Alternative command for tipping",
             
             # Information
             "guide": "View the complete casino guide",
@@ -79,19 +76,12 @@ class Start(commands.Cog):
             
             # Server Features
             "serverstats": "View server statistics and earnings",
-            "ss": "Alternative command for server stats",
             "serverbethistory": "View server's betting history",
-            "sbh": "Alternative command for server bet history",
             "airdrop": "Create a token/credit airdrop",
-            "ad": "Alternative command for airdrop",
-            "gw": "Alternative command for airdrop",
-            "giveaway": "Alternative command for airdrop",
             
             # Lottery System
             "loterry": "View or participate in the current lottery",
-            "lottery": "Alternative command for lottery",
             "loterryhistory": "View past lottery results",
-            "lh": "Alternative command for lottery history",
             
             # Games List 
             "games": "List all available casino games",
