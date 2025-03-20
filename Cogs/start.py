@@ -59,35 +59,35 @@ class Start(commands.Cog):
             "history": "View your transaction history",
             "stats": "View your gambling statistics",
             "leaderboard": "View top players by winnings",
-            
+
             # Currency & Banking
             "deposit": "Deposit currency for tokens",
             "withdraw": "Withdraw your credits to crypto",
             "tip": "Send tokens to other players",
-            
+
             # Information
             "guide": "View the complete casino guide",
             "help": "Quick overview of main commands",
             "commands": "Show all available commands",
-            
+
             # Account Management
             #"signup": "Create a new casino account",
             "rakeback": "Get cashback on your bets",
-            
+
             # Server Features
             "serverstats": "View server statistics and earnings",
             "serverbethistory": "View server's betting history",
             "airdrop": "Create a token/credit airdrop",
-            
+
             # Lottery System
             "loterry": "View or participate in the current lottery",
             "loterryhistory": "View past lottery results",
-            
+
             # Games List 
             "games": "List all available casino games",
             #"multiplayer": "View available PvP games"
         }
-        
+
         self.game_descriptions = {
             "blackjack": "A classic casino card game where you compete against the dealer to get closest to 21",
             "baccarat": "An elegant card game where you bet on either the Player or Banker hand",
@@ -118,27 +118,27 @@ class Start(commands.Cog):
     async def games(self, ctx):
         embeds = []
         games_per_page = 10
-        
+
         # Sort games alphabetically
         sorted_games = sorted(self.game_descriptions.items())
         total_games = len(sorted_games)
-        
+
         # Create pages
         for i in range(0, len(sorted_games), games_per_page):
             page_games = sorted_games[i:i + games_per_page]
-            
+
             embed = discord.Embed(
                 title="BetSync Casino Games",
                 description=f"**{total_games} Games Available** • Type any command to see usage\n─────────────────────────",
                 color=0x00FFAE
             )
-            
+
             games_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_games])
             embed.description += f"\n\n{games_list}"
-            
+
             embed.set_footer(text=f"Page {i//games_per_page + 1}/{(len(sorted_games) + games_per_page - 1)//games_per_page}")
             embeds.append(embed)
-        
+
         view = GamePaginator(embeds)
         await ctx.reply(embed=embeds[0], view=view)
 
@@ -146,46 +146,64 @@ class Start(commands.Cog):
     async def show_commands(self, ctx):
         embeds = []
         commands_per_page = 10
-        
+
         # Sort commands alphabetically
         sorted_commands = sorted(self.command_descriptions.items())
         total_commands = len(sorted_commands)
-        
+
         # Create pages
         for i in range(0, len(sorted_commands), commands_per_page):
             page_commands = sorted_commands[i:i + commands_per_page]
-            
+
             embed = discord.Embed(
                 title="BetSync Casino Commands",
                 description=f"**{total_commands} Commands Available** • Type any command to see usage\n─────────────────────────",
                 color=0x00FFAE
             )
-            
+
             commands_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_commands])
             embed.description += f"\n\n{commands_list}"
-            
+
             embed.set_footer(text=f"Page {i//commands_per_page + 1}/{(len(sorted_commands) + commands_per_page - 1)//commands_per_page}")
             embeds.append(embed)
-        
+
         view = GamePaginator(embeds)
         await ctx.reply(embed=embeds[0], view=view)
 
+    @commands.command(name="tnc")
+    async def tnc(self, ctx):
+        embeds = []
+        fields_per_page = 4
 
-        for i in range(0, len(sorted_games), games_per_page):
-            page_games = sorted_games[i:i + games_per_page]
-            
+        tnc_fields = [
+            ("1. Introduction", "Welcome to betsync – a Discord bot designed to simulate betting and gambling-style games on Discord servers. By using betsync, you agree to abide by these Terms & Conditions ('Terms'). If you do not agree with any part of these Terms, please do not use the bot."),
+            ("2. Acceptance of Terms", "By accessing or using betsync, you confirm that you have read, understood, and agree to be bound by these Terms and any future amendments."),
+            ("3. Eligibility", "• You must be at least 18 years old, or the legal age in your jurisdiction, to use betsync.\n• By using betsync, you confirm that you meet this age requirement and have the legal capacity to enter this agreement."),
+            ("4. Use of betsync", "• Purpose: betsync is intended for entertainment purposes only.\n• Betting Simulation: The bot simulates gambling activities with an RTP of 98.5%.\n• Randomness: All game outcomes are determined by a Random Number Generator (RNG)."),
+            ("5. Virtual Currency & Wagering", "• Virtual Nature: Any currency or points used by betsync are virtual and hold no real-world monetary value.\n• Wagering: All bets placed are for simulation purposes only."),
+            ("6. Responsible Gambling", "• Gambling—even in a simulated environment—carries inherent risks.\n• Please use betsync responsibly.\n• If you suspect you have a gambling problem, please seek professional help."),
+            ("7. Limitation of Liability", "• 'As Is' Service: betsync is provided on an 'as is' basis without warranties.\n• No Liability: The creators will not be liable for any damages arising from your use."),
+            ("8. Modifications and Termination", "• Changes: We reserve the right to modify these Terms at any time.\n• Termination: We may suspend or terminate your access at our sole discretion."),
+            ("9. Intellectual Property", "All content, trademarks, and intellectual property related to betsync are owned by its creators. You are granted a non-exclusive license to use betsync solely for personal purposes."),
+            ("10. Governing Law", "These Terms are governed by applicable laws and any disputes shall be resolved through informal negotiations first.")
+        ]
+
+        # Create pages
+        for i in range(0, len(tnc_fields), fields_per_page):
+            page_fields = tnc_fields[i:i + fields_per_page]
+
             embed = discord.Embed(
-                title="BetSync Casino Games",
-                description=f"**{total_games} Games Available** • Type any command to see usage\n─────────────────────────",
+                title="BetSync Terms & Conditions",
+                description="Last Updated: March 2024",
                 color=0x00FFAE
             )
-            
-            games_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_games])
-            embed.description += f"\n\n{games_list}"
-            
-            embed.set_footer(text=f"Page {i//games_per_page + 1}/{(len(sorted_games) + games_per_page - 1)//games_per_page}")
+
+            for name, value in page_fields:
+                embed.add_field(name=name, value=value, inline=False)
+
+            embed.set_footer(text=f"Page {i//fields_per_page + 1}/{(len(tnc_fields) + fields_per_page - 1)//fields_per_page}")
             embeds.append(embed)
-        
+
         view = GamePaginator(embeds)
         await ctx.reply(embed=embeds[0], view=view)
 
@@ -200,4 +218,3 @@ class Start(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Start(bot))
-    
