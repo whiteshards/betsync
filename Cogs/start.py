@@ -170,7 +170,7 @@ class Start(commands.Cog):
         view = GamePaginator(embeds)
         await ctx.reply(embed=embeds[0], view=view)
 
-    @commands.command(name="tnc")
+    @commands.command(name="tnc", aliases=["terms", "tos"])
     async def tnc(self, ctx):
         embeds = []
         fields_per_page = 4
@@ -194,7 +194,7 @@ class Start(commands.Cog):
 
             embed = discord.Embed(
                 title="BetSync Terms & Conditions",
-                description="Last Updated: March 2024",
+                description="Last Updated: March 2025",
                 color=0x00FFAE
             )
 
@@ -207,7 +207,7 @@ class Start(commands.Cog):
         view = GamePaginator(embeds)
         await ctx.reply(embed=embeds[0], view=view)
 
-    @commands.command(name="signup")
+    #@commands.command(name="signup")
     async def signup(self, ctx):
         embed = discord.Embed(
             title=":wave: **Welcome to BetSync Casino**",
