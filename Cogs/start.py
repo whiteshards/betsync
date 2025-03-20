@@ -91,28 +91,12 @@ class Start(commands.Cog):
             
             embed = discord.Embed(
                 title="BetSync Casino Games",
-                description="Browse through our selection of exciting casino games!",
+                description=f"**{total_games} Games Available** • Type any command to see usage\n─────────────────────────",
                 color=0x00FFAE
             )
             
-            embed.add_field(
-                name="Total Games Available",
-                value=f"**{total_games}** different games to play!",
-                inline=False
-            )
-            
-            embed.add_field(
-                name="How to Play",
-                value="Type the command with ! prefix to see usage instructions\nExample: `!blackjack` for Blackjack rules and betting",
-                inline=False
-            )
-            
-            for game_name, description in page_games:
-                embed.add_field(
-                    name=f"!{game_name}",
-                    value=f"**{description}**",
-                    inline=False
-                )
+            games_list = "\n".join([f"`!{name}` • **{desc}**" for name, desc in page_games])
+            embed.description += f"\n\n{games_list}"
             
             embed.set_footer(text=f"Page {i//games_per_page + 1}/{(len(sorted_games) + games_per_page - 1)//games_per_page}")
             embeds.append(embed)
