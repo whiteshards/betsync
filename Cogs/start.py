@@ -71,7 +71,7 @@ class Start(commands.Cog):
             "commands": "Show all available commands",
             
             # Account Management
-            "signup": "Create a new casino account",
+            #"signup": "Create a new casino account",
             "rakeback": "Get cashback on your bets",
             
             # Server Features
@@ -85,7 +85,7 @@ class Start(commands.Cog):
             
             # Games List 
             "games": "List all available casino games",
-            "multiplayer": "View available PvP games"
+            #"multiplayer": "View available PvP games"
         }
         
         self.game_descriptions = {
