@@ -1073,6 +1073,119 @@ class AdminCommands(commands.Cog):
             
             return embed, file
     
+    @commands.command(name="uptime")
+    async def uptime(self, ctx):
+        """Show bot uptime and system information (Admin only)
+        
+        Usage: !uptime
+        """
+        # Check if command user is an admin
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+
+        try:
+            import psutil
+            import platform
+            from datetime import datetime
+
+            # Get bot uptime
+            current_time = datetime.utcnow()
+            delta_uptime = current_time - datetime.fromtimestamp(psutil.boot_time())
+            hours, remainder = divmod(int(delta_uptime.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            days, hours = divmod(hours, 24)
+
+            # Get CPU info
+            cpu_info = platform.processor() or "N/A"
+            cpu_cores = psutil.cpu_count(logical=False)
+            cpu_threads = psutil.cpu_count()
+            cpu_usage = psutil.cpu_percent(interval=1)
+
+            # Get RAM info
+            ram = psutil.virtual_memory()
+            ram_total = ram.total / (1024**3)  # Convert to GB
+            ram_used = ram.used / (1024**3)
+            ram_percent = ram.percent
+
+            # Get disk info
+            disk = psutil.disk_usage('/')
+            disk_total = disk.total / (1024**3)  # Convert to GB
+            disk_used = disk.used / (1024**3)
+            disk_percent = disk.percent
+
+            # Create embed
+            embed = discord.Embed(
+                title="🖥️ System Information",
+                description="Current system status and specifications",
+                color=0x00FFAE,
+                timestamp=current_time
+            )
+
+            # Uptime field
+            uptime_str = f"```{days}d {hours}h {minutes}m {seconds}s```"
+            embed.add_field(
+                name="⏰ Bot Uptime",
+                value=uptime_str,
+                inline=False
+            )
+
+            # System info field
+            sys_info = f"```\nOS: {platform.system()} {platform.release()}\n"
+            sys_info += f"Machine: {platform.machine()}\n"
+            sys_info += f"Hostname: {platform.node()}```"
+            embed.add_field(
+                name="🔧 System",
+                value=sys_info,
+                inline=False
+            )
+
+            # CPU info field
+            cpu_info = f"```\nProcessor: {cpu_info}\n"
+            cpu_info += f"Cores: {cpu_cores} (Physical) / {cpu_threads} (Logical)\n"
+            cpu_info += f"Usage: {cpu_usage}%```"
+            embed.add_field(
+                name="⚡ CPU",
+                value=cpu_info,
+                inline=False
+            )
+
+            # Memory info field
+            ram_info = f"```\nTotal: {ram_total:.2f} GB\n"
+            ram_info += f"Used: {ram_used:.2f} GB\n"
+            ram_info += f"Usage: {ram_percent}%```"
+            embed.add_field(
+                name="📝 Memory",
+                value=ram_info,
+                inline=False
+            )
+
+            # Disk info field
+            disk_info = f"```\nTotal: {disk_total:.2f} GB\n"
+            disk_info += f"Used: {disk_used:.2f} GB\n"
+            disk_info += f"Usage: {disk_percent}%```"
+            embed.add_field(
+                name="💾 Disk",
+                value=disk_info,
+                inline=False
+            )
+
+            embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+
+            await ctx.reply(embed=embed)
+
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="<:no:1344252518305234987> | Error",
+                description=f"An error occurred while fetching system information: ```{str(e)}```",
+                color=0xFF0000
+            )
+            await ctx.reply(embed=error_embed)
+
     async def generate_server_profit_data(self, date=None, page=0, servers_per_page=20):
         """Generate server profit data for the specified date"""
         # Get server profit data from MongoDB
