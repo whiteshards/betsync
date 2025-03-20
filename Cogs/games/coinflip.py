@@ -26,7 +26,9 @@ class PlayAgainView(discord.ui.View):
         # Disable the button to prevent spam clicks
         for item in self.children:
             item.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        message = await interaction.original_response()
+        await message.edit(view=self)
 
         # Send a loading message
         loading_emoji = emoji()["loading"]
@@ -35,8 +37,8 @@ class PlayAgainView(discord.ui.View):
             description="Please wait while we process your request...",
             color=0x00FFAE
         )
-        await interaction.response.defer()
-        loading_message = await interaction.followup.send(embed=loading_embed)
+        
+        #loading_message = await interaction.followup.send(embed=loading_embed)
 
         # Get the context for the new game
         ctx = await self.cog.bot.get_context(self.message)
@@ -45,17 +47,17 @@ class PlayAgainView(discord.ui.View):
         from Cogs.utils.currency_helper import process_bet_amount
 
         # Process the bet amount using the currency helper
-        success, bet_info, error_embed = await process_bet_amount(ctx, str(self.bet_amount), self.currency_used, loading_message)
+        #success, bet_info, error_embed = await process_bet_amount(self.ctx, str(self.bet_amount), self.currency_used, loading_message)
 
         # If processing failed, return the error
-        if not success:
-            return await interaction.followup.send(embed=error_embed, ephemeral=True)
+        #if not success:
+            #return await interaction.followup.send(embed=error_embed, ephemeral=True)
 
         # Run the command again with the side preference if it exists
         if self.side:
-            await self.cog.coinflip(ctx, str(self.bet_amount), self.currency_used, self.side)
+            await self.cog.coinflip(self.ctx, self.bet_amount, side=self.side)
         else:
-            await self.cog.coinflip(ctx, str(self.bet_amount), self.currency_used)
+            await self.cog.coinflip(self.ctx, self.bet_amount)
 
     async def on_timeout(self):
         # Disable button after timeout
