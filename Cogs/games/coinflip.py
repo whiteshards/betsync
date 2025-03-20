@@ -192,7 +192,8 @@ class CoinflipCog(commands.Cog):
             # Wait for dramatic effect
             await asyncio.sleep(2)
 
-            # Determine the result
+            # Reset random seed and determine the result
+            random.seed()
             result = random.choice(['heads', 'tails'])
 
             # Use custom coin emojis
