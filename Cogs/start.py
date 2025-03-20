@@ -79,10 +79,11 @@ class Start(commands.Cog):
     @commands.command(name="games")
     async def games(self, ctx):
         embeds = []
-        games_per_page = 5
+        games_per_page = 10
         
         # Sort games alphabetically
         sorted_games = sorted(self.game_descriptions.items())
+        total_games = len(sorted_games)
         
         # Create pages
         for i in range(0, len(sorted_games), games_per_page):
@@ -92,6 +93,18 @@ class Start(commands.Cog):
                 title="BetSync Casino Games",
                 description="Browse through our selection of exciting casino games!",
                 color=0x00FFAE
+            )
+            
+            embed.add_field(
+                name="Total Games Available",
+                value=f"**{total_games}** different games to play!",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="How to Play",
+                value="Type the command with ! prefix to see usage instructions\nExample: `!blackjack` for Blackjack rules and betting",
+                inline=False
             )
             
             for game_name, description in page_games:
@@ -105,7 +118,7 @@ class Start(commands.Cog):
             embeds.append(embed)
         
         view = GamePaginator(embeds)
-        await ctx.send(embed=embeds[0], view=view)
+        await ctx.reply(embed=embeds[0], view=view)
 
     @commands.command(name="signup")
     async def signup(self, ctx):
