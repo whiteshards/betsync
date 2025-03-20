@@ -147,10 +147,17 @@ class Deposit(commands.Cog):
                 self.client = None
         self.supported_currencies = {
             "BTC": "btc",
-            "LTC": "ltc",
+            "LTC": "ltc", 
             "SOL": "sol",
             "ETH": "eth",
             "USDT": "usdt"
+        }
+        self.networks = {
+            "BTC": "BTC",
+            "LTC": "LTC",
+            "SOL": "SOL",
+            "ETH": "ETH",
+            "USDT": "TRX"  # Using TRC20 network for USDT
         }
         self.pending_deposits = {}
         self.deposit_timeout = 600  # 10 minutes
