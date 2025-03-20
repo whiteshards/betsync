@@ -11,3 +11,8 @@ Pillow
 discord-py
 Pillow
 psutil
+python-binance
+Pillow
+python-binance
+qrcode
+requests
