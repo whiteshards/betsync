@@ -323,7 +323,7 @@ class Deposit(commands.Cog):
             address = deposit_addresses.get(currency)
 
             if not address:
-                # Generate new address
+                # Generate new address with user-specific params
                 if not self.client:
                     return await message.edit(
                         embed=discord.Embed(
@@ -333,15 +333,43 @@ class Deposit(commands.Cog):
                         )
                     )
 
-                address_data = self.client.get_deposit_address(coin=currency, network=self.networks[currency])
-                address = address_data['address']
-                
-                # Save address to database
-                deposit_addresses[currency] = address
-                db.collection.update_one(
-                    {"discord_id": ctx.author.id},
-                    {"$set": {"deposit_addresses": deposit_addresses}}
-                )
+                try:
+                    # Include user ID in address generation params
+                    address_data = self.client.get_deposit_address(
+                        coin=currency,
+                        network=self.networks[currency],
+                        params={'userId': str(ctx.author.id)}
+                    )
+                    
+                    if not address_data or 'address' not in address_data:
+                        raise Exception("Failed to generate unique address")
+                        
+                    address = address_data['address']
+                    
+                    # Verify address uniqueness
+                    existing_user = db.collection.find_one({
+                        f"deposit_addresses.{currency}": address,
+                        "discord_id": {"$ne": ctx.author.id}
+                    })
+                    
+                    if existing_user:
+                        raise Exception("Generated duplicate address")
+                    
+                    # Save unique address to database
+                    deposit_addresses[currency] = address
+                    db.collection.update_one(
+                        {"discord_id": ctx.author.id},
+                        {"$set": {"deposit_addresses": deposit_addresses}}
+                    )
+                except Exception as e:
+                    print(f"Address generation error: {e}")
+                    return await message.edit(
+                        embed=discord.Embed(
+                            title="❌ Error",
+                            description="Failed to generate a unique deposit address. Please try again.",
+                            color=discord.Color.red()
+                        )
+                    )
 
             # Generate QR code
             qr = qrcode.QRCode(version=1, box_size=10, border=4)
