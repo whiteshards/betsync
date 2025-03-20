@@ -18,6 +18,18 @@ class Guide(commands.Cog):
 			color=0x00FFAE
 		)
 
+        embed.add_field(
+            name="What is BetSync?",
+            value="**BetSync** is a **modern crypto casino bot** offering:\n"
+                  "• **Provably Fair Games**: All outcomes are verifiable\n"
+                  "• **High RTP**: 98.5% return to player rate\n"
+                  "• **Secure**: Cryptographically secure random number generation\n"
+                  "• **Fast**: Instant deposits and quick withdrawals\n"
+                  "• **24/7 Support**: Always here to help\n"
+                  "• **Multiple Games**: From classics to modern favorites",
+            inline=False
+        )
+
 		embed.add_field(
 			name="Currency Information",
 			value="**Tokens & Credits**\nTokens: Used for betting\nCredits: Used for withdrawals",
