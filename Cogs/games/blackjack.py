@@ -92,6 +92,8 @@ class BlackjackView(discord.ui.View):
             
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
+
+        #await interaction.response.defer()
             
         # Draw a new card for the player
         self.player_cards.append(self.draw_card())
@@ -161,6 +163,7 @@ class BlackjackView(discord.ui.View):
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
             
         # Disable buttons
+        await interaction.response.defer()
         for child in self.children:
             child.disabled = True
             
@@ -239,7 +242,8 @@ class BlackjackView(discord.ui.View):
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
             
-        # Check if player has enough balance to double down
+        #Check if player has enough balance to double down
+        #await interaction.response.defer()
         db = Users()
         user_data = db.fetch_user(self.ctx.author.id)
         

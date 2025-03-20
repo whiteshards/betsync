@@ -23,7 +23,9 @@ class BaccaratView(discord.ui.View):
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
-        await interaction.message.edit(view=self)
+        await interaction.response.defer()
+        message = await interaction.original_message()
+        await message.edit(view=self)
         
         # Call the baccarat command again with the same bet
         await self.cog.baccarat(self.ctx, self.bet_amount, self.currency_type)

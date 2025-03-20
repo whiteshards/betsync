@@ -805,7 +805,9 @@ class Fetches(commands.Cog):
             # Disable the button
             for child in self.children:
                 child.disabled = True
-            await interaction.message.edit(view=self)
+            await interaction.response.defer()
+            message = await interaction.original_response()
+            await message.edit(view=self)
             
             # Send success message with enhanced styling
             claim_embed = discord.Embed(
@@ -831,7 +833,7 @@ class Fetches(commands.Cog):
             
             claim_embed.set_footer(text="BetSync Casino • Rakeback Rewards", icon_url=self.cog.bot.user.avatar.url)
             
-            await interaction.response.send_message(embed=claim_embed)
+            await interaction.followup.send(embed=claim_embed)
 
     @commands.command(name="rakeback", aliases=["rb"])
     async def rakeback(self, ctx, user: discord.Member = None):
