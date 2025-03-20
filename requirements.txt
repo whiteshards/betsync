@@ -11,4 +11,3 @@ Pillow
 discord-py
 Pillow
 psutil
-psutil
