@@ -162,27 +162,22 @@ class Start(commands.Cog):
 
 
 class TNCPaginator(discord.ui.View):
-    def __init__(self, embeds):
-        super().__init__(timeout=60)
-        self.embeds = embeds
-        self.current_page = 0
+        def __init__(self, embeds):
+            super().__init__(timeout=60)
+            self.embeds = embeds
+            self.current_page = 0
 
-    @discord.ui.button(label="Previous", style=discord.ButtonStyle.gray)
-    async def previous(self, button: discord.ui.Button, interaction: discord.Interaction):
-        if self.current_page > 0:
-            self.current_page -= 1
-            await interaction.response.edit_message(embed=self.embeds[self.current_page])
+        @discord.ui.button(label="Previous", style=discord.ButtonStyle.gray)
+        async def previous(self, button: discord.ui.Button, interaction: discord.Interaction):
+            if self.current_page > 0:
+                self.current_page -= 1
+                await interaction.response.edit_message(embed=self.embeds[self.current_page])
 
-    @discord.ui.button(label="Next", style=discord.ButtonStyle.gray)
-    async def next(self, button: discord.ui.Button, interaction: discord.Interaction):
-        if self.current_page < len(self.embeds) - 1:
-            self.current_page += 1
-            await interaction.response.edit_message(embed=self.embeds[self.current_page])
-
-
-            )
-            
-
+        @discord.ui.button(label="Next", style=discord.ButtonStyle.gray)
+        async def next(self, button: discord.ui.Button, interaction: discord.Interaction):
+            if self.current_page < len(self.embeds) - 1:
+                self.current_page += 1
+                await interaction.response.edit_message(embed=self.embeds[self.current_page])
 
     @commands.command(name="tnc")
     async def tnc(self, ctx):
