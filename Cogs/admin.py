@@ -1742,7 +1742,7 @@ class AdminCommands(commands.Cog):
                     #)
                 
                 # Get individual game stats
-                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "hilo", "plinko", "keno", "crash", "crosstheroad", "dice", "poker", "coinflip", "mines", "hilo", "penalty", "pump", "race", "wheel", "baccarat"]
+                game_list = ["limbo", "blackjack", "cases", "tower", "progressivecf", "plinko", "keno", "crash", "crosstheroad", "dice", "poker", "coinflip", "mines", "hilo", "penalty", "pump", "race", "wheel", "baccarat"]
                 game_stats = []
                 
                 for game_name in game_list:

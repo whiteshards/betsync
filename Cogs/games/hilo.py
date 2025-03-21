@@ -247,7 +247,7 @@ class HiLoView(discord.ui.View):
                 color=discord.Color.red()
             )
             error_embed.set_footer(text="BetSync Casino • Error logged")
-            await interaction.response.edit_message(embed=error_embed)
+            await interaction.message.edit(embed=error_embed)
 
     async def process_round(self, interaction, choice):
         """Process a round of HiLo"""
@@ -353,7 +353,7 @@ class HiLoView(discord.ui.View):
             embed.set_image(url="attachment://hilo_game.png")
 
             try:
-                await interaction.response.edit_message(embed=embed, file=file, view=self)
+                await interaction.message.edit(embed=embed, file=file, view=self)
             except discord.errors.HTTPException as e:
                 print(f"HTTP Error when editing message: {e}")
                 # Try sending a new message if editing fails
@@ -426,7 +426,7 @@ class HiLoView(discord.ui.View):
             view.message = self.message
 
             # Update the message with the embed and play again button
-            await interaction.response.edit_message(embed=embed, file=file, view=view)
+            await interaction.message.edit(embed=embed, file=file, view=view)
 
     def create_game_embed(self, win=False):
         """Create the game embed"""
