@@ -157,13 +157,12 @@ class BlackjackView(discord.ui.View):
             
     @discord.ui.button(label="Stand", style=discord.ButtonStyle.secondary, custom_id="stand")
     async def stand_button(self, button, interaction):
+        await interaction.response.defer()
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
             
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
-            
-        await interaction.response.defer()
             
         # Disable buttons
         for child in self.children:

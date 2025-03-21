@@ -163,9 +163,9 @@ class Servers:
         server_profit_tracker = ServerProfit()
         
         try:
-            # Get server name with null check
+            # Get server name
             server_info = self.collection.find_one({"server_id": server_id})
-            server_name = server_info.get("server_name", f"Unknown Server ({server_id})") if server_info else f"Unknown Server ({server_id})"
+            server_name = server_info.get("server_name", f"Unknown Server ({server_id})")
             
             # Update server profit
             self.collection.update_one(
