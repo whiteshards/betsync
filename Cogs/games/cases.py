@@ -68,7 +68,7 @@ class CasesPlayAgainView(discord.ui.View):
             color=0x00FFAE
         )
         await interaction.response.defer()
-        loading_message = await interaction.followup.send(embed=loading_embed)
+        await self.message.edit(embed=loading_embed)
 
         # Disable buttons on original message
         self.disable_all_buttons()
@@ -514,7 +514,7 @@ class CasesCog(commands.Cog):
             "multiplier": selected_multiplier["value"],
             "win_amount": win_amount,
             "timestamp": int(time.time())}
-       
+
         db = Users() #reinstantiate db
         db.update_history(ctx.author.id, history_entry)
 
