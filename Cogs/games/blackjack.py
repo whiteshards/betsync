@@ -444,6 +444,21 @@ class Blackjack(commands.Cog):
             # Import the currency helper
             from Cogs.utils.currency_helper import process_bet_amount
 
+            # Handle 'all' bet amount
+            if bet_amount.lower() == 'all':
+                user_db = Users()
+                user_data = user_db.fetch_user(ctx.author.id)
+                if not user_data:
+                    await loading_message.delete()
+                    return await ctx.reply("Could not fetch user data.")
+                
+                if currency_type == "tokens":
+                    bet_amount = str(user_data.get("tokens", 0))
+                elif currency_type == "credits":
+                    bet_amount = str(user_data.get("credits", 0))
+                else:
+                    bet_amount = str(user_data.get("tokens", 0) + user_data.get("credits", 0))
+
             # Process the bet amount using the currency helper
             success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
             if not success:
