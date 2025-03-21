@@ -1073,6 +1073,124 @@ class AdminCommands(commands.Cog):
             
             return embed, file
     
+    @commands.command(name="leave")
+    async def leave_server(self, ctx, server_id: int = None):
+        """Make the bot leave a specified server and delete its data (Admin only)
+        
+        Usage: !leave server_id
+        """
+        # Check if command user is an admin
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+            
+        # Check if server ID is provided
+        if server_id is None:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Missing Server ID",
+                description="Please provide a server ID to leave.",
+                color=0xFF0000
+            )
+            embed.add_field(
+                name="Usage",
+                value="`!leave server_id`",
+                inline=False
+            )
+            return await ctx.reply(embed=embed)
+            
+        # Get the server
+        server = self.bot.get_guild(server_id)
+        
+        # Check if server exists in the database
+        db = Servers()
+        server_data = db.fetch_server(server_id)
+        
+        if not server_data:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Server Not Found",
+                description=f"Server with ID `{server_id}` is not in the database.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+            
+        # Confirm before leaving
+        confirm_embed = discord.Embed(
+            title="⚠️ | Confirm Server Leave",
+            description=f"Are you sure you want to leave the server:\n\n**{server_data.get('server_name', f'Unknown Server ({server_id})')}** (`{server_id}`)?",
+            color=0xFFA500
+        )
+        confirm_embed.add_field(
+            name="Warning",
+            value="This will delete all server data from the database!",
+            inline=False
+        )
+        confirm_embed.set_footer(text="Reply with 'yes' within 30 seconds to confirm.")
+        
+        confirm_message = await ctx.reply(embed=confirm_embed)
+        
+        # Wait for confirmation
+        try:
+            def check(message):
+                return message.author == ctx.author and message.channel == ctx.channel and message.content.lower() == 'yes'
+                
+            await self.bot.wait_for('message', check=check, timeout=30.0)
+            
+            # Leave the server and delete data
+            success = db.collection.delete_one({"server_id": server_id})
+            
+            # Create final embed
+            if success.deleted_count > 0:
+                # Leave the server if it's accessible
+                server_name = server_data.get('server_name', f"Unknown Server ({server_id})")
+                leave_successful = False
+                
+                if server:
+                    try:
+                        await server.leave()
+                        leave_successful = True
+                    except Exception as e:
+                        print(f"Error leaving server: {e}")
+                
+                embed = discord.Embed(
+                    title="<:checkmark:1344252974188335206> | Server Left",
+                    description=f"Successfully removed **{server_name}** (`{server_id}`) from the database.",
+                    color=0x00FFAE
+                )
+                
+                if leave_successful:
+                    embed.add_field(
+                        name="Server Status",
+                        value="Successfully left the server.",
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="Server Status",
+                        value="Could not leave the server. The bot may not be in this server anymore or lacks permissions.",
+                        inline=False
+                    )
+            else:
+                embed = discord.Embed(
+                    title="<:no:1344252518305234987> | Error",
+                    description=f"Failed to remove server from database. Please try again.",
+                    color=0xFF0000
+                )
+                
+            await ctx.reply(embed=embed)
+            
+        except asyncio.TimeoutError:
+            # User didn't confirm in time
+            timeout_embed = discord.Embed(
+                title="❌ | Operation Cancelled",
+                description="Server leave operation cancelled due to timeout.",
+                color=0xFF0000
+            )
+            await confirm_message.edit(embed=timeout_embed)
+    
     @commands.command(name="uptime")
     async def uptime(self, ctx):
         """Show bot uptime and system information (Admin only)
