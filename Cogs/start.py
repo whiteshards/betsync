@@ -108,7 +108,7 @@ class Start(commands.Cog):
             "progressivecf": "Coinflip with increasing multipliers on win streaks",
             "pump": "Pump up the balloon but don't let it pop",
             "race": "Bet on racers and win based on their position",
-            "rockpaperscissors": "Play the classic game against other players (PvP + PvE)",
+            #"rockpaperscissors": "Play the classic game against other players (PvP + PvE)",
             'tictactoe': "Play classic tictactoe with friends (PvP Only)",
             "tower": "Climb the tower avoiding wrong choices",
             "wheel": "Spin the wheel for various multipliers"
