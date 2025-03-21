@@ -161,6 +161,8 @@ class BlackjackView(discord.ui.View):
 
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
+            
+        await interaction.response.defer()al=True)
 
         # Disable buttons
         await interaction.response.defer()
