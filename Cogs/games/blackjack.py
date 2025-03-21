@@ -87,14 +87,24 @@ class BlackjackView(discord.ui.View):
         
     @discord.ui.button(label="Hit", style=discord.ButtonStyle.primary, custom_id="hit")
     async def hit_button(self, button, interaction):
-        await interaction.response.defer()
         if interaction.user.id != self.ctx.author.id:
-            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+            try:
+                await interaction.response.send_message("This is not your game!", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("This is not your game!", ephemeral=True)
+            return
             
         if self.game_over:
-            return await interaction.response.send_message("This game is already over!", ephemeral=True)
+            try:
+                await interaction.response.send_message("This game is already over!", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("This game is already over!", ephemeral=True)
+            return
 
-        #await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except discord.errors.InteractionResponded:
+            pass
             
         # Draw a new card for the player
         self.player_cards.append(self.draw_card())
