@@ -465,9 +465,8 @@ class CasesCog(commands.Cog):
 
         # Add winnings to user's credit balance
         user_won = selected_multiplier["value"] >= 1.0
-        if user_won:
-            db = Users()  # Reinstantiate db to ensure we have a fresh connection
-            db.update_balance(ctx.author.id, win_amount, 'credits', "$inc")
+        db = Users()  # Reinstantiate db to ensure we have a fresh connection
+        db.update_balance(ctx.author.id, win_amount, 'credits', "$inc")
 
         # Create result image
         result_buffer = await self.generate_case_image(selected_multiplier)
