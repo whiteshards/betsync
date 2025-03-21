@@ -122,27 +122,28 @@ class HiLoView(discord.ui.View):
     async def higher_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
+        await interaction.response.defer()
         await self.process_round(interaction, "high")
 
     @discord.ui.button(label="LOWER", style=discord.ButtonStyle.primary, emoji="⬇️")
     async def lower_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
+        await interaction.response.defer()
         await self.process_round(interaction, "low")
 
     @discord.ui.button(label="SKIP", style=discord.ButtonStyle.secondary, emoji="⏭️")
     async def skip_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
+        await interaction.response.defer()
         await self.process_round(interaction, "skip")
 
     @discord.ui.button(label="CASH OUT", style=discord.ButtonStyle.success, emoji="💰")
     async def cashout_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
+        await interaction.response.defer()
         await self.cash_out(interaction)
 
     async def cash_out(self, interaction):
@@ -235,7 +236,7 @@ class HiLoView(discord.ui.View):
             view = PlayAgainView(self.cog, self.ctx, self.bet_amount, self.currency_used)
             view.message = self.message
 
-            await interaction.response.edit_message(embed=embed, file=file, view=view)
+            await interaction.message.edit(embed=embed, file=file, view=view)
 
         except Exception as e:
             # Handle any unexpected errors
@@ -253,7 +254,7 @@ class HiLoView(discord.ui.View):
         if self.game_over or len(self.deck) == 0:
             for child in self.children:
                 child.disabled = True
-            await interaction.response.edit_message(view=self)
+            await interaction.message.edit(view=self)
             return
 
         # Get the next card
@@ -268,7 +269,7 @@ class HiLoView(discord.ui.View):
                     description="You can only skip one round per game!",
                     color=discord.Color.red()
                 )
-                await interaction.response.send_message(embed=error_embed, ephemeral=True)
+                await interaction.message.edit(embed=error_embed, ephemeral=True)
                 return
 
             # Increment skip counter
@@ -297,7 +298,7 @@ class HiLoView(discord.ui.View):
             embed.set_image(url="attachment://hilo_game.png")
 
             try:
-                await interaction.response.edit_message(embed=embed, file=file, view=self)
+                await interaction.message.edit(embed=embed, file=file, view=self)
             except discord.errors.HTTPException as e:
                 print(f"HTTP Error when editing message: {e}")
                 # Try sending a new message if editing fails
