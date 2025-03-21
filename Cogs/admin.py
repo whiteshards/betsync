@@ -1305,10 +1305,10 @@ class AdminCommands(commands.Cog):
             await ctx.reply(embed=error_embed)
             
     @commands.command(name="adminpanel", aliases=["ap"])
-    async def adminpanel(self, ctx):
-        """Display all available admin commands (Admin only)
+    async def adminpanel(self, ctx, page: int = 1):
+        """Display all available admin commands with pagination (Admin only)
         
-        Usage: !adminpanel
+        Usage: !adminpanel [page]
         """
         try:
             # Check if command user is an admin
@@ -1320,13 +1320,9 @@ class AdminCommands(commands.Cog):
                 )
                 return await ctx.reply(embed=embed)
                 
-            # Create embed for admin commands
-            embed = discord.Embed(
-                title="👑 Admin Panel - Available Commands",
-                description="List of all available administrator commands",
-                color=0x00FFAE
-            )
-            
+            # Commands per page
+            commands_per_page = 7
+                
             # Add admin commands from AdminCommands cog
             admin_commands = [
                 ("addcash", "Add tokens or credits to a user's balance", "!addcash @user 100 tokens"),
@@ -1343,18 +1339,8 @@ class AdminCommands(commands.Cog):
                 ("sp", "Display server profit data with rankings", "!sp [YYYY-MM-DD]"),
                 ("tp", "Display total profit graph", "!tp [daily/monthly/all_time]"),
                 ("game_np", "Check game performance statistics", "!game_np [game_name]"),
-                ("adminpanel", "Show this admin panel", "!adminpanel")
+                ("adminpanel", "Show this admin panel", "!adminpanel [page]")
             ]
-            
-            admin_commands_text = ""
-            for cmd, desc, usage in admin_commands:
-                admin_commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
-            
-            embed.add_field(
-                name="Admin Commands",
-                value=admin_commands_text,
-                inline=False
-            )
             
             # Add server admin commands from ServersCog
             server_admin_commands = [
@@ -1362,20 +1348,78 @@ class AdminCommands(commands.Cog):
                 ("airdrop", "Create a token/credit airdrop for users", "!airdrop amount [t/c] [duration]")
             ]
             
-            server_commands_text = ""
-            for cmd, desc, usage in server_admin_commands:
-                server_commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+            # Calculate total pages required
+            total_admin_pages = (len(admin_commands) + commands_per_page - 1) // commands_per_page
+            total_pages = total_admin_pages + ((len(server_admin_commands) + commands_per_page - 1) // commands_per_page)
             
-            embed.add_field(
-                name="Server Admin Commands",
-                value=server_commands_text,
-                inline=False
+            # Validate page number
+            if page < 1:
+                page = 1
+            if page > total_pages:
+                page = total_pages
+                
+            # Create embed
+            embed = discord.Embed(
+                title="👑 Admin Panel - Available Commands",
+                description=f"List of all available administrator commands (Page {page}/{total_pages})",
+                color=0x00FFAE
             )
             
-            embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+            # Determine which commands to show based on page
+            if page <= total_admin_pages:
+                # Show admin commands
+                start_idx = (page - 1) * commands_per_page
+                end_idx = min(start_idx + commands_per_page, len(admin_commands))
+                
+                admin_commands_text = ""
+                for i in range(start_idx, end_idx):
+                    cmd, desc, usage = admin_commands[i]
+                    admin_commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+                
+                embed.add_field(
+                    name="Admin Commands",
+                    value=admin_commands_text,
+                    inline=False
+                )
+                
+                # Add navigation instructions
+                embed.add_field(
+                    name="Navigation",
+                    value=f"Use `!adminpanel [page]` to navigate between pages.",
+                    inline=False
+                )
+            else:
+                # Show server admin commands
+                server_page = page - total_admin_pages
+                start_idx = (server_page - 1) * commands_per_page
+                end_idx = min(start_idx + commands_per_page, len(server_admin_commands))
+                
+                server_commands_text = ""
+                for i in range(start_idx, end_idx):
+                    cmd, desc, usage = server_admin_commands[i]
+                    server_commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+                
+                embed.add_field(
+                    name="Server Admin Commands",
+                    value=server_commands_text,
+                    inline=False
+                )
+                
+                # Add navigation instructions
+                embed.add_field(
+                    name="Navigation",
+                    value=f"Use `!adminpanel [page]` to navigate between pages.",
+                    inline=False
+                )
             
-            # Send the embed
-            await ctx.reply(embed=embed)
+            embed.set_footer(text=f"Page {page}/{total_pages} • Requested by {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+            
+            # Create view with navigation buttons
+            view = AdminPanelPaginator(self, ctx.author.id, page, total_pages, commands_per_page)
+            
+            # Send the embed with buttons
+            response = await ctx.reply(embed=embed, view=view)
+            view.message = response
             
         except Exception as e:
             # Log the error and send a fallback message if the embed fails
@@ -1742,6 +1786,136 @@ class AdminCommands(commands.Cog):
                 color=0xFF0000
             )
             await loading_message.edit(embed=error_embed)
+
+class AdminPanelPaginator(discord.ui.View):
+    def __init__(self, cog, author_id, current_page, total_pages, commands_per_page):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.author_id = author_id
+        self.current_page = current_page
+        self.total_pages = total_pages
+        self.commands_per_page = commands_per_page
+        self.message = None
+        
+        # Add pagination buttons
+        self.add_item(discord.ui.Button(label="First", style=discord.ButtonStyle.secondary, custom_id="first", disabled=current_page==1))
+        self.add_item(discord.ui.Button(label="Previous", style=discord.ButtonStyle.primary, custom_id="prev", disabled=current_page==1))
+        self.add_item(discord.ui.Button(label=f"{current_page}/{total_pages}", style=discord.ButtonStyle.gray, custom_id="page", disabled=True))
+        self.add_item(discord.ui.Button(label="Next", style=discord.ButtonStyle.primary, custom_id="next", disabled=current_page==total_pages))
+        self.add_item(discord.ui.Button(label="Last", style=discord.ButtonStyle.secondary, custom_id="last", disabled=current_page==total_pages))
+    
+    async def interaction_check(self, interaction):
+        """Verify the user interacting is the command author"""
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("You cannot use this admin panel navigation.", ephemeral=True)
+            return False
+            
+        # Handle the button click
+        await self.handle_pagination(interaction)
+        return False  # Return False to prevent the default handling
+    
+    async def handle_pagination(self, interaction):
+        """Handle pagination button interactions"""
+        custom_id = interaction.data.get("custom_id")
+        
+        if custom_id == "first":
+            new_page = 1
+        elif custom_id == "prev":
+            new_page = max(1, self.current_page - 1)
+        elif custom_id == "next":
+            new_page = min(self.total_pages, self.current_page + 1)
+        elif custom_id == "last":
+            new_page = self.total_pages
+        else:
+            return
+            
+        # Execute the adminpanel command with the new page
+        await interaction.response.defer()
+        
+        # Calculate which commands to show
+        admin_commands = [
+            ("addcash", "Add tokens or credits to a user's balance", "!addcash @user 100 tokens"),
+            ("addadmin", "Add a user as a server admin", "!addadmin @user"),
+            ("viewadmins", "View server admins across all servers", "!viewadmins server_id"),
+            ("removeadmin", "Remove a user as a server admin", "!removeadmin @user"),
+            ("listadmins", "List all server admins for current server", "!listadmins"),
+            ("fetch", "Fetch detailed information about a user", "!fetch @user"),
+            ("blacklist", "Blacklist a user from using the bot", "!blacklist @user"),
+            ("unblacklist", "Remove a user from the blacklist", "!unblacklist @user"),
+            ("viewblacklist", "View all blacklisted users", "!viewblacklist"),
+            ("leave", "Make the bot leave a server and delete its data", "!leave server_id"),
+            ("uptime", "Show bot uptime and system information", "!uptime"),
+            ("sp", "Display server profit data with rankings", "!sp [YYYY-MM-DD]"),
+            ("tp", "Display total profit graph", "!tp [daily/monthly/all_time]"),
+            ("game_np", "Check game performance statistics", "!game_np [game_name]"),
+            ("adminpanel", "Show this admin panel", "!adminpanel [page]")
+        ]
+        
+        server_admin_commands = [
+            ("serverstats", "View server statistics", "!serverstats"),
+            ("airdrop", "Create a token/credit airdrop for users", "!airdrop amount [t/c] [duration]")
+        ]
+        
+        # Calculate total pages
+        total_admin_pages = (len(admin_commands) + self.commands_per_page - 1) // self.commands_per_page
+        
+        # Create embed
+        embed = discord.Embed(
+            title="👑 Admin Panel - Available Commands",
+            description=f"List of all available administrator commands (Page {new_page}/{self.total_pages})",
+            color=0x00FFAE
+        )
+        
+        # Determine which commands to show based on page
+        if new_page <= total_admin_pages:
+            # Show admin commands
+            start_idx = (new_page - 1) * self.commands_per_page
+            end_idx = min(start_idx + self.commands_per_page, len(admin_commands))
+            
+            commands_text = ""
+            for i in range(start_idx, end_idx):
+                cmd, desc, usage = admin_commands[i]
+                commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+            
+            embed.add_field(
+                name="Admin Commands",
+                value=commands_text,
+                inline=False
+            )
+        else:
+            # Show server admin commands
+            server_page = new_page - total_admin_pages
+            start_idx = (server_page - 1) * self.commands_per_page
+            end_idx = min(start_idx + self.commands_per_page, len(server_admin_commands))
+            
+            commands_text = ""
+            for i in range(start_idx, end_idx):
+                cmd, desc, usage = server_admin_commands[i]
+                commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+            
+            embed.add_field(
+                name="Server Admin Commands",
+                value=commands_text,
+                inline=False
+            )
+        
+        # Add navigation instructions
+        embed.add_field(
+            name="Navigation",
+            value=f"Use the buttons below or `!adminpanel [page]` to navigate between pages.",
+            inline=False
+        )
+        
+        # Update footer
+        embed.set_footer(text=f"Page {new_page}/{self.total_pages} • Requested by {interaction.user.name}", 
+                         icon_url=interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url)
+        
+        # Create new view with updated buttons
+        new_view = AdminPanelPaginator(self.cog, self.author_id, new_page, self.total_pages, self.commands_per_page)
+        
+        # Edit the message
+        await interaction.message.edit(embed=embed, view=new_view)
+        new_view.message = interaction.message
 
 class TimeFrameButton(discord.ui.Button):
     def __init__(self, view_type, label, style, custom_id):
