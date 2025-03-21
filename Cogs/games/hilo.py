@@ -143,7 +143,6 @@ class HiLoView(discord.ui.View):
     async def cashout_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
         await self.cash_out(interaction)
 
     async def cash_out(self, interaction):
