@@ -1,4 +1,3 @@
-
 import discord
 import random
 import os
@@ -163,7 +162,7 @@ class BlackjackView(discord.ui.View):
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
 
         # Disable buttons
-        await interaction.response.defer()
+        await interaction.response.defer() #Added defer for stand button
         for child in self.children:
             child.disabled = True
 
@@ -231,7 +230,7 @@ class BlackjackView(discord.ui.View):
         play_again_view = self.cog.create_play_again_view(self.ctx.author.id, self.bet_amount, self.currency_used)
 
         # Update message with result and play again button
-        await interaction.response.edit_message(embed=embed, view=play_again_view)
+        await interaction.message.edit(embed=embed, view=play_again_view)
         await interaction.message.edit(file=file)
 
     @discord.ui.button(label="Double Down", style=discord.ButtonStyle.danger, custom_id="double")
