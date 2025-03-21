@@ -1303,6 +1303,77 @@ class AdminCommands(commands.Cog):
                 color=0xFF0000
             )
             await ctx.reply(embed=error_embed)
+            
+    @commands.command(name="adminpanel", aliases=["ap"])
+    async def adminpanel(self, ctx):
+        """Display all available admin commands (Admin only)
+        
+        Usage: !adminpanel
+        """
+        # Check if command user is an admin
+        if not self.is_admin(ctx.author.id):
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+            
+        # Create embed for admin commands
+        embed = discord.Embed(
+            title="👑 Admin Panel - Available Commands",
+            description="List of all available administrator commands",
+            color=0x00FFAE
+        )
+        
+        # Add admin commands from AdminCommands cog
+        admin_commands = [
+            ("addcash", "Add tokens or credits to a user's balance", "!addcash @user 100 tokens"),
+            ("addadmin", "Add a user as a server admin", "!addadmin @user"),
+            ("viewadmins", "View server admins across all servers", "!viewadmins server_id"),
+            ("removeadmin", "Remove a user as a server admin", "!removeadmin @user"),
+            ("listadmins", "List all server admins for current server", "!listadmins"),
+            ("fetch", "Fetch detailed information about a user", "!fetch @user"),
+            ("blacklist", "Blacklist a user from using the bot", "!blacklist @user"),
+            ("unblacklist", "Remove a user from the blacklist", "!unblacklist @user"),
+            ("viewblacklist", "View all blacklisted users", "!viewblacklist"),
+            ("leave", "Make the bot leave a server and delete its data", "!leave server_id"),
+            ("uptime", "Show bot uptime and system information", "!uptime"),
+            ("sp", "Display server profit data with rankings", "!sp [YYYY-MM-DD]"),
+            ("tp", "Display total profit graph", "!tp [daily/monthly/all_time]"),
+            ("game_np", "Check game performance statistics", "!game_np [game_name]"),
+            ("adminpanel", "Show this admin panel", "!adminpanel")
+        ]
+        
+        admin_commands_text = ""
+        for cmd, desc, usage in admin_commands:
+            admin_commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+        
+        embed.add_field(
+            name="Admin Commands",
+            value=admin_commands_text,
+            inline=False
+        )
+        
+        # Add server admin commands from ServersCog
+        server_admin_commands = [
+            ("serverstats", "View server statistics", "!serverstats"),
+            ("airdrop", "Create a token/credit airdrop for users", "!airdrop amount [t/c] [duration]")
+        ]
+        
+        server_commands_text = ""
+        for cmd, desc, usage in server_admin_commands:
+            server_commands_text += f"**!{cmd}** - {desc}\n`{usage}`\n\n"
+        
+        embed.add_field(
+            name="Server Admin Commands",
+            value=server_commands_text,
+            inline=False
+        )
+        
+        embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
+        
+        await ctx.reply(embed=embed)
 
     async def generate_server_profit_data(self, date=None, page=0, servers_per_page=20):
         """Generate server profit data for the specified date"""
