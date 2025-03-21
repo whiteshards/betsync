@@ -5,7 +5,8 @@ import time
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from colorama import Fore
-from Cogs.utils.emojis import emoji
+from Cogs.utils import emojis
+import datetime
 
 class PlayAgainView(discord.ui.View):
     def __init__(self, cog, ctx, bet_amount, difficulty, currency_type="tokens", timeout=15):
@@ -290,8 +291,11 @@ class TowerGameView(discord.ui.View):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
+        # Defer the response to prevent interaction timeout
+        await interaction.response.defer()
+
         # Extract the tile index from the button's custom_id
-        tile_index = int(interaction.custom_id.split('_')[1])
+        tile_index = int(interaction.data["custom_id"].split('_')[1])
 
         # Check if the tile has a diamond
         if self.tower_layout[self.current_level][tile_index]:
@@ -307,7 +311,7 @@ class TowerGameView(discord.ui.View):
             # If player reached the top of the tower, they win
             if self.current_level == self.max_levels:
                 self.game_over = True
-                return await self.process_cashout(interaction) #Changed to process_cashout
+                await self.process_cashout(interaction) #Changed to process_cashout
 
             # Update the current multiplier
             self.current_multiplier = self.multipliers[self.current_level]
@@ -316,7 +320,8 @@ class TowerGameView(discord.ui.View):
             self.update_buttons()
 
             # Send updated embed
-            await interaction.response.edit_message(
+            await interaction.followup.edit_message(
+                message_id=self.message.id,
                 embed=self.create_embed(status="win_level", selected_tile=tile_index), #Changed status to win_level
                 view=self
             )
@@ -326,7 +331,8 @@ class TowerGameView(discord.ui.View):
             self.clear_items()  # Remove all buttons
 
             # Send the game over message
-            await interaction.response.edit_message(
+            await interaction.followup.edit_message(
+                message_id=self.message.id,
                 embed=self.create_embed(status="lose", selected_tile=tile_index),
                 view=self
             )
@@ -502,7 +508,7 @@ class TowerGameView(discord.ui.View):
             self.currency_type,
             timeout=15
         )
-        
+
         # Update the message with play again button
         await self.message.edit(view=play_again_view)
         play_again_view.message = self.message
@@ -562,7 +568,7 @@ class TowerCog(commands.Cog):
             )
             return await ctx.reply(embed=embed)
         # Send loading message
-        loading_emoji = emoji()["loading"]
+        loading_emoji = emojis.emoji()["loading"]
         loading_embed = discord.Embed(
             title=f"{loading_emoji} | Preparing Tower Game...",
             description="Please wait while we set up your game.",
@@ -598,7 +604,7 @@ class TowerCog(commands.Cog):
         #db.update_balance(ctx.author.id, -tokens_used, "tokens", "$inc")
         #db.update_balance(ctx.author.id, -credits_used, "credits", "$inc")
 
-
+        # Create game view
         game_view = TowerGameView(
             self, 
             ctx, 
