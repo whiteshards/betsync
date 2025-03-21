@@ -40,10 +40,25 @@ class CasesPlayAgainView(discord.ui.View):
             return await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
 
         # Use the same bet amount and currency
-        ctx = await self.bot.get_context(self.message)
+        self.ctx = await self.bot.get_context(self.message)
+        self.ctx.author = interaction.user
 
-        # Import the currency helper
-        from Cogs.utils.currency_helper import process_bet_amount
+        # Check user balance before proceeding
+        db = Users()
+        user_data = db.fetch_user(interaction.user.id)
+        if not user_data:
+            return await interaction.response.send_message("Could not fetch user data.", ephemeral=True)
+
+        tokens_balance = user_data.get("tokens", 0)
+        credits_balance = user_data.get("credits", 0)
+
+        # Check if user has enough balance
+        if self.currency_used == "tokens" and tokens_balance < self.bet_amount:
+            return await interaction.response.send_message("Insufficient tokens balance!", ephemeral=True)
+        elif self.currency_used == "credits" and credits_balance < self.bet_amount:
+            return await interaction.response.send_message("Insufficient credits balance!", ephemeral=True)
+        elif self.currency_used == "mixed" and (tokens_balance + credits_balance) < self.bet_amount:
+            return await interaction.response.send_message("Insufficient total balance!", ephemeral=True)
 
         # Send a loading message
         loading_emoji = emoji()["loading"]
@@ -55,18 +70,11 @@ class CasesPlayAgainView(discord.ui.View):
         await interaction.response.defer()
         loading_message = await interaction.followup.send(embed=loading_embed)
 
-        # Process the bet amount using the currency helper
-        success, bet_info, error_embed = await process_bet_amount(self.ctx, str(self.bet_amount), self.currency_used, loading_message)
-
-        # If processing failed, return the error
-        if not success:
-            return await interaction.followup.send(embed=error_embed, ephemeral=True)
-
         # Disable buttons on original message
         self.disable_all_buttons()
         await self.message.edit(view=self)
 
-        # Run the command again
+        # Run the command again with the existing context
         await cases_cog.cases(self.ctx, str(self.bet_amount), self.currency_used)
 
 
