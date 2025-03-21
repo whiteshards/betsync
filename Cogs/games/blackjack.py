@@ -134,7 +134,7 @@ class BlackjackView(discord.ui.View):
             play_again_view = self.cog.create_play_again_view(self.ctx.author.id, self.bet_amount, self.currency_used)
 
             # Update message with result and play again button
-            await interaction.edit_original_response(embed=embed, view=play_again_view)
+            await interaction.response.edit_message(embed=embed, view=play_again_view)
             await interaction.message.edit(file=file)
 
         else:
@@ -162,14 +162,12 @@ class BlackjackView(discord.ui.View):
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
 
-        # Disable buttons and defer
+        # Disable buttons
         await interaction.response.defer()
         for child in self.children:
             child.disabled = True
-            
-        try:
-            # Process game logic after deferring
-            self.game_over = True
+
+        self.game_over = True
 
         # Dealer draws cards until they reach 17 or higher
         dealer_value = self.calculate_hand_value(self.dealer_cards)
