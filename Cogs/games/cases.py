@@ -67,6 +67,9 @@ class CasesPlayAgainView(discord.ui.View):
             description="Please wait while we process your request...",
             color=0x00FFAE
         )
+        await interaction.response.defer()
+        loading_message = await interaction.followup.send(embed=loading_embed)
+
         # Disable buttons on original message
         self.disable_all_buttons()
         await self.message.edit(view=self)
@@ -471,9 +474,10 @@ class CasesCog(commands.Cog):
         win_amount = bet_amount_value * selected_multiplier["value"]
         win_amount = round(win_amount, 2)  # Round to 2 decimal places
 
-        # Add winnings to user's credit balance (even for multipliers < 1.0)
-        db = Users()  # Reinstantiate db to ensure we have a fresh connection
-        if win_amount > 0:
+        # Add winnings to user's credit balance
+        user_won = selected_multiplier["value"] >= 1.0
+        if user_won:
+            db = Users()  # Reinstantiate db to ensure we have a fresh connection
             db.update_balance(ctx.author.id, win_amount, 'credits', "$inc")
 
         # Create result image
