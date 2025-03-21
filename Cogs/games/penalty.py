@@ -22,8 +22,8 @@ class RoleSelectionView(discord.ui.View):
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
-        
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
         
         # Start game as penalty taker
         await self.cog.start_as_taker(self.ctx, interaction, self.bet_amount, self.currency_type)
@@ -36,8 +36,8 @@ class RoleSelectionView(discord.ui.View):
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
-        
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
         
         # Start game as goalkeeper
         await self.cog.start_as_goalkeeper(self.ctx, interaction, self.bet_amount, self.currency_type)
@@ -83,7 +83,8 @@ class PenaltyButtonView(discord.ui.View):
             child.disabled = True
         
         # Acknowledge the interaction first
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
         
         # Process the choice based on role
         if self.role == "taker":
@@ -106,7 +107,9 @@ class PenaltyButtonView(discord.ui.View):
             child.disabled = True
         
         # Acknowledge the interaction first
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
+        #await interaction.response.edit_message(view=self)
         
         # Process the choice based on role
         if self.role == "taker":
@@ -129,7 +132,9 @@ class PenaltyButtonView(discord.ui.View):
             child.disabled = True
         
         # Acknowledge the interaction first
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
+        #await interaction.response.edit_message(view=self)
         
         # Process the choice based on role
         if self.role == "taker":
@@ -168,7 +173,9 @@ class PlayAgainView(discord.ui.View):
 
         # Disable button to prevent multiple clicks
         button.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
+        #await interaction.response.edit_message(view=self)
 
         # Check if user can afford the same bet
         

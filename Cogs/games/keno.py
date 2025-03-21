@@ -221,13 +221,13 @@ class KenoView(discord.ui.View):
             
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
-            
+        await interaction.response.defer()
         # Disable buttons to prevent further interaction
         self.game_over = True
         for child in self.children:
             child.disabled = True
             
-        await interaction.response.edit_message(view=self)
+        await interaction.message.edit(view=self)
         
         # Run the game
         await self.cog.run_keno_game(self.ctx, self, interaction.message)
@@ -238,13 +238,14 @@ class KenoView(discord.ui.View):
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
             
         # Cancel the game and refund the user by adding the bet amount back
+        await interaction.response.defer()
         db = Users()
         db.update_balance(self.ctx.author.id, self.bet_amount, self.currency_used, "$inc")
         
         for child in self.children:
             child.disabled = True
             
-        await interaction.response.edit_message(view=self)
+        await interaction.message.edit(view=self)
         
         embed = discord.Embed(
             title="<:no:1344252518305234987> | Game Cancelled",

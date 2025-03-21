@@ -92,7 +92,7 @@ class BlackjackView(discord.ui.View):
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
 
-        #await interaction.response.defer()
+        await interaction.response.defer()
 
         # Draw a new card for the player
         self.player_cards.append(self.draw_card())
@@ -150,7 +150,7 @@ class BlackjackView(discord.ui.View):
             embed.add_field(name="Dealer's Hand", value=f"?", inline=True)  # Hide dealer's full hand
             embed.set_image(url="attachment://blackjack_game.png")
 
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.message.edit(embed=embed, view=self)
             await interaction.message.edit(file=file)
 
     @discord.ui.button(label="Stand", style=discord.ButtonStyle.secondary, custom_id="stand")
@@ -233,7 +233,7 @@ class BlackjackView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=play_again_view)
         await interaction.message.edit(file=file)
 
-    @discord.ui.button(label="Double Down", style=discord.ButtonStyle.danger, custom_id="double")
+    #@discord.ui.button(label="Double Down", style=discord.ButtonStyle.danger, custom_id="double")
     async def double_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)

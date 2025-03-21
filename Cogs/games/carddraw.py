@@ -27,8 +27,8 @@ class CardDrawGameView(discord.ui.View):
         self.accepted = True
         for item in self.children:
             item.disabled = True
-        
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
         await self.cog.start_game(self.ctx, self.opponent, self.bet_amount, self.currency_type)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger)
@@ -38,8 +38,8 @@ class CardDrawGameView(discord.ui.View):
         
         for item in self.children:
             item.disabled = True
-        
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
         
         # Refund the bet to the challenger
         from Cogs.utils.mongo import Users

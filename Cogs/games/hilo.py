@@ -35,18 +35,18 @@ class PlayAgainView(discord.ui.View):
 
         try:
             # Get the context for the new game
-            ctx = await self.cog.bot.get_context(self.message)
+            #ctx = await self.cog.bot.get_context(self.message)
 
             # Import the currency helper
-            from Cogs.utils.currency_helper import process_bet_amount
+            #from Cogs.utils.currency_helper import process_bet_amount
 
             # Process bet using currency helper
-            success, bet_info, error_embed = await process_bet_amount(self.ctx, self.bet_amount, self.currency_used, None)
-            if not success:
-                return await interaction.followup.send(embed=error_embed)
+            #success, bet_info, error_embed = await process_bet_amount(self.ctx, self.bet_amount, self.currency_used, None)
+            #if not success:
+                #return await interaction.followup.send(embed=error_embed)
 
             # Launch a new game
-            await self.cog.hilo(ctx, bet_info["amount"], bet_info["currency"])
+            await self.cog.hilo(self.ctx, self.bet_amount)
 
         except Exception as e:
             # Handle any errors

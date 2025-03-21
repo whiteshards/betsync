@@ -64,7 +64,7 @@ class CasesPlayAgainView(discord.ui.View):
         await interaction.response.defer()
 
         # Run the command again with the existing context
-        await cases_cog.cases(self.ctx, str(self.bet_amount), self.currency_used)
+        await cases_cog.cases(self.ctx, str(self.bet_amount))
 
 
 class CasesCog(commands.Cog):

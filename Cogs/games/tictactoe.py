@@ -20,6 +20,7 @@ class TicTacToeButton(discord.ui.Button):
             return await interaction.response.send_message("It's not your turn!", ephemeral=True)
 
         # Place the mark
+        #await interaction.response.defer()
         await self.game.make_move(interaction, self.x, self.y)
 
 class TicTacToeGame:
@@ -105,6 +106,7 @@ class TicTacToeGame:
 
     async def make_move(self, interaction, x, y):
         # Place the mark on the board
+        await interaction.response.defer()
         self.board[y][x] = self.current_player
 
         # Check for win or draw
@@ -131,7 +133,7 @@ class TicTacToeGame:
             )
             
             # Update the message with the latest board state
-            await interaction.response.edit_message(embed=embed, view=updated_view)
+            await interaction.message.edit(embed=embed, view=updated_view)
             
             # Then end the game with a short delay to show the final move
             await asyncio.sleep(0.5)

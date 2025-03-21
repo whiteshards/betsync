@@ -50,7 +50,7 @@ class HoldButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.view.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
+        await interaction.response.defer()
         self.is_held = not self.is_held
         if self.is_held:
             self.style = discord.ButtonStyle.success
@@ -77,7 +77,7 @@ class HoldButton(discord.ui.Button):
         embed.set_image(url="attachment://poker_game.png")
         embed.set_footer(text="BetSync Casino • Hold cards you want to keep")
 
-        await interaction.response.edit_message(embed=embed, view=self.view)
+        await interaction.message.edit(embed=embed, view=self.view)
         await interaction.message.edit(file=file)
 
 class PokerView(discord.ui.View):
@@ -113,7 +113,8 @@ class PokerView(discord.ui.View):
             child.disabled = True
 
         # Update message with disabled buttons first
-        await interaction.response.edit_message(view=self)
+        await interaction.response.defer()
+        await interaction.message.edit(view=self)
 
         # Store message reference for replace_cards function
         if not self.message:

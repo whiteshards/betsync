@@ -38,7 +38,7 @@ class PlayAgainView(discord.ui.View):
         for child in self.children:
             child.disabled = True
         await self.message.edit(view=self)
-
+        await interaction.response.defer()
         # Start a new game with the same parameters
         await self.cog.crosstheroad(self.ctx, str(self.bet_amount), self.difficulty, self.currency_type)
 
@@ -373,9 +373,10 @@ class CrossTheRoadGame(discord.ui.View):
             return await interaction.response.send_message("This game has already ended.", ephemeral=True)
 
         # Roll for car collision
+        await interaction.response.defer()
         if random.random() < self.hit_chance:
             # Player got hit
-            await interaction.response.defer()
+            #await interaction.response.defer()
             await self.process_loss()
             return
 
@@ -388,12 +389,12 @@ class CrossTheRoadGame(discord.ui.View):
         # Check if reached maximum lanes
         if self.lanes_crossed >= self.max_lanes:
             # Automatically cash out at max lanes
-            await interaction.response.defer()
+            #await interaction.response.defer()
             await self.process_cashout()
             return
 
         # Update the message with new state
-        await interaction.response.edit_message(embed=self.create_embed(status="playing"))
+        await interaction.message.edit(embed=self.create_embed(status="playing"))
 
     @discord.ui.button(label="Cash Out", style=discord.ButtonStyle.success, emoji="💰")
     async def cashout_button(self, button, interaction):
