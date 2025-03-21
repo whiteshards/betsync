@@ -42,11 +42,13 @@ class MineButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         # Check if it's the player's turn
         if interaction.user.id != self.parent_view.ctx.author.id:
-            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
+            return await interaction.followup.send("This is not your game!", ephemeral=True)
 
         # Check if game is already over
         if self.parent_view.game_over or self.parent_view.cashed_out:
-            return await interaction.response.defer()
+            await interaction.response.defer()
+            return
 
         # Calculate position in flat grid
         position = self.row_idx * self.parent_view.board_size + self.col_idx
@@ -70,7 +72,7 @@ class MineButton(discord.ui.Button):
 
             # Update the message
             embed = self.parent_view.create_embed(status="lose")
-            await interaction.response.edit_message(embed=embed, view=self.parent_view)
+            await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self.parent_view)
 
             # Process loss
             await self.parent_view.process_loss(self.parent_view.ctx)
@@ -108,7 +110,7 @@ class MineButton(discord.ui.Button):
 
                 # Update the message
                 embed = self.parent_view.create_embed(status="playing")
-                await interaction.followup.edit_message(embed=embed, view=self.parent_view)
+                await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self.parent_view)
 
                 # Check if all safe tiles revealed (auto cash out)
                 if len(self.parent_view.revealed_tiles) == (self.parent_view.board_size * self.parent_view.board_size) - self.parent_view.mines_count:
@@ -162,7 +164,7 @@ class PlayAgainView(discord.ui.View):
 
         # Disable button to prevent multiple clicks
         button.disabled = True
-        await interaction.followup.edit_message(view=self)
+        await interaction.followup.edit_message(message_id=interaction.message.id, view=self)
 
         # Check if user can afford the same bet
         db = Users()
@@ -327,7 +329,7 @@ class MinesTileView(discord.ui.View):
         # Ensure minimum is 1.0
         self.current_multiplier = max(1.0, self.current_multiplier)
 
-    def create_embed(self, status="playing"):
+    def create_embed(self, status="playing", payout=None, multiplier=None):
         """Create the game embed based on current state"""
         if status == "playing":
             color = 0x3498db  # Blue
@@ -338,6 +340,9 @@ class MinesTileView(discord.ui.View):
         elif status == "lose":
             color = 0xFF0000  # Red
             title = "❌ | Game Over!"
+        elif status == "cashed_out":
+            color = 0x00FF00  # Green
+            title = "💰 | Cashed Out!"
         else:
             color = 0x3498db
             title = "🎮 | Mines Game"
@@ -346,6 +351,8 @@ class MinesTileView(discord.ui.View):
         profit = 0
         if status == "win" and len(self.revealed_tiles) > 0:
             profit = (self.bet_amount * self.current_multiplier) - self.bet_amount
+        elif status == "cashed_out":
+            profit = (self.bet_amount * multiplier) - self.bet_amount
 
         # Create description based on game state
         description = f"**Bet Amount:** {self.bet_amount:.2f}\n**Current Multiplier:** {self.current_multiplier:.2f}x\n"
@@ -366,6 +373,12 @@ class MinesTileView(discord.ui.View):
             description += f"**Profit:** 0 points\n"
             description += f"**Mines:** {self.mines_count}/{self.board_size * self.board_size} | {len(self.revealed_tiles)}💎\n\n"
             description += "**You lost!**"
+        elif status == "cashed_out":
+            description += f"**Payout:** {payout:.2f}\n"
+            description += f"**Multiplier:** {multiplier:.2f}x\n"
+            description += f"**Profit:** {profit:.2f} points\n"
+            description += f"**Mines:** {self.mines_count}/{self.board_size * self.board_size} | {len(self.revealed_tiles)}💎\n\n"
+            description += f"**You cashed out {payout:.2f} credits!**"
 
         embed = discord.Embed(title=title, description=description, color=color)
         embed.set_footer(text="BetSync Casino", icon_url=self.ctx.bot.user.avatar.url)
