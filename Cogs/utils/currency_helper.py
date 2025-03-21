@@ -3,6 +3,8 @@ from Cogs.utils.mongo import Users
 import datetime
 from colorama import Fore, Back, Style
 import json
+from dotenv import load_dotenv
+load_dotenv()
 
 async def process_bet_amount(ctx, bet_amount, currency_type, loading_message=None, user=None):
     """
