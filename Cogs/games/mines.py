@@ -94,6 +94,7 @@ class MineButton(discord.ui.Button):
 
         else:
             # Safe tile revealed
+            await interaction.response.defer() # Defer interaction here
             if position not in self.parent_view.revealed_tiles:
                 self.parent_view.revealed_tiles.append(position)
 
@@ -107,7 +108,7 @@ class MineButton(discord.ui.Button):
 
                 # Update the message
                 embed = self.parent_view.create_embed(status="playing")
-                await interaction.response.edit_message(embed=embed, view=self.parent_view)
+                await interaction.followup.edit_message(embed=embed, view=self.parent_view)
 
                 # Check if all safe tiles revealed (auto cash out)
                 if len(self.parent_view.revealed_tiles) == (self.parent_view.board_size * self.parent_view.board_size) - self.parent_view.mines_count:
@@ -153,11 +154,15 @@ class PlayAgainView(discord.ui.View):
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.primary, emoji="🔄")
     async def play_again(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.ctx.author.id:
-            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
+            return await interaction.followup.send("This is not your game!", ephemeral=True)
+
+        # Defer the interaction
+        await interaction.response.defer()
 
         # Disable button to prevent multiple clicks
         button.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.followup.edit_message(view=self)
 
         # Check if user can afford the same bet
         db = Users()
@@ -638,7 +643,7 @@ class MinesCog(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Process bet amount with error handling
-        
+
 
         # Format currency type if provided    
         if currency_type:
@@ -673,16 +678,16 @@ class MinesCog(commands.Cog):
         # Process bet amount using currency helper
         from Cogs.utils.currency_helper import process_bet_amount
         success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, currency_type, loading_message)
-        
+
         if not success:
             await loading_message.delete()
             return await ctx.reply(embed=error_embed)
-            
+
         # Extract bet information
         tokens_used = bet_info["tokens_used"]
         credits_used = bet_info["credits_used"]
         total_bet = bet_info["total_bet_amount"]
-        
+
         # Determine currency used for display
         if tokens_used > 0 and credits_used > 0:
             currency_used = "mixed"
@@ -700,7 +705,7 @@ class MinesCog(commands.Cog):
 
         # Create game view
         game_view = MinesTileView(self, ctx, total_bet, mines_count)
-        
+
         # Mark the game as ongoing
         self.ongoing_games[ctx.author.id] = {
             "tokens_used": tokens_used,
