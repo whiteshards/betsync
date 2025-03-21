@@ -27,7 +27,7 @@ if not os.environ.get('TOKEN'):
 
 # Initialize bot with intents
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
+bot = commands.Bot(command_prefix=["!", "."], intents=intents, case_insensitive=True)
 bot.remove_command("help")
 
 # List of cogs to load
@@ -47,8 +47,10 @@ cogs = [
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
+        
         pass #print(f"{Fore.RED}[-] {Fore.WHITE} User {Fore.BLACK}{ctx.message.author}{Fore.WHITE} tried to use a non-existent command")
     else:
+        
         pass #print(f"{Fore.RED}[!] {Fore.WHITE}Command error: {Fore.RED}{error}")
 
 @bot.event
