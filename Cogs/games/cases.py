@@ -60,19 +60,8 @@ class CasesPlayAgainView(discord.ui.View):
         elif self.currency_used == "mixed" and (tokens_balance + credits_balance) < self.bet_amount:
             return await interaction.response.send_message("Insufficient total balance!", ephemeral=True)
 
-        # Send a loading message
-        loading_emoji = emoji()["loading"]
-        loading_embed = discord.Embed(
-            title=f"{loading_emoji} | Processing Case...",
-            description="Please wait while we process your request...",
-            color=0x00FFAE
-        )
+        # Defer the response and update the message
         await interaction.response.defer()
-        loading_message = await interaction.followup.send(embed=loading_embed)
-
-        # Disable buttons on original message
-        self.disable_all_buttons()
-        await self.message.edit(view=self)
 
         # Run the command again with the existing context
         await cases_cog.cases(self.ctx, str(self.bet_amount), self.currency_used)
@@ -514,7 +503,7 @@ class CasesCog(commands.Cog):
             "multiplier": selected_multiplier["value"],
             "win_amount": win_amount,
             "timestamp": int(time.time())}
-       
+
         db = Users() #reinstantiate db
         db.update_history(ctx.author.id, history_entry)
 
