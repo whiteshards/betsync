@@ -134,6 +134,8 @@ async def on_command(ctx):
                     )
                 
                 await ctx.reply(embed=embed, delete_after=10)
+                # Raise CommandError to prevent command execution
+                ctx.command_failed = True
                 return
     
     # Check if user is blacklisted

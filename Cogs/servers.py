@@ -1589,8 +1589,13 @@ class ServersCog(commands.Cog):
                                 channel = self.bot.get_channel(channel_id)
                                 
                                 if not channel:
-                                    # Channel might exist but bot can't see it
-                                    channel_name = f"Channel (ID: {channel_id})"
+                                    # Try to fetch channel from guild directly
+                                    try:
+                                        channel = await ctx.guild.fetch_channel(channel_id)
+                                        channel_name = channel.mention
+                                    except:
+                                        # Channel might exist but bot can't see it
+                                        channel_name = f"Channel (ID: {channel_id})"
                                 else:
                                     channel_name = channel.mention
                                     # Verify channel is in the server
