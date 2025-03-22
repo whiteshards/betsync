@@ -114,28 +114,7 @@ async def on_command(ctx):
         # If whitelisted channels are set, check if the current channel is in the list
         if whitelisted_channels and ctx.channel.id not in whitelisted_channels:
             # Only reply for specific commands that should work outside whitelisted channels
-            if ctx.command.name.lower() not in ["setup", "help"]:
-                embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Channel Restricted",
-                    description="This command can only be used in whitelisted channels.",
-                    color=0xFF0000
-                )
-                allowed_channels = []
-                for channel_id in whitelisted_channels:
-                    channel = bot.get_channel(channel_id)
-                    if channel:
-                        allowed_channels.append(channel.mention)
-                
-                if allowed_channels:
-                    embed.add_field(
-                        name="Allowed Channels",
-                        value=", ".join(allowed_channels),
-                        inline=False
-                    )
-                
-                await ctx.reply(embed=embed, delete_after=10)
-                # Raise CommandError to prevent command execution
-                ctx.command_failed = True
+            if ctx.command.name.lower() not in ["setup"]:
                 return
     
     # Check if user is blacklisted
