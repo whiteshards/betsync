@@ -1379,6 +1379,269 @@ class ServersCog(commands.Cog):
 
         # Store the message for later reference in the view
         view.message = message
+        
+    @commands.command(aliases=["serversetup", "configure"])
+    async def setup(self, ctx):
+        """Set up server-specific prefixes and whitelisted channels (Server Admins only)
+        
+        Usage: !setup
+        """
+        # Check if DMs are enabled
+        try:
+            # Attempt to send a test message to check if DMs are open
+            test_dm = await ctx.author.send("Setting up your server configuration...")
+        except discord.Forbidden:
+            # DMs are disabled
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | DMs Disabled",
+                description="Please enable direct messages from server members to use this command.",
+                color=0xFF0000
+            )
+            return await ctx.reply(embed=embed)
+        
+        # Delete the test message
+        await test_dm.delete()
+            
+        # Send acknowledgment message in the channel
+        ack_embed = discord.Embed(
+            title="<:checkmark:1344252974188335206> | Setup Process Started",
+            description="I've sent you a direct message to configure your server!",
+            color=0x00FF00
+        )
+        await ctx.reply(embed=ack_embed)
+        
+        # Check if user is authorized (server admin or bot admin)
+        db = Servers()
+        server_data = db.fetch_server(ctx.guild.id)
+        
+        if not server_data:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Server Not Found",
+                description="This server isn't registered in our database. Please contact the developer.",
+                color=0xFF0000
+            )
+            return await ctx.author.send(embed=embed)
+            
+        # Load admin IDs from admins.txt
+        admin_ids = []
+        try:
+            with open("admins.txt", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and line.isdigit():
+                        admin_ids.append(int(line))
+        except Exception as e:
+            print(f"Error loading admin IDs: {e}")
+        
+        # Get server admins from database
+        server_admins = server_data.get("server_admins", [])
+        
+        # Check if user is authorized
+        if ctx.author.id not in admin_ids and ctx.author.id not in server_admins:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Access Denied",
+                description="This command is restricted to server administrators only.",
+                color=0xFF0000
+            )
+            return await ctx.author.send(embed=embed)
+        
+        # Get current configurations
+        current_prefixes = server_data.get("server_prefixes", [])
+        current_channels = server_data.get("whitelisted_channels", [])
+        
+        # Create welcome embed
+        embed = discord.Embed(
+            title=f"⚙️ Server Setup: {ctx.guild.name}",
+            description="Configure your server settings for BetSync Casino below.",
+            color=0x00FFAE
+        )
+        
+        # Format current prefixes
+        prefix_str = "None configured (using default prefixes: `!`, `.`)"
+        if current_prefixes:
+            prefix_str = ", ".join([f"`{p}`" for p in current_prefixes])
+        
+        embed.add_field(
+            name="🏷️ Custom Prefixes",
+            value=f"Current prefixes: {prefix_str}\n\nType `add prefix [prefix]` to add a prefix.\nType `remove prefix [prefix]` to remove a prefix.",
+            inline=False
+        )
+        
+        # Format current channels
+        channel_str = "None configured (bot works in all channels)"
+        if current_channels:
+            channel_mentions = []
+            for channel_id in current_channels:
+                channel = self.bot.get_channel(channel_id)
+                if channel:
+                    channel_mentions.append(f"<#{channel_id}>")
+                else:
+                    channel_mentions.append(f"Unknown Channel ({channel_id})")
+            channel_str = ", ".join(channel_mentions)
+        
+        embed.add_field(
+            name="📝 Whitelisted Channels",
+            value=f"Current channels: {channel_str}\n\nType `add channel #channel` to add a channel.\nType `remove channel #channel` to remove a channel.",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⚠️ Important Notes",
+            value="• Commands will only work in whitelisted channels if any are set\n• Channel mentions must be valid Discord channel mentions\n• Type `done` when you're finished configuring",
+            inline=False
+        )
+        
+        embed.set_footer(text="BetSync Casino • Server Setup")
+        
+        # Send the embed to DM
+        await ctx.author.send(embed=embed)
+        
+        # Start interaction loop
+        while True:
+            try:
+                # Wait for user response
+                response = await self.bot.wait_for(
+                    "message",
+                    check=lambda m: m.author.id == ctx.author.id and m.guild is None,
+                    timeout=300  # 5 minutes timeout
+                )
+                
+                cmd = response.content.lower().strip()
+                
+                # Check if user wants to exit
+                if cmd == "done" or cmd == "exit" or cmd == "quit":
+                    final_embed = discord.Embed(
+                        title="<:checkmark:1344252974188335206> | Setup Complete",
+                        description="Your server configuration has been saved!",
+                        color=0x00FF00
+                    )
+                    await ctx.author.send(embed=final_embed)
+                    break
+                
+                # Process commands
+                if cmd.startswith("add prefix "):
+                    prefix = cmd[11:].strip()
+                    if not prefix:
+                        await ctx.author.send("❌ | Prefix cannot be empty.")
+                        continue
+                    
+                    if prefix in current_prefixes:
+                        await ctx.author.send(f"❌ | Prefix `{prefix}` is already added.")
+                        continue
+                    
+                    # Update database
+                    current_prefixes.append(prefix)
+                    db.collection.update_one(
+                        {"server_id": ctx.guild.id},
+                        {"$set": {"server_prefixes": current_prefixes}}
+                    )
+                    
+                    # Update bot prefixes for this guild
+                    for command in self.bot.commands:
+                        if not hasattr(command, 'guild_prefixes'):
+                            command.guild_prefixes = {}
+                        command.guild_prefixes[ctx.guild.id] = current_prefixes
+                    
+                    await ctx.author.send(f"✅ | Added prefix: `{prefix}`")
+                
+                elif cmd.startswith("remove prefix "):
+                    prefix = cmd[14:].strip()
+                    if not prefix:
+                        await ctx.author.send("❌ | Please specify a prefix to remove.")
+                        continue
+                    
+                    if prefix not in current_prefixes:
+                        await ctx.author.send(f"❌ | Prefix `{prefix}` is not in the list.")
+                        continue
+                    
+                    # Update database
+                    current_prefixes.remove(prefix)
+                    db.collection.update_one(
+                        {"server_id": ctx.guild.id},
+                        {"$set": {"server_prefixes": current_prefixes}}
+                    )
+                    
+                    # Update bot prefixes for this guild
+                    for command in self.bot.commands:
+                        if hasattr(command, 'guild_prefixes') and ctx.guild.id in command.guild_prefixes:
+                            command.guild_prefixes[ctx.guild.id] = current_prefixes
+                    
+                    await ctx.author.send(f"✅ | Removed prefix: `{prefix}`")
+                
+                elif cmd.startswith("add channel "):
+                    # Extract channel from mention
+                    try:
+                        # Check if channel is mentioned
+                        if len(response.channel_mentions) == 0:
+                            await ctx.author.send("❌ | Please mention a valid channel using #channel.")
+                            continue
+                        
+                        channel = response.channel_mentions[0]
+                        
+                        # Verify channel is in the server
+                        if channel.guild.id != ctx.guild.id:
+                            await ctx.author.send("❌ | The channel must be in your server.")
+                            continue
+                        
+                        if channel.id in current_channels:
+                            await ctx.author.send(f"❌ | Channel {channel.mention} is already whitelisted.")
+                            continue
+                        
+                        # Update database
+                        current_channels.append(channel.id)
+                        db.collection.update_one(
+                            {"server_id": ctx.guild.id},
+                            {"$set": {"whitelisted_channels": current_channels}}
+                        )
+                        
+                        await ctx.author.send(f"✅ | Added whitelisted channel: {channel.mention}")
+                    except Exception as e:
+                        await ctx.author.send(f"❌ | Error adding channel: {str(e)}")
+                
+                elif cmd.startswith("remove channel "):
+                    # Extract channel from mention
+                    try:
+                        # Check if channel is mentioned
+                        if len(response.channel_mentions) == 0:
+                            await ctx.author.send("❌ | Please mention a valid channel using #channel.")
+                            continue
+                        
+                        channel = response.channel_mentions[0]
+                        
+                        if channel.id not in current_channels:
+                            await ctx.author.send(f"❌ | Channel {channel.mention} is not in the whitelist.")
+                            continue
+                        
+                        # Update database
+                        current_channels.remove(channel.id)
+                        db.collection.update_one(
+                            {"server_id": ctx.guild.id},
+                            {"$set": {"whitelisted_channels": current_channels}}
+                        )
+                        
+                        await ctx.author.send(f"✅ | Removed whitelisted channel: {channel.mention}")
+                    except Exception as e:
+                        await ctx.author.send(f"❌ | Error removing channel: {str(e)}")
+                
+                else:
+                    await ctx.author.send("❌ | Unknown command. Type `add prefix [prefix]`, `remove prefix [prefix]`, `add channel #channel`, `remove channel #channel`, or `done`.")
+            
+            except asyncio.TimeoutError:
+                timeout_embed = discord.Embed(
+                    title="⏱️ Setup Timed Out",
+                    description="The setup process has been automatically closed due to inactivity.",
+                    color=0xFF9900
+                )
+                await ctx.author.send(embed=timeout_embed)
+                break
+            except Exception as e:
+                error_embed = discord.Embed(
+                    title="❌ Error",
+                    description=f"An error occurred: {str(e)}",
+                    color=0xFF0000
+                )
+                await ctx.author.send(embed=error_embed)
+                break
 
 
 def setup(bot):
