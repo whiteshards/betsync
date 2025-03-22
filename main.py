@@ -64,6 +64,8 @@ async def on_guild_join(guild):
             "giveaway_channel": None,
             "server_admins": [],
             "server_bet_history": [],
+            "server_prefixes": [],
+            "whitelisted_channels": []            
         }
         resp = db.new_server(dump)
         if resp:
