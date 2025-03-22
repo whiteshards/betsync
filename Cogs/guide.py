@@ -56,6 +56,9 @@ class Guide(commands.Cog):
         )
 
         embed.set_footer(text="BetSync Casino • Type any command for detailed usage", icon_url=self.bot.user.avatar.url)
+        
+        # Send the embed to the user
+        return await ctx.reply(embed=embed)
 
     @commands.command()
     @commands.cooldown(1, 86400, commands.BucketType.user)  # 24-hour cooldown
