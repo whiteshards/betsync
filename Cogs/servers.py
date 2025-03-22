@@ -1481,7 +1481,7 @@ class ServersCog(commands.Cog):
         
         embed.add_field(
             name="📝 Whitelisted Channels",
-            value=f"Current channels: {channel_str}\n\nType `add channel #channel` to add a channel.\nType `remove channel #channel` to remove a channel.",
+            value=f"Current channels: {channel_str}\n\nType `add channel #channel` or `add channel [channel_id]` to add a channel.\nType `remove channel #channel` or `remove channel [channel_id]` to remove a channel.",
             inline=False
         )
         
@@ -1569,57 +1569,96 @@ class ServersCog(commands.Cog):
                     await ctx.author.send(f"✅ | Removed prefix: `{prefix}`")
                 
                 elif cmd.startswith("add channel "):
-                    # Extract channel from mention
                     try:
-                        # Check if channel is mentioned
-                        if len(response.channel_mentions) == 0:
-                            await ctx.author.send("❌ | Please mention a valid channel using #channel.")
-                            continue
+                        # First check if there's a channel mention
+                        if response.channel_mentions:
+                            channel = response.channel_mentions[0]
+                            channel_id = channel.id
+                            channel_name = channel.mention
+                        else:
+                            # Try to get channel ID from the message
+                            channel_id_str = cmd[11:].strip()
+                            
+                            # Handle potential <#id> format manually
+                            if channel_id_str.startswith("<#") and channel_id_str.endswith(">"):
+                                channel_id_str = channel_id_str[2:-1]
+                                
+                            try:
+                                channel_id = int(channel_id_str)
+                                # Try to get the channel object
+                                channel = self.bot.get_channel(channel_id)
+                                
+                                if not channel:
+                                    # Channel might exist but bot can't see it
+                                    channel_name = f"Channel (ID: {channel_id})"
+                                else:
+                                    channel_name = channel.mention
+                                    # Verify channel is in the server
+                                    if channel.guild.id != ctx.guild.id:
+                                        await ctx.author.send("❌ | The channel must be in your server.")
+                                        continue
+                            except ValueError:
+                                await ctx.author.send("❌ | Please provide a valid channel ID or mention.")
+                                continue
                         
-                        channel = response.channel_mentions[0]
-                        
-                        # Verify channel is in the server
-                        if channel.guild.id != ctx.guild.id:
-                            await ctx.author.send("❌ | The channel must be in your server.")
-                            continue
-                        
-                        if channel.id in current_channels:
-                            await ctx.author.send(f"❌ | Channel {channel.mention} is already whitelisted.")
+                        # Check if channel is already in the whitelist
+                        if channel_id in current_channels:
+                            await ctx.author.send(f"❌ | Channel {channel_name} is already whitelisted.")
                             continue
                         
                         # Update database
-                        current_channels.append(channel.id)
+                        current_channels.append(channel_id)
                         db.collection.update_one(
                             {"server_id": ctx.guild.id},
                             {"$set": {"whitelisted_channels": current_channels}}
                         )
                         
-                        await ctx.author.send(f"✅ | Added whitelisted channel: {channel.mention}")
+                        await ctx.author.send(f"✅ | Added whitelisted channel: {channel_name}")
                     except Exception as e:
                         await ctx.author.send(f"❌ | Error adding channel: {str(e)}")
                 
                 elif cmd.startswith("remove channel "):
-                    # Extract channel from mention
                     try:
-                        # Check if channel is mentioned
-                        if len(response.channel_mentions) == 0:
-                            await ctx.author.send("❌ | Please mention a valid channel using #channel.")
-                            continue
+                        # First check if there's a channel mention
+                        if response.channel_mentions:
+                            channel = response.channel_mentions[0]
+                            channel_id = channel.id
+                            channel_name = channel.mention
+                        else:
+                            # Try to get channel ID from the message
+                            channel_id_str = cmd[14:].strip()
+                            
+                            # Handle potential <#id> format manually
+                            if channel_id_str.startswith("<#") and channel_id_str.endswith(">"):
+                                channel_id_str = channel_id_str[2:-1]
+                            
+                            try:
+                                channel_id = int(channel_id_str)
+                                # Try to get the channel object
+                                channel = self.bot.get_channel(channel_id)
+                                
+                                if not channel:
+                                    # Channel might exist but bot can't see it
+                                    channel_name = f"Channel (ID: {channel_id})"
+                                else:
+                                    channel_name = channel.mention
+                            except ValueError:
+                                await ctx.author.send("❌ | Please provide a valid channel ID or mention.")
+                                continue
                         
-                        channel = response.channel_mentions[0]
-                        
-                        if channel.id not in current_channels:
-                            await ctx.author.send(f"❌ | Channel {channel.mention} is not in the whitelist.")
+                        # Check if channel is in the whitelist
+                        if channel_id not in current_channels:
+                            await ctx.author.send(f"❌ | Channel {channel_name} is not in the whitelist.")
                             continue
                         
                         # Update database
-                        current_channels.remove(channel.id)
+                        current_channels.remove(channel_id)
                         db.collection.update_one(
                             {"server_id": ctx.guild.id},
                             {"$set": {"whitelisted_channels": current_channels}}
                         )
                         
-                        await ctx.author.send(f"✅ | Removed whitelisted channel: {channel.mention}")
+                        await ctx.author.send(f"✅ | Removed whitelisted channel: {channel_name}")
                     except Exception as e:
                         await ctx.author.send(f"❌ | Error removing channel: {str(e)}")
                 
