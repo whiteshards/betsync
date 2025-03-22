@@ -25,33 +25,9 @@ if not os.environ.get('TOKEN'):
     print(f"{Fore.YELLOW}[*] {Fore.WHITE}Please make sure you have added a TOKEN secret in the Secrets tab.")
     exit(1)
 
-# Define a custom command prefix getter function
-async def get_prefix(bot, message):
-    # Default prefixes
-    prefixes = ["!", "."]
-    
-    # Return default prefixes for DMs
-    if message.guild is None:
-        return commands.when_mentioned_or(*prefixes)(bot, message)
-    
-    # Try to get custom prefixes for the guild
-    try:
-        db = Servers()
-        server_data = db.fetch_server(message.guild.id)
-        
-        if server_data and "server_prefixes" in server_data and server_data["server_prefixes"]:
-            custom_prefixes = server_data["server_prefixes"]
-            # Use custom prefixes + default prefixes
-            return commands.when_mentioned_or(*custom_prefixes, *prefixes)(bot, message)
-    except Exception as e:
-        print(f"Error getting prefix: {e}")
-    
-    # Fall back to default prefixes
-    return commands.when_mentioned_or(*prefixes)(bot, message)
-
 # Initialize bot with intents
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=get_prefix, intents=intents, case_insensitive=True)
+bot = commands.Bot(command_prefix=["!", "."], intents=intents, case_insensitive=True)
 bot.remove_command("help")
 
 # List of cogs to load
@@ -88,8 +64,6 @@ async def on_guild_join(guild):
             "giveaway_channel": None,
             "server_admins": [],
             "server_bet_history": [],
-            "server_prefixes": [],
-            "whitelisted_channels": []            
         }
         resp = db.new_server(dump)
         if resp:
@@ -101,16 +75,6 @@ async def on_guild_join(guild):
 
 @bot.event
 async def on_command(ctx):
-    # Skip checks for DM channels
-    if ctx.guild is None:
-        return
-    
-    # Check if command is in a whitelisted channel (if any are set)
-    db_server = Servers()
-    server_data = db_server.fetch_server(ctx.guild.id)
-    
-    # Skip whitelisted channel check - removed as requested
-    
     # Check if user is blacklisted
     async def bg():
         try:
