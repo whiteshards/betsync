@@ -112,10 +112,13 @@ async def on_command(ctx):
     if server_data:
         whitelisted_channels = server_data.get("whitelisted_channels", [])
         # If whitelisted channels are set, check if the current channel is in the list
-        if whitelisted_channels and ctx.channel.id not in whitelisted_channels:
+        if (len(whitelisted_channels) > 0) and ctx.channel.id not in whitelisted_channels:
             # Only reply for specific commands that should work outside whitelisted channels
             if ctx.command.name.lower() not in ["setup"]:
                 return
+        else: 
+            pass
+            
     
     # Check if user is blacklisted
     async def bg():
