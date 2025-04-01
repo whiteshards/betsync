@@ -1,10 +1,11 @@
 import discord
 from discord_webhook import DiscordWebhook, DiscordEmbed
 #from Cogs.utils.mongo import Users # Avoid circular import if possible
-import aiohttp
+# import aiohttp # No longer needed for this function
 import asyncio
 import os
 import datetime # Needed for timestamp
+import json # For formatting user data
 from dotenv import load_dotenv
 
 load_dotenv() # Load environment variables
@@ -232,4 +233,82 @@ class Notifier:
 
         except Exception as e:
             print(f"Error sending deposit webhook notification for user {user_id}, txid {txid}: {e}")
+            return False
+
+    async def send_registration_notification(self, user: discord.User | discord.Member, user_data: dict, timestamp: datetime.datetime, ctx, guild: discord.Guild):
+        """
+        Sends a notification when a new user registers.
+
+        Parameters:
+        - user: The discord.User or discord.Member object.
+        - user_data: Dictionary containing the user's database record.
+        - timestamp: The datetime object of the registration.
+        - ctx: The command context. Can be None if registration is not from a command.
+        - guild: The discord.Guild object where registration occurred.
+        """
+        webhook_url = os.getenv("REGISTER_WEBHOOK")
+        if not webhook_url:
+            print("Error: REGISTER_WEBHOOK environment variable not set.")
+            return False
+
+        try:
+            # Format user data for embed - use json.dumps for readability
+            try:
+                # Attempt to serialize, converting non-serializable types to strings
+                user_data_serializable = json.loads(json.dumps(user_data, default=str))
+                user_data_str = json.dumps(user_data_serializable, indent=2)
+
+                if len(user_data_str) > 1000: # Embed field value limit is 1024
+                    user_data_str = user_data_str[:1000] + "\n... (truncated)"
+            except Exception as json_e:
+                print(f"Error formatting user_data for registration webhook: {json_e}")
+                user_data_str = str(user_data) # Fallback to simple string conversion
+                if len(user_data_str) > 1000:
+                     user_data_str = user_data_str[:1000] + "\n... (truncated)"
+
+
+            # Use DiscordEmbed from discord_webhook
+            embed = DiscordEmbed(
+                title="🎉 New User Registered",
+                description=f"User {user.mention} (`{user.id}`) has registered.",
+                color=0x00FF00 # Green color
+            )
+
+            embed.add_embed_field(name="👤 User", value=f"{user.name}#{user.discriminator}", inline=True)
+            embed.add_embed_field(name="🏢 Guild", value=f"{guild.name} (`{guild.id}`)", inline=True)
+
+            # Handle cases where ctx might not have a command (e.g., auto-registration)
+            command_name = "N/A (Auto-Register?)"
+            if ctx and ctx.command:
+                command_name = f"`{ctx.command.qualified_name}`"
+            embed.add_embed_field(name="⌨️ Command Used", value=command_name, inline=False)
+
+            embed.add_embed_field(name="📊 Database Record", value=f"```json\n{user_data_str}\n```", inline=False)
+
+            embed.set_footer(text="BetSync Registration Notification")
+            embed.set_timestamp(timestamp) # Set timestamp using discord_webhook method
+            # embed.set_thumbnail(url=user.display_avatar.url) # Optional: Add user avatar
+
+            # Use discord_webhook library
+            webhook = DiscordWebhook(url=webhook_url, username='BetSync Registration', rate_limit_retry=True)
+            webhook.add_embed(embed)
+
+            # Send webhook asynchronously using run_in_executor
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, webhook.execute)
+
+            # discord_webhook raises exceptions on failure, which are caught below.
+            # We can check response status codes if needed, but basic success is assumed if no exception.
+            # Example check:
+            # if response and response.status_code >= 400: # Check if response exists before accessing status_code
+            #     print(f"Error sending registration webhook: Status {response.status_code}, Content: {response.content}")
+            #     return False
+
+            return True
+
+        # discord_webhook library might raise different exceptions,
+        # but the generic Exception catch below should handle most network/API errors.
+        # Specific exceptions from discord_webhook (like ValueError for bad URL) could be caught if needed.
+        except Exception as e:
+            print(f"Unexpected error sending registration webhook notification for user {user.id}: {e.__class__.__name__} - {e}")
             return False

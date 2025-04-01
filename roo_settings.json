@@ -1,0 +1,201 @@
+{
+  "providerProfiles": {
+    "currentApiConfigName": "OpenRouter Gemini",
+    "apiConfigs": {
+      "Google Gemini 1": {
+        "apiProvider": "gemini",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "google/gemini-2.5-pro-exp-03-25:free",
+        "openRouterModelInfo": {
+          "maxTokens": 65535,
+          "contextWindow": 1000000,
+          "supportsImages": true,
+          "supportsPromptCache": false,
+          "inputPrice": 0,
+          "outputPrice": 0,
+          "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
+          "thinking": false
+        },
+        "geminiApiKey": "AIzaSyBNXZZZONWjpzmXtZrv7mYsdkk_WjlWrF8",
+        "id": "lk6fejloq8q"
+      },
+      "Google Gemini 2": {
+        "apiProvider": "gemini",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "google/gemini-2.5-pro-exp-03-25:free",
+        "openRouterModelInfo": {
+          "maxTokens": 65535,
+          "contextWindow": 1000000,
+          "supportsImages": true,
+          "supportsPromptCache": false,
+          "inputPrice": 0,
+          "outputPrice": 0,
+          "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
+          "thinking": false
+        },
+        "geminiApiKey": "AIzaSyBQ6mlIPRhmcaGtWai-hSB9WBHJ9lW5nio",
+        "id": "todegxcirq"
+      },
+      "Google Gemini 3": {
+        "apiProvider": "gemini",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "google/gemini-2.5-pro-exp-03-25:free",
+        "openRouterModelInfo": {
+          "maxTokens": 65535,
+          "contextWindow": 1000000,
+          "supportsImages": true,
+          "supportsPromptCache": false,
+          "inputPrice": 0,
+          "outputPrice": 0,
+          "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
+          "thinking": false
+        },
+        "geminiApiKey": "AIzaSyCl18GHPnWQaaiVmUiLMCHCbo1XXFDKAlY",
+        "id": "9i9eny18v2"
+      },
+      "Google Gemini 4": {
+        "apiProvider": "gemini",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "google/gemini-2.5-pro-exp-03-25:free",
+        "openRouterModelInfo": {
+          "maxTokens": 65535,
+          "contextWindow": 1000000,
+          "supportsImages": true,
+          "supportsPromptCache": false,
+          "inputPrice": 0,
+          "outputPrice": 0,
+          "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
+          "thinking": false
+        },
+        "geminiApiKey": "AIzaSyBVxITAhUiWsgEuqbgsRMdLM1t8CXUt2mc",
+        "id": "pdorhy0l9cc"
+      },
+      "OpenRouter DeepSeek": {
+        "apiProvider": "openrouter",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "deepseek/deepseek-chat-v3-0324",
+        "openRouterModelInfo": {
+          "maxTokens": 8192,
+          "contextWindow": 64000,
+          "supportsImages": false,
+          "supportsPromptCache": false,
+          "inputPrice": 0.27,
+          "outputPrice": 1.1,
+          "description": "DeepSeek V3, a 685B-parameter, mixture-of-experts model, is the latest iteration of the flagship chat model family from the DeepSeek team.\n\nIt succeeds the [DeepSeek V3](/deepseek/deepseek-chat-v3) model and performs really well on a variety of tasks.",
+          "thinking": false
+        },
+        "geminiApiKey": "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",
+        "id": "5c7phqdd92s"
+      },
+      "OpenRouter DeepSeek 2": {
+        "apiProvider": "openrouter",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "deepseek/deepseek-chat-v3-0324",
+        "openRouterModelInfo": {
+          "maxTokens": 8192,
+          "contextWindow": 64000,
+          "supportsImages": false,
+          "supportsPromptCache": false,
+          "inputPrice": 0.27,
+          "outputPrice": 1.1,
+          "description": "DeepSeek V3, a 685B-parameter, mixture-of-experts model, is the latest iteration of the flagship chat model family from the DeepSeek team.\n\nIt succeeds the [DeepSeek V3](/deepseek/deepseek-chat-v3) model and performs really well on a variety of tasks.",
+          "thinking": false
+        },
+        "geminiApiKey": "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",
+        "id": "epen7l8f06w"
+      },
+      "OpenRouter Gemini": {
+        "apiProvider": "openrouter",
+        "apiModelId": "gemini-2.5-pro-exp-03-25",
+        "openRouterApiKey": "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",
+        "openRouterModelId": "google/gemini-2.5-pro-exp-03-25:free",
+        "openRouterModelInfo": {
+          "maxTokens": 65535,
+          "contextWindow": 1000000,
+          "supportsImages": true,
+          "supportsPromptCache": false,
+          "inputPrice": 0,
+          "outputPrice": 0,
+          "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy and nuanced context handling. Gemini 2.5 Pro achieves top-tier performance on multiple benchmarks, including first-place positioning on the LMArena leaderboard, reflecting superior human-preference alignment and complex problem-solving abilities.",
+          "thinking": false
+        },
+        "geminiApiKey": "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",
+        "id": "gpvvu8h7vwe"
+      }
+    },
+    "modeApiConfigs": {
+      "code": "gpvvu8h7vwe",
+      "architect": "gpvvu8h7vwe",
+      "boomerang-mode": "todegxcirq"
+    }
+  },
+  "globalSettings": {
+    "lastShownAnnouncementId": "mar-30-2025-3-11",
+    "autoApprovalEnabled": true,
+    "alwaysAllowReadOnly": true,
+    "alwaysAllowReadOnlyOutsideWorkspace": false,
+    "alwaysAllowWrite": true,
+    "alwaysAllowWriteOutsideWorkspace": false,
+    "writeDelayMs": 1000,
+    "alwaysAllowBrowser": false,
+    "alwaysApproveResubmit": true,
+    "requestDelaySeconds": 10,
+    "alwaysAllowMcp": false,
+    "alwaysAllowModeSwitch": false,
+    "alwaysAllowSubtasks": true,
+    "alwaysAllowExecute": false,
+    "allowedCommands": [
+      "npm test",
+      "npm install",
+      "tsc",
+      "git log",
+      "git diff",
+      "git show"
+    ],
+    "browserToolEnabled": true,
+    "browserViewportSize": "900x600",
+    "screenshotQuality": 75,
+    "remoteBrowserEnabled": false,
+    "enableCheckpoints": true,
+    "checkpointStorage": "task",
+    "ttsEnabled": false,
+    "ttsSpeed": 1,
+    "soundEnabled": false,
+    "soundVolume": 0.5,
+    "maxOpenTabsContext": 20,
+    "maxWorkspaceFiles": 200,
+    "showRooIgnoredFiles": true,
+    "maxReadFileLine": -1,
+    "terminalOutputLineLimit": 1600,
+    "terminalShellIntegrationTimeout": 5000,
+    "rateLimitSeconds": 0,
+    "diffEnabled": true,
+    "fuzzyMatchThreshold": 1,
+    "experiments": {
+      "search_and_replace": false,
+      "experimentalDiffStrategy": false,
+      "insert_content": false,
+      "powerSteering": false
+    },
+    "language": "en",
+    "telemetrySetting": "enabled",
+    "mcpEnabled": true,
+    "mode": "code",
+    "customModes": [
+      {
+        "slug": "boomerang-mode",
+        "name": "Boomerang Mode",
+        "roleDefinition": "You are Roo, a strategic workflow orchestrator who coordinates complex tasks by delegating them to appropriate specialized modes. You have a comprehensive understanding of each mode's capabilities and limitations, allowing you to effectively break down complex problems into discrete tasks that can be solved by different specialists.",
+        "customInstructions": "Your role is to coordinate complex workflows by delegating tasks to specialized modes. As an orchestrator, you should:\n\n1. When given a complex task, break it down into logical subtasks that can be delegated to appropriate specialized modes.\n\n2. For each subtask, use the `new_task` tool to delegate. Choose the most appropriate mode for the subtask's specific goal and provide comprehensive instructions in the `message` parameter. These instructions must include:\n    *   All necessary context from the parent task or previous subtasks required to complete the work.\n    *   A clearly defined scope, specifying exactly what the subtask should accomplish.\n    *   An explicit statement that the subtask should *only* perform the work outlined in these instructions and not deviate.\n    *   An instruction for the subtask to signal completion by using the `attempt_completion` tool, providing a concise yet thorough summary of the outcome in the `result` parameter, keeping in mind that this summary will be the source of truth used to keep track of what was completed on this project. \n    *   A statement that these specific instructions supersede any conflicting general instructions the subtask's mode might have.\n\n3. Track and manage the progress of all subtasks. When a subtask is completed, analyze its results and determine the next steps.\n\n4. Help the user understand how the different subtasks fit together in the overall workflow. Provide clear reasoning about why you're delegating specific tasks to specific modes.\n\n5. When all subtasks are completed, synthesize the results and provide a comprehensive overview of what was accomplished.\n\n6. Ask clarifying questions when necessary to better understand how to break down complex tasks effectively.\n\n7. Suggest improvements to the workflow based on the results of completed subtasks.\n\nUse subtasks to maintain clarity. If a request significantly shifts focus or requires a different expertise (mode), consider creating a subtask rather than overloading the current one.",
+        "groups": [],
+        "source": "project"
+      }
+    ]
+  }
+}

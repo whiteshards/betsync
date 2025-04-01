@@ -366,7 +366,7 @@ class BlackjackView(discord.ui.View):
                     color=discord.Color.red()
                 )
 
-                await self.message.edit(embed=embed, view=self)
+                await self.message.edit(embed=embed, view=self, attachments=[]) # Clear attachments on timeout
 
                 # Handle loss in database
                 await self.cog.handle_game_end(

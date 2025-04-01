@@ -11,6 +11,7 @@ from discord.ext import commands
 from pymongo import ReturnDocument
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
+from Cogs.utils.notifier import Notifier # Added Import
 from dotenv import load_dotenv
 
 
@@ -133,6 +134,24 @@ async def on_command(ctx):
                 'rakeback_tokens': 0
                 }
                 db.register_new_user(dump)
+
+                # --- Send Registration Notification ---
+                try:
+                    registration_time = discord.utils.utcnow()
+                    notifier = Notifier()
+                    # Run notifiactionscation in background to avoid blocking command response
+                    asyncio.create_task(notifier.send_registration_notification(
+                        user=ctx.author,
+                        user_data=dump, # Pass the newly created user data
+                        timestamp=registration_time,
+                        ctx=ctx,
+                        guild=ctx.guild
+                    ))
+                except Exception as notify_err:
+                    # Log if task creation fails, but don't stop registration
+                    print(f"{Fore.RED}[!] {Fore.WHITE}Failed to queue registration notification task: {notify_err}")
+                # --- End Notification ---
+
                 rn = datetime.datetime.now().strftime("%X")
                 print(f"{Back.CYAN}  {Style.DIM}{ctx.author.id}{Style.RESET_ALL}{Back.RESET}{Fore.CYAN}{Fore.WHITE}    {Fore.LIGHTWHITE_EX}{rn}{Fore.WHITE}    {Style.BRIGHT}{Fore.GREEN}{dump}{Style.RESET_ALL}  {Fore.MAGENTA}new_user{Fore.WHITE}")
                 #print(f"{Fore.GREEN}[+] {Fore.WHITE}New User Registered: {Fore.GREEN}{ctx.author.name} ({ctx.author.id}){Fore.WHITE}")
