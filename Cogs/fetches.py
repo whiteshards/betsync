@@ -178,130 +178,7 @@ class Fetches(commands.Cog):
 
         await ctx.reply(embed=embed)
 
-    # Store pending currency changes
-    pending_currency_changes = {}
-    
-    # Confirmation View for currency change
-    class ConfirmCurrencyView(discord.ui.View):
-        def __init__(self, cog, ctx, current_coin, new_coin, current_points, new_points, current_rate, new_rate, new_usd_value, timeout=20):
-            super().__init__(timeout=timeout)
-            self.cog = cog
-            self.ctx = ctx
-            self.current_coin = current_coin
-            self.new_coin = new_coin
-            self.current_points = current_points
-            self.new_points = new_points
-            self.current_rate = current_rate
-            self.new_rate = new_rate
-            self.new_usd_value = new_usd_value
-            self.message = None
-
-        @discord.ui.button(label="Confirm Change", style=discord.ButtonStyle.green, emoji="✅")
-        async def confirm_button(self, button, interaction):
-            # Only the command author can use this button
-            if interaction.user.id != self.ctx.author.id:
-                return await interaction.response.send_message("You cannot confirm someone else's currency change!", ephemeral=True)
-            
-            # Get the database
-            db = Users()
-            
-            # Calculate how much of the current primary coin the user has based on points
-            current_coin_amount = self.current_points * self.current_rate
-            
-            # Update database with new primary coin and points
-            db.collection.update_one(
-                {"discord_id": self.ctx.author.id},
-                {
-                    "$set": {
-                        "primary_coin": self.new_coin,
-                        "points": self.new_points,
-                        f"wallet.{self.current_coin}": current_coin_amount
-                    }
-                }
-            )
-            
-            # Clear pending change
-            if self.ctx.author.id in self.cog.pending_currency_changes:
-                del self.cog.pending_currency_changes[self.ctx.author.id]
-            
-            # Disable all buttons
-            for child in self.children:
-                child.disabled = True
-            
-            # Create success embed
-            success_embed = discord.Embed(
-                title="💱 Currency Changed Successfully",
-                description=f"Your primary currency has been changed from **{self.current_coin}** to **{self.new_coin}**.",
-                color=0x00FFAE  # Bright teal color
-            )
-            
-            success_embed.add_field(
-                name="New Balance",
-                value=f"`{self.new_points:.2f} points` `({self.new_usd_value:.2f}$)`",
-                inline=False
-            )
-            
-            success_embed.add_field(
-                name="Conversion Rate",
-                value=f"`1 Point = {self.new_rate:.8f} {self.new_coin}`",
-                inline=False
-            )
-            
-            success_embed.set_footer(text="BetSync Casino • Currency Changed", icon_url=self.cog.bot.user.avatar.url)
-            
-            # Update original message and send confirmation
-            await interaction.response.edit_message(embed=success_embed, view=self)
-            db.save(self.ctx.author.id)
-            #self.stop()
-
-        @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, emoji="❌")
-        async def cancel_button(self, button, interaction):
-            # Only the command author can use this button
-            if interaction.user.id != self.ctx.author.id:
-                return await interaction.response.send_message("You cannot cancel someone else's currency change!", ephemeral=True)
-            
-            # Clear pending change
-            if self.ctx.author.id in self.cog.pending_currency_changes:
-                del self.cog.pending_currency_changes[self.ctx.author.id]
-            
-            # Disable all buttons
-            for child in self.children:
-                child.disabled = True
-            
-            # Create cancellation embed
-            cancel_embed = discord.Embed(
-                title="❌ Currency Change Cancelled",
-                description=f"Your currency change request has been cancelled.\nYour primary currency remains **{self.current_coin}**.",
-                color=0xFF5555  # Soft red color
-            )
-            
-            cancel_embed.set_footer(text="BetSync Casino • Operation Cancelled", icon_url=self.cog.bot.user.avatar.url)
-            
-            # Update message
-            await interaction.response.edit_message(embed=cancel_embed, view=self)
-            #del self.cog.pending_currency_changes[self.ctx.author.id]
-
-        async def on_timeout(self):
-            # Clear pending change
-            if self.ctx.author.id in self.cog.pending_currency_changes:
-                del self.cog.pending_currency_changes[self.ctx.author.id]
-            
-            # Disable all buttons
-            for child in self.children:
-                child.disabled = True
-            
-            # Update message if it still exists
-            if self.message and (self.ctx.author.id in self.cog.pending_currency_changes):
-                try:
-                    timeout_embed = discord.Embed(
-                        title="⏱️ Currency Change Timed Out",
-                        description="Your currency change request has expired.\nPlease try again if you still want to change your currency.",
-                        color=0xAAAAAA  # Gray color
-                    )
-                    timeout_embed.set_footer(text="BetSync Casino • Request Expired", icon_url=self.cog.bot.user.avatar.url)
-                    await self.message.edit(embed=timeout_embed, view=self)
-                except:
-                    pass
+    # No longer needed since we're directly changing currency without confirmation
 
     @commands.command(aliases=["bal"])
     async def balance(self, ctx, param: str = None):
@@ -368,11 +245,6 @@ class Fetches(commands.Cog):
                 await ctx.reply(f"**{currency}** is already your primary currency!")
                 return
                 
-            # Check if the user already has a pending currency change
-            if ctx.author.id in self.pending_currency_changes:
-                await ctx.reply("You already have a pending currency change. Please complete or cancel that request first.")
-                return
-                
             # Calculate how much of the current primary coin the user has based on points
             current_coin_amount = points * crypto_values[current_primary_coin]
             
@@ -399,14 +271,6 @@ class Fetches(commands.Cog):
             
             new_usd_value = (new_points * crypto_values[currency]) * new_coin_usd_price if new_coin_usd_price else 0
             
-            # Store pending change
-            self.pending_currency_changes[ctx.author.id] = {
-                "current_coin": current_primary_coin,
-                "new_coin": currency,
-                "current_points": points,
-                "new_points": new_points
-            }
-            
             # Prepare emojis for display
             emoji_map = {
                 "BTC": "<:btc:1339343483089063976>",
@@ -416,64 +280,44 @@ class Fetches(commands.Cog):
                 "SOL": "<:sol:1340981839497793556>"
             }
             
-            current_emoji = emoji_map.get(current_primary_coin, "")
             new_emoji = emoji_map.get(currency, "")
             
-            # Create confirmation embed
-            confirm_embed = discord.Embed(
-                title="<:NA_CashIcon:1347561395083804702> | Currency Change Confirmation",
-                description=f"You are about to change your primary currency from **{current_primary_coin}** to **{currency}**.",
+            # Update database with new primary coin and points
+            db.collection.update_one(
+                {"discord_id": ctx.author.id},
+                {
+                    "$set": {
+                        "primary_coin": currency,
+                        "points": new_points,
+                        f"wallet.{current_primary_coin}": current_coin_amount
+                    }
+                }
+            )
+            
+            # Create success embed
+            success_embed = discord.Embed(
+                title="💱 Currency Changed",
+                description=f"Your primary currency has been changed from **{current_primary_coin}** to **{currency}**.",
                 color=0x00FFAE
             )
             
-            # Current balance
-            confirm_embed.add_field(
-                name="Current Balance",
-                value=f"{current_emoji} `{points:.2f} points ({current_primary_coin})`",
+            success_embed.add_field(
+                name="New Balance",
+                value=f"{new_emoji} `{new_points:.2f} points` `({new_usd_value:.2f}$)`",
                 inline=False
             )
             
-            # New balance after conversion
-            confirm_embed.add_field(
-                name="New Balance If Changed",
-                value=f"{new_emoji} `{new_points:.2f} points ({currency})` `({new_usd_value:.2f}$)`",
+            success_embed.add_field(
+                name="Conversion Rate",
+                value=f"`1 Point = {crypto_values[currency]:.8f} {currency}`",
                 inline=False
             )
             
-            # Conversion details
-            confirm_embed.add_field(
-                name="Conversion Details",
-                value=(
-                    f"**Current Rate:** `1 point = {crypto_values[current_primary_coin]:.8f} {current_primary_coin}`\n"
-                    f"**New Rate:** `1 point = {crypto_values[currency]:.8f} {currency}`"
-                ),
-                inline=False
-            )
+            success_embed.set_footer(text="BetSync Casino • Currency Changed", icon_url=self.bot.user.avatar.url)
             
-            # Warning about price fluctuations
-            confirm_embed.add_field(
-                name="⚠️ Important Note",
-                value="Cryptocurrency values fluctuate. Your point balance will change based on the conversion rate.",
-                inline=False
-            )
-            
-            confirm_embed.set_footer(text="BetSync Casino • Please Confirm Your Choice", icon_url=self.bot.user.avatar.url)
-            
-            # Create the confirmation view
-            view = self.ConfirmCurrencyView(
-                self,
-                ctx,
-                current_primary_coin,
-                currency,
-                points,
-                new_points,
-                crypto_values[current_primary_coin],
-                crypto_values[currency],
-                new_usd_value
-            )
-            
-            # Send the confirmation message
-            view.message = await ctx.reply(embed=confirm_embed, view=view)
+            # Send the success message
+            await ctx.reply(embed=success_embed)
+            db.save(ctx.author.id)
             return
             
         # Get live prices using crypto utility
