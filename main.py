@@ -51,7 +51,7 @@ cogs = [
     "Cogs.games.tower", "Cogs.games.pump", "Cogs.games.limbo", 
     "Cogs.games.race", "Cogs.games.cases",
     "Cogs.games.hilo", "Cogs.games.poker", "Cogs.games.plinko", 
-    "Cogs.games.keno", "Cogs.games.blackjack", "Cogs.games.baccarat",
+    "Cogs.games.keno", "Cogs.games.blackjack", "Cogs.games.baccarat", "Cogs.games.carddraw",
     "Cogs.games.match"
 ]
 
@@ -61,7 +61,7 @@ async def on_command_error(ctx, error):
         await ctx.reply("No such command found, type `!help` to get started", delete_after=5)
         #print(f"{Fore.RED}[-] {Fore.WHITE} User {Fore.BLACK}{ctx.message.author}{Fore.WHITE} tried to use a non-existent command")
     else:
-        
+
         pass #print(f"{Fore.RED}[!] {Fore.WHITE}Command error: {Fore.RED}{error}")
 
 @bot.event
