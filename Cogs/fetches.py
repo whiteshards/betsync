@@ -296,7 +296,7 @@ class Fetches(commands.Cog):
             
             # Create success embed
             success_embed = discord.Embed(
-                title="💱 Currency Changed",
+                title="<:NA_CashIcon:1347561395083804702> | Currency Changed",
                 description=f"Your primary currency has been changed from **{current_primary_coin}** to **{currency}**.",
                 color=0x00FFAE
             )
