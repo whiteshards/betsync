@@ -183,7 +183,7 @@ class Fetches(commands.Cog):
     
     # Confirmation View for currency change
     class ConfirmCurrencyView(discord.ui.View):
-        def __init__(self, cog, ctx, current_coin, new_coin, current_points, new_points, current_rate, new_rate, new_usd_value, timeout=60):
+        def __init__(self, cog, ctx, current_coin, new_coin, current_points, new_points, current_rate, new_rate, new_usd_value, timeout=20):
             super().__init__(timeout=timeout)
             self.cog = cog
             self.ctx = ctx
@@ -252,6 +252,7 @@ class Fetches(commands.Cog):
             # Update original message and send confirmation
             await interaction.response.edit_message(embed=success_embed, view=self)
             db.save(self.ctx.author.id)
+            #self.stop()
 
         @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, emoji="❌")
         async def cancel_button(self, button, interaction):
@@ -278,6 +279,7 @@ class Fetches(commands.Cog):
             
             # Update message
             await interaction.response.edit_message(embed=cancel_embed, view=self)
+            #del self.cog.pending_currency_changes[self.ctx.author.id]
 
         async def on_timeout(self):
             # Clear pending change
@@ -289,7 +291,7 @@ class Fetches(commands.Cog):
                 child.disabled = True
             
             # Update message if it still exists
-            if self.message:
+            if self.message and (self.ctx.author.id in self.cog.pending_currency_changes):
                 try:
                     timeout_embed = discord.Embed(
                         title="⏱️ Currency Change Timed Out",
@@ -419,7 +421,7 @@ class Fetches(commands.Cog):
             
             # Create confirmation embed
             confirm_embed = discord.Embed(
-                title="💱 Currency Change Confirmation",
+                title="<:NA_CashIcon:1347561395083804702> | Currency Change Confirmation",
                 description=f"You are about to change your primary currency from **{current_primary_coin}** to **{currency}**.",
                 color=0x00FFAE
             )
