@@ -10,3 +10,4 @@ psutil
 bitcoinlib
 electrum-client
 Pillow
+discord-py
