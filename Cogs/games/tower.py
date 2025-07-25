@@ -293,17 +293,8 @@ class TowerGameView(discord.ui.View):
         # Extract the tile index from the button's custom_id
         tile_index = int(interaction.data["custom_id"].split('_')[1])
 
-        # Check for admin curse - make them lose after 3-5 successful levels
-        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-        has_diamond = self.tower_layout[self.current_level][tile_index]
-        
-        if (curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and 
-            self.current_level >= 2 and has_diamond and random.random() < 0.7):
-            # Force a loss even though they hit a diamond
-            has_diamond = False
-            curse_cog.consume_curse(self.ctx.author.id)
-        
-        if has_diamond:
+        # Check if the tile has a diamond
+        if self.tower_layout[self.current_level][tile_index]:
             # Player found a diamond - track it
             if not hasattr(self, 'last_diamonds'):
                 self.last_diamonds = []

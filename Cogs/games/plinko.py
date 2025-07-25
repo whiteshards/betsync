@@ -226,10 +226,6 @@ class PlinkoGame:
         num_slots = len(self.multiplier_table)
         actual_rows = self.rows + 2  # User rows + 2 as per requirement
 
-        # Check for admin curse
-        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-        is_cursed = curse_cog and curse_cog.is_player_cursed(self.user_id)
-
         # Start randomly at one of the 2 gaps at the top
         position = random.randint(0, 1)
         path.append(position)
@@ -267,14 +263,6 @@ class PlinkoGame:
         # Scale the position to match the multiplier table indices
         scaled_position = int(current_position * (num_slots - 1) / (final_row_positions - 1) + 0.5)
         final_pos = max(0, min(scaled_position, num_slots - 1))
-
-        # Apply curse - force ball to land in low multiplier areas
-        if is_cursed and random.random() < 0.8:
-            # Find positions with multipliers < 1.0 (losing positions)
-            losing_positions = [i for i, mult in enumerate(self.multiplier_table) if mult < 1.0]
-            if losing_positions:
-                final_pos = random.choice(losing_positions)
-                curse_cog.consume_curse(self.user_id)
 
         # Replace the last position with the scaled position for correct display
         path[-1] = final_pos

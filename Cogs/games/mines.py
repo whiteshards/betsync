@@ -102,18 +102,18 @@ class MineButton(discord.ui.Button):
                 # Calculate new multiplier
                 self.parent_view.update_multiplier()
 
-                # Check for admin curse - if multiplier is in the 1.2x-1.4x range and player is cursed
-                curse_cog = self.parent_view.ctx.bot.get_cog('AdminCurseCog')
-                if (curse_cog and curse_cog.is_player_cursed(self.parent_view.ctx.author.id) and 
-                    1.2 <= self.parent_view.current_multiplier <= 1.4):
+                # Check for bad luck curse - if multiplier is above 1.3x and player is cursed
+                if (self.parent_view.current_multiplier > 1.3 and 
+                    hasattr(self.parent_view.cog, 'cursed_players') and 
+                    self.parent_view.ctx.author.id in self.parent_view.cog.cursed_players):
                     
                     # Trigger bad luck - force a mine hit
                     self.is_mine = True
                     self.revealed = True
                     self.parent_view.game_over = True
 
-                    # Consume the curse after it's triggered
-                    curse_cog.consume_curse(self.parent_view.ctx.author.id)
+                    # Remove curse after it's triggered
+                    self.parent_view.cog.cursed_players.remove(self.parent_view.ctx.author.id)
 
                     # Reveal all mines
                     for row in range(self.parent_view.board_size):

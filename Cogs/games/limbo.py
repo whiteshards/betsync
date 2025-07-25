@@ -145,20 +145,11 @@ class LimboGame:
                 # Stop simulation if we run out of funds
                 break
 
-            # Check for admin curse and apply smart loss
-            curse_cog = self.cog.ctx.bot.get_cog('AdminCurseCog')
-            if curse_cog and curse_cog.is_player_cursed(self.user_id) and random.random() < 0.9:
-                # Make it crash just before the target 90% of the time
-                crash_point = max(1.01, self.target_multiplier - random.uniform(0.05, 0.15))
-                rounded_multiplier = round(crash_point, 2)
-                if i == 0:  # Only consume curse on first loss
-                    curse_cog.consume_curse(self.user_id)
-            else:
-                # Roll the multiplier normally (with 15% house edge)
-                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
-                r = random.random() * 0.85
-                rolled_multiplier = 1.0 / (1.0 - r)
-                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+            # Roll the multiplier (with 15% house edge)
+            # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
+            r = random.random() * 0.85
+            rolled_multiplier = 1.0 / (1.0 - r)
+            rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
 
             # Determine if user won
             won = rounded_multiplier >= self.target_multiplier
@@ -297,19 +288,11 @@ class LimboGame:
                     #credits_used = self.credits_used
                     is_first_bet = False  # Mark first bet as processed
 
-                # Check for admin curse and apply smart loss
-                curse_cog = self.ctx.bot.get_cog('AdminCurseCog')
-                if curse_cog and curse_cog.is_player_cursed(self.user_id) and random.random() < 0.9:
-                    # Make it crash just before the target 90% of the time
-                    crash_point = max(1.01, self.target_multiplier - random.uniform(0.05, 0.15))
-                    rounded_multiplier = round(crash_point, 2)
-                    curse_cog.consume_curse(self.user_id)
-                else:
-                    # Roll the multiplier normally (with 15% house edge)
-                    # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
-                    r = random.random() * 0.85
-                    rolled_multiplier = 1.0 / (1.0 - r)
-                    rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+                # Roll the multiplier (with 15% house edge)
+                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
+                r = random.random() * 0.85
+                rolled_multiplier = 1.0 / (1.0 - r)
+                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
 
                 # Determine if user won
                 won = rounded_multiplier >= self.target_multiplier
