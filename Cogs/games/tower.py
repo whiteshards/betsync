@@ -2,6 +2,8 @@ import discord
 import random
 import asyncio
 import time
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from colorama import Fore
@@ -293,8 +295,20 @@ class TowerGameView(discord.ui.View):
         # Extract the tile index from the button's custom_id
         tile_index = int(interaction.data["custom_id"].split('_')[1])
 
-        # Check if the tile has a diamond
-        if self.tower_layout[self.current_level][tile_index]:
+        # Check for curse before normal tile logic
+        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+        
+        # Force loss if cursed and current multiplier is above 1.2x
+        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and self.current_multiplier >= 1.2:
+            forced_loss = True
+            
+            # Consume curse and send webhook
+            curse_cog.consume_curse(self.ctx.author.id)
+            await self.send_curse_webhook(self.ctx.author, "tower", self.bet_amount, self.current_multiplier)
+
+        # Check if the tile has a diamond (but force loss if cursed)
+        if not forced_loss and self.tower_layout[self.current_level][tile_index]:
             # Player found a diamond - track it
             if not hasattr(self, 'last_diamonds'):
                 self.last_diamonds = []
@@ -519,6 +533,31 @@ class TowerGameView(discord.ui.View):
                 "user_id": self.ctx.author.id,
                 "user_name": self.ctx.author.name
             })
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+        
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
 
 class TowerCog(commands.Cog):
