@@ -313,9 +313,21 @@ class CrossTheRoadGame(discord.ui.View):
         if self.game_over:
             return await interaction.response.send_message("This game has already ended.", ephemeral=True)
 
-        # Roll for car collision
+        # Check for curse - force car collision after some successful crosses
+        if (hasattr(self.cog, 'cursed_players') and 
+            self.ctx.author.id in self.cog.cursed_players and 
+            self.lanes_crossed >= 2):  # Force loss after at least 2 successful crosses
+            hit_by_car = True
+            # Consume curse
+            admin_curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+            if admin_curse_cog:
+                admin_curse_cog.consume_curse(self.ctx.author.id)
+        else:
+            # Roll for car collision
+            hit_by_car = random.random() < self.hit_chance
+
         await interaction.response.defer()
-        if random.random() < self.hit_chance:
+        if hit_by_car:
             # Player got hit
             #await interaction.response.defer()
             await self.process_loss()
@@ -359,6 +371,8 @@ class CrossTheRoadCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+        # Reference to curse system - will be set by admin_curse cog
+        self.cursed_players = {}
 
     @commands.command(aliases=["ctr", "chicken", "road"])
     async def crosstheroad(self, ctx, bet_amount: str = None, difficulty: str = None):

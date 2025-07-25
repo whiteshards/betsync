@@ -75,21 +75,21 @@ class HiLoView(discord.ui.View):
         self.high_profit = 0      # Track potential high profit
         self.low_profit = 0       # Track potential low profit
         self.skips_used = 0       # Track how many skips have been used
-        
+
     async def on_timeout(self):
         """Handle timeout - refund the bet and notify the user"""
         if self.game_over:
             return  # Game already ended, no need for timeout handling
-            
+
         # Get database
         from Cogs.utils.mongo import Users
         db = Users()
-        
+
         # Refund the bet amount in the appropriate currency
         try:
             # Process refund
             db.update_balance(self.ctx.author.id, self.bet_amount)
-            
+
             # Create timeout message
             embed = discord.Embed(
                 title="⏱️ HiLo Game Timeout",
@@ -97,19 +97,19 @@ class HiLoView(discord.ui.View):
                 color=discord.Color.orange()
             )
             embed.set_footer(text="BetSync Casino • Game expired due to inactivity")
-            
+
             # Disable all buttons
             for child in self.children:
                 child.disabled = True
-            
+
             # Send timeout notification and update the game message
             await self.message.edit(embed=embed, view=self)
             await self.ctx.channel.send(f"{self.ctx.author.mention} Your HiLo game has timed out and your bet has been refunded.")
-            
+
             # Remove from ongoing games
             if self.ctx.author.id in self.cog.ongoing_games:
                 del self.cog.ongoing_games[self.ctx.author.id]
-                
+
         except Exception as e:
             print(f"Error handling HiLo timeout: {e}")
             # Try to send error notification
@@ -237,10 +237,10 @@ class HiLoView(discord.ui.View):
                 "final_card": self.get_card_emoji(self.current_card),
                 "timestamp": timestamp
             }
-            
+
             db = Users()
             db.update_history(self.ctx.author.id, history_entry)
-            
+
             # Update server history
             server_db = Servers()
             server_history_entry = history_entry.copy()
@@ -335,13 +335,33 @@ class HiLoView(discord.ui.View):
         # Determine if player won
         won = False
         if choice == "high":
-            # Win if new card is higher or same card from different suit
-            if new_value > current_value or (new_value == current_value and new_card[1] != self.current_card[1]):
-                won = True
+            # Check for curse - force wrong guess after player has revealed some cards
+            if (hasattr(self.cog, 'cursed_players') and 
+                self.ctx.author.id in self.cog.cursed_players and 
+                len(self.previous_cards) >= 2):  # Force loss after at least 2 correct guesses
+                won = False
+                # Consume curse
+                admin_curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+                if admin_curse_cog:
+                    admin_curse_cog.consume_curse(self.ctx.author.id)
+            else:
+                # Win if new card is higher or same card from different suit
+                if new_value > current_value or (new_value == current_value and new_card[1] != self.current_card[1]):
+                    won = True
         elif choice == "low":
-            # Win if new card is lower
-            if new_value < current_value:
-                won = True
+            # Check for curse - force wrong guess after player has revealed some cards
+            if (hasattr(self.cog, 'cursed_players') and 
+                self.ctx.author.id in self.cog.cursed_players and 
+                len(self.previous_cards) >= 2):  # Force loss after at least 2 correct guesses
+                won = False
+                # Consume curse
+                admin_curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+                if admin_curse_cog:
+                    admin_curse_cog.consume_curse(self.ctx.author.id)
+            else:
+                # Win if new card is lower
+                if new_value < current_value:
+                    won = True
 
         # Update the UI based on result
         if won:
@@ -449,10 +469,10 @@ class HiLoView(discord.ui.View):
                 "choice": choice,
                 "timestamp": timestamp
             }
-            
+
             db = Users()
             db.update_history(self.ctx.author.id, history_entry)
-            
+
             # Update server history
             server_db = Servers()
             server_history_entry = history_entry.copy()
@@ -608,6 +628,8 @@ class HiLo(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+        # Reference to curse system - will be set by admin_curse cog
+        self.cursed_players = {}
         self.card_cache = {}  # Cache for loaded card images
 
     async def create_game_image(self, current_card, previous_cards, high_profit, low_profit, total_profit, 
@@ -734,7 +756,7 @@ class HiLo(commands.Cog):
         # Helper function to format profit values
         def format_profit(value):
             return f"{value:.2f}"  # Always 2 decimal places
-            
+
         # Try to load arial font for profit bar text
         try:
             profit_font_small = ImageFont.truetype("arial.ttf", 16)
@@ -746,7 +768,7 @@ class HiLo(commands.Cog):
 
         # Higher profit section
         high_multiplier = high_profit/total_profit if total_profit else 0
-        draw.text(
+        draw.text(```python
             (30 + section_width//2, bar_y + 20), 
             f"Profit Higher ({self.format_multiplier(high_multiplier)}×)", 
             fill=(180, 200, 220), 
@@ -963,7 +985,7 @@ class HiLo(commands.Cog):
 
             # Set up the game
             tu = bet_info["tokens_used"]
-            
+
             currency_used = "points"
             # Update loading message to indicate progress
             await loading_message.edit(embed=discord.Embed(

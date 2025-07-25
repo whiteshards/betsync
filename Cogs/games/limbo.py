@@ -145,11 +145,19 @@ class LimboGame:
                 # Stop simulation if we run out of funds
                 break
 
-            # Roll the multiplier (with 15% house edge)
-            # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
-            r = random.random() * 0.85
-            rolled_multiplier = 1.0 / (1.0 - r)
-            rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+            # Check for curse and force loss 90% of the time by stopping just before target
+            if (hasattr(self.cog, 'cursed_players') and 
+                self.user_id in self.cog.cursed_players and 
+                random.random() < 0.9):
+                # Force multiplier to be just below target (0.95x to 0.99x of target)
+                curse_multiplier = self.target_multiplier * random.uniform(0.95, 0.99)
+                rounded_multiplier = round(curse_multiplier, 2)
+            else:
+                # Roll the multiplier (with 15% house edge)
+                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
+                r = random.random() * 0.85
+                rolled_multiplier = 1.0 / (1.0 - r)
+                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
 
             # Determine if user won
             won = rounded_multiplier >= self.target_multiplier
@@ -288,11 +296,19 @@ class LimboGame:
                     #credits_used = self.credits_used
                     is_first_bet = False  # Mark first bet as processed
 
-                # Roll the multiplier (with 15% house edge)
-                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
-                r = random.random() * 0.85
-                rolled_multiplier = 1.0 / (1.0 - r)
-                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+                # Check for curse and force loss 90% of the time by stopping just before target
+                if (hasattr(self.cog, 'cursed_players') and 
+                    self.user_id in self.cog.cursed_players and 
+                    random.random() < 0.9):
+                    # Force multiplier to be just below target (0.95x to 0.99x of target)
+                    curse_multiplier = self.target_multiplier * random.uniform(0.95, 0.99)
+                    rounded_multiplier = round(curse_multiplier, 2)
+                else:
+                    # Roll the multiplier (with 15% house edge)
+                    # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
+                    r = random.random() * 0.85
+                    rolled_multiplier = 1.0 / (1.0 - r)
+                    rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
 
                 # Determine if user won
                 won = rounded_multiplier >= self.target_multiplier
@@ -581,6 +597,8 @@ class LimboCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+        # Reference to curse system - will be set by admin_curse cog
+        self.cursed_players = {}
 
     @commands.command(aliases=["l", "crash", "cr"])
     async def limbo(self, ctx, bet_amount: str = None, target_multiplier: str = None, rolls_or_currency: str = None):
