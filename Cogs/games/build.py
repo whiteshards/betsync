@@ -1,9 +1,9 @@
-
 import discord
 import random
 import asyncio
-import time
 import datetime
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from colorama import Fore
@@ -48,7 +48,7 @@ class BuildGameView(discord.ui.View):
         self.game_over = False
         self.tower_blocks = []
         self.selected_blocks = []
-        
+
         # Block types with different risk/reward ratios (10% house edge built in)
         self.block_types = {
             "🟢": {"name": "Safe Block", "success_rate": 0.85, "multiplier": 1.12},
@@ -56,18 +56,18 @@ class BuildGameView(discord.ui.View):
             "🟠": {"name": "Risky Block", "success_rate": 0.55, "multiplier": 1.45},
             "🔴": {"name": "Extreme Block", "success_rate": 0.40, "multiplier": 1.80}
         }
-        
+
         self.current_multiplier = 1.0
         self.total_multiplier = 1.0
-        
+
         self.update_buttons()
 
     def update_buttons(self):
         self.clear_items()
-        
+
         if self.game_over:
             return
-            
+
         # Add block selection buttons
         for emoji, block_info in self.block_types.items():
             button = discord.ui.Button(
@@ -78,7 +78,7 @@ class BuildGameView(discord.ui.View):
             )
             button.callback = self.block_callback
             self.add_item(button)
-        
+
         # Add cash out button if not on first level
         if self.current_level > 0:
             cash_out_button = discord.ui.Button(
@@ -95,7 +95,7 @@ class BuildGameView(discord.ui.View):
 
     def create_tower_display(self):
         tower = ""
-        
+
         # Display from top to bottom
         for level in range(self.max_levels - 1, -1, -1):
             if level < len(self.tower_blocks):
@@ -108,13 +108,13 @@ class BuildGameView(discord.ui.View):
             else:
                 # Empty levels
                 tower += "⬜ "
-            
+
             # Add level indicator every 5 levels
             if (self.max_levels - level) % 5 == 0:
                 tower += f"← Level {self.max_levels - level}\n"
             else:
                 tower += "\n"
-        
+
         tower += "🏗️ Foundation\n"
         return tower
 
@@ -125,114 +125,114 @@ class BuildGameView(discord.ui.View):
                 description="**Build your tower by choosing blocks with different risk levels!**",
                 color=0x00FFAE
             )
-            
+
             embed.add_field(
                 name="🎮 Building Progress",
                 value=f"**Level:** {self.current_level + 1}/{self.max_levels}\n**Current Multiplier:** {self.total_multiplier:.2f}x",
                 inline=True
             )
-            
+
             embed.add_field(
                 name="💰 Potential Earnings",
                 value=f"**Bet:** `{self.bet_amount} points`\n**Potential Win:** `{self.calculate_payout()} points`",
                 inline=True
             )
-            
+
             # Block info
             block_info = ""
             for emoji, info in self.block_types.items():
                 block_info += f"{emoji} {info['name']}: {info['success_rate']*100:.0f}% success, {info['multiplier']:.2f}x\n"
-            
+
             embed.add_field(
                 name="🧱 Block Types",
                 value=block_info,
                 inline=False
             )
-            
+
             embed.add_field(
                 name="🏗️ Your Tower",
                 value=self.create_tower_display(),
                 inline=False
             )
-            
+
             if self.current_level == 0:
                 embed.set_footer(text="Choose a block type to start building your tower!")
             else:
                 embed.set_footer(text="Continue building or cash out your winnings!")
-                
+
         elif status == "success":
             embed = discord.Embed(
                 title="🏗️ Block Placed Successfully!",
                 description=f"**Great choice!** Your {self.selected_blocks[-1]['name']} held strong!",
                 color=0x00FF00
             )
-            
+
             embed.add_field(
                 name="🎮 Building Progress",
                 value=f"**Level:** {self.current_level + 1}/{self.max_levels}\n**Current Multiplier:** {self.total_multiplier:.2f}x",
                 inline=True
             )
-            
+
             embed.add_field(
                 name="💰 Potential Earnings",
                 value=f"**Bet:** `{self.bet_amount} points`\n**Potential Win:** `{self.calculate_payout()} points`",
                 inline=True
             )
-            
+
             embed.add_field(
                 name="🏗️ Your Tower",
                 value=self.create_tower_display(),
                 inline=False
             )
-            
+
             if self.current_level == self.max_levels:
                 embed.set_footer(text="🎉 Congratulations! You've built the tallest tower!")
             else:
                 embed.set_footer(text="Keep building or secure your winnings!")
-                
+
         elif status == "collapse":
             embed = discord.Embed(
                 title="<:no:1344252518305234987> | Tower Collapsed!",
                 description=f"**Oh no!** Your {self.selected_blocks[-1]['name']} couldn't hold the weight!",
                 color=0xFF0000
             )
-            
+
             embed.add_field(
                 name="💔 Final Results",
                 value=f"**Levels Built:** {self.current_level}\n**Lost:** `{self.bet_amount} points`",
                 inline=True
             )
-            
+
             embed.add_field(
                 name="🏗️ Final Tower",
                 value=self.create_tower_display(),
                 inline=False
             )
-            
+
             embed.set_footer(text="Better luck next time! Try different block combinations.")
-            
+
         elif status == "cash_out":
             payout = self.calculate_payout()
             profit = payout - self.bet_amount
-            
+
             embed = discord.Embed(
                 title="<:yes:1355501647538815106> | Tower Complete!",
                 description=f"**Excellent work!** You've cashed out your tower construction!",
                 color=0x00FF00
             )
-            
+
             embed.add_field(
                 name="💰 Final Results",
                 value=f"**Initial Bet:** `{self.bet_amount} points`\n**Final Multiplier:** {self.total_multiplier:.2f}x\n**Payout:** `{payout} points`\n**Profit:** `{profit} points`",
                 inline=False
             )
-            
+
             embed.add_field(
                 name="🏗️ Completed Tower",
                 value=self.create_tower_display(),
                 inline=False
             )
-            
+
             embed.set_footer(text="You've successfully secured your construction earnings!")
 
         embed.set_author(name=f"Builder: {self.ctx.author.name}", icon_url=self.ctx.author.avatar.url)
@@ -247,7 +247,7 @@ class BuildGameView(discord.ui.View):
         # Get selected block type
         block_emoji = interaction.data["custom_id"].split('_')[1]
         block_info = self.block_types[block_emoji]
-        
+
         # Store the selected block
         selected_block = {
             "emoji": block_emoji,
@@ -256,43 +256,43 @@ class BuildGameView(discord.ui.View):
             "multiplier": block_info["multiplier"]
         }
         self.selected_blocks.append(selected_block)
-        
+
         # Determine if block placement succeeds
         success = random.random() < block_info["success_rate"]
-        
+
         if success:
             # Block placed successfully
             self.tower_blocks.append(selected_block)
             self.current_level += 1
             self.total_multiplier *= block_info["multiplier"]
-            
+
             # Check if tower is complete
             if self.current_level >= self.max_levels:
                 self.game_over = True
                 await self.process_cashout(interaction)
                 return
-            
+
             # Update for next level
             self.update_buttons()
-            
+
             # Show success message briefly
             await interaction.followup.edit_message(
                 message_id=self.message.id,
                 embed=self.create_embed(status="success"),
                 view=self
             )
-            
+
         else:
             # Tower collapsed
             self.game_over = True
             self.clear_items()
-            
+
             await interaction.followup.edit_message(
                 message_id=self.message.id,
                 embed=self.create_embed(status="collapse"),
                 view=self
             )
-            
+
             await self.process_loss()
 
     async def cash_out_callback(self, interaction):
@@ -300,7 +300,7 @@ class BuildGameView(discord.ui.View):
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
         self.game_over = True
-        
+
         for item in self.children:
             item.disabled = True
 
@@ -309,12 +309,12 @@ class BuildGameView(discord.ui.View):
 
     async def process_cashout(self, interaction):
         payout = self.calculate_payout()
-        
+
         db = Users()
         try:
             # Update user balance
             db.update_balance(self.ctx.author.id, payout, "points", "$inc")
-            
+
             # Create win history entry
             win_entry = {
                 "type": "win",
@@ -325,7 +325,7 @@ class BuildGameView(discord.ui.View):
                 "levels": self.current_level,
                 "timestamp": int(datetime.datetime.now().timestamp())
             }
-            
+
             # Update user stats
             db.collection.update_one(
                 {"discord_id": self.ctx.author.id},
@@ -338,38 +338,38 @@ class BuildGameView(discord.ui.View):
                     }
                 }
             )
-            
+
             # Update server stats
             if isinstance(self.ctx.channel, discord.TextChannel):
                 server_db = Servers()
                 server_profit = self.bet_amount - payout
                 server_db.update_server_profit(self.ctx, self.ctx.guild.id, server_profit, game="build")
-                
+
                 server_bet_entry = win_entry.copy()
                 server_bet_entry.update({
                     "user_id": self.ctx.author.id,
                     "user_name": self.ctx.author.name
                 })
-                
+
                 server_db.collection.update_one(
                     {"server_id": self.ctx.guild.id},
                     {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
                 )
-                
+
         except Exception as e:
             print(f"Error processing cashout: {e}")
             return False
 
         # Create play again view
         play_again_view = PlayAgainView(self.cog, self.ctx, self.bet_amount)
-        
+
         cashout_embed = self.create_embed(status="cash_out")
         await self.message.edit(embed=cashout_embed, view=play_again_view)
         play_again_view.message = self.message
-        
+
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
-        
+
         return True
 
     async def process_loss(self):
@@ -382,7 +382,7 @@ class BuildGameView(discord.ui.View):
             "levels": self.current_level,
             "timestamp": int(datetime.datetime.now().timestamp())
         }
-        
+
         # Update user stats
         db = Users()
         db.collection.update_one(
@@ -396,19 +396,19 @@ class BuildGameView(discord.ui.View):
                 }
             }
         )
-        
+
         # Update server stats
         try:
             if isinstance(self.ctx.channel, discord.TextChannel):
                 server_db = Servers()
                 server_db.update_server_profit(self.ctx, self.ctx.guild.id, self.bet_amount, game="build")
-                
+
                 server_bet_entry = loss_entry.copy()
                 server_bet_entry.update({
                     "user_id": self.ctx.author.id,
                     "user_name": self.ctx.author.name
                 })
-                
+
                 server_db.collection.update_one(
                     {"server_id": self.ctx.guild.id},
                     {"$push": {"server_bet_history": {"$each": [server_bet_entry], "$slice": -100}}}
@@ -420,22 +420,22 @@ class BuildGameView(discord.ui.View):
         play_again_view = PlayAgainView(self.cog, self.ctx, self.bet_amount, timeout=15)
         await self.message.edit(view=play_again_view)
         play_again_view.message = self.message
-        
+
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
 
     async def on_timeout(self):
         if not self.game_over and self.current_level > 0:
             await self.process_cashout(None)
-        
+
         for child in self.children:
             child.disabled = True
-            
+
         try:
             await self.message.edit(view=self)
         except:
             pass
-            
+
         if not self.game_over:
             self.game_over = True
             if self.ctx.author.id in self.cog.ongoing_games:

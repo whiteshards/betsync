@@ -1,10 +1,11 @@
 import discord
 import random
 import asyncio
-import time
+import datetime
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
-from colorama import Fore
 from Cogs.utils.emojis import emoji
 
 class PlayAgainView(discord.ui.View):
@@ -236,7 +237,7 @@ class CrossTheRoadGame(discord.ui.View):
         db.update_balance(self.ctx.author.id, payout, "credits", "$inc")
 
         # Create history entry for user
-        
+
 
         # Also update server stats if available
         try:
@@ -273,7 +274,7 @@ class CrossTheRoadGame(discord.ui.View):
         # Mark game as complete
         self.game_over = True
 
-    
+
         # Also update server stats if available
         try:
             server_db = Servers()
@@ -390,7 +391,7 @@ class CrossTheRoadCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "expert"]:
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Invalid Difficulty",
@@ -398,7 +399,7 @@ class CrossTheRoadCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=error_embed)
-            
+
         # Send loading message
        # loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
@@ -409,7 +410,7 @@ class CrossTheRoadCog(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Validate difficulty first before processing any bet
-        
+
 
         # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
