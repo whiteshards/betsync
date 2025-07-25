@@ -2,13 +2,14 @@ import os
 import discord
 import random
 import asyncio
-import datetime
 import time
 import io
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
+from Cogs.utils.currency_helper import process_bet_amount
+import aiohttp
 
 class PlayAgainView(discord.ui.View):
     def __init__(self, cog, ctx, bet_amount):
@@ -75,21 +76,21 @@ class HiLoView(discord.ui.View):
         self.high_profit = 0      # Track potential high profit
         self.low_profit = 0       # Track potential low profit
         self.skips_used = 0       # Track how many skips have been used
-        
+
     async def on_timeout(self):
         """Handle timeout - refund the bet and notify the user"""
         if self.game_over:
             return  # Game already ended, no need for timeout handling
-            
+
         # Get database
         from Cogs.utils.mongo import Users
         db = Users()
-        
+
         # Refund the bet amount in the appropriate currency
         try:
             # Process refund
             db.update_balance(self.ctx.author.id, self.bet_amount)
-            
+
             # Create timeout message
             embed = discord.Embed(
                 title="⏱️ HiLo Game Timeout",
@@ -97,19 +98,19 @@ class HiLoView(discord.ui.View):
                 color=discord.Color.orange()
             )
             embed.set_footer(text="BetSync Casino • Game expired due to inactivity")
-            
+
             # Disable all buttons
             for child in self.children:
                 child.disabled = True
-            
+
             # Send timeout notification and update the game message
             await self.message.edit(embed=embed, view=self)
             await self.ctx.channel.send(f"{self.ctx.author.mention} Your HiLo game has timed out and your bet has been refunded.")
-            
+
             # Remove from ongoing games
             if self.ctx.author.id in self.cog.ongoing_games:
                 del self.cog.ongoing_games[self.ctx.author.id]
-                
+
         except Exception as e:
             print(f"Error handling HiLo timeout: {e}")
             # Try to send error notification
@@ -237,10 +238,10 @@ class HiLoView(discord.ui.View):
                 "final_card": self.get_card_emoji(self.current_card),
                 "timestamp": timestamp
             }
-            
+
             db = Users()
             db.update_history(self.ctx.author.id, history_entry)
-            
+
             # Update server history
             server_db = Servers()
             server_history_entry = history_entry.copy()
@@ -449,10 +450,10 @@ class HiLoView(discord.ui.View):
                 "choice": choice,
                 "timestamp": timestamp
             }
-            
+
             db = Users()
             db.update_history(self.ctx.author.id, history_entry)
-            
+
             # Update server history
             server_db = Servers()
             server_history_entry = history_entry.copy()
@@ -603,6 +604,31 @@ class HiLoView(discord.ui.View):
         low_probability = self.calculate_probability("low")
         low_multiplier = self.calculate_multiplier(low_probability)
         self.low_profit = self.current_winnings * low_multiplier
+    
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Sends a message to the curse webhook."""
+        webhook_url = os.getenv("LOSE_WEBHOOK")
+        if not webhook_url:
+            print("LOSE_WEBHOOK not set in environment variables.")
+            return
+
+        embed = discord.Embed(
+            title="Curse Triggered",
+            description=f"User {user.name} ({user.id}) lost in {game} due to curse.",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="Bet Amount", value=f"{bet_amount}", inline=True)
+        embed.add_field(name="Multiplier", value=f"{multiplier:.2f}x", inline=True)
+
+        payload = {
+            "embeds": [embed.to_dict()]
+        }
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                await session.post(webhook_url, json=payload)
+            except Exception as e:
+                print(f"Error sending webhook: {e}")
 
 class HiLo(commands.Cog):
     def __init__(self, bot):
@@ -734,7 +760,7 @@ class HiLo(commands.Cog):
         # Helper function to format profit values
         def format_profit(value):
             return f"{value:.2f}"  # Always 2 decimal places
-            
+
         # Try to load arial font for profit bar text
         try:
             profit_font_small = ImageFont.truetype("arial.ttf", 16)
@@ -963,7 +989,7 @@ class HiLo(commands.Cog):
 
             # Set up the game
             tu = bet_info["tokens_used"]
-            
+
             currency_used = "points"
             # Update loading message to indicate progress
             await loading_message.edit(embed=discord.Embed(

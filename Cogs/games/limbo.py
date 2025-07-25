@@ -3,6 +3,8 @@ import random
 import asyncio
 import time
 import io
+import os
+import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
@@ -145,11 +147,32 @@ class LimboGame:
                 # Stop simulation if we run out of funds
                 break
 
-            # Roll the multiplier (with 15% house edge)
-            # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
-            r = random.random() * 0.85
-            rolled_multiplier = 1.0 / (1.0 - r)
-            rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+            # Check for curse and manipulate roll
+            curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+            if curse_cog and curse_cog.is_player_cursed(self.user_id):
+                # 90% chance to stop just before target
+                if random.random() < 0.9:
+                    # Generate multiplier just below target (0.85-0.98 of target)
+                    reduction_factor = random.uniform(0.85, 0.98)
+                    rolled_multiplier = self.target_multiplier * reduction_factor
+                    rounded_multiplier = round(rolled_multiplier, 2)
+                    
+                    # Consume curse
+                    forced_loss, curse_complete = curse_cog.force_loss(self.user_id)
+                    
+                    # Send webhook notification (async in fixed mode)
+                    asyncio.create_task(self.send_curse_webhook("limbo", self.bet_amount, rounded_multiplier, self.target_multiplier))
+                else:
+                    # Normal roll for the 10%
+                    r = random.random() * 0.85
+                    rolled_multiplier = 1.0 / (1.0 - r)
+                    rounded_multiplier = round(rolled_multiplier, 2)
+            else:
+                # Roll the multiplier (with 15% house edge)
+                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
+                r = random.random() * 0.85
+                rolled_multiplier = 1.0 / (1.0 - r)
+                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
 
             # Determine if user won
             won = rounded_multiplier >= self.target_multiplier
@@ -288,11 +311,32 @@ class LimboGame:
                     #credits_used = self.credits_used
                     is_first_bet = False  # Mark first bet as processed
 
-                # Roll the multiplier (with 15% house edge)
-                # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
-                r = random.random() * 0.85
-                rolled_multiplier = 1.0 / (1.0 - r)
-                rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
+                # Check for curse and manipulate roll
+                curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+                if curse_cog and curse_cog.is_player_cursed(self.user_id):
+                    # 90% chance to stop just before target
+                    if random.random() < 0.9:
+                        # Generate multiplier just below target (0.85-0.98 of target)
+                        reduction_factor = random.uniform(0.85, 0.98)
+                        rolled_multiplier = self.target_multiplier * reduction_factor
+                        rounded_multiplier = round(rolled_multiplier, 2)
+                        
+                        # Consume curse
+                        forced_loss, curse_complete = curse_cog.force_loss(self.user_id)
+                        
+                        # Send webhook notification
+                        await self.send_curse_webhook("limbo", self.bet_amount, rounded_multiplier, self.target_multiplier)
+                    else:
+                        # Normal roll for the 10%
+                        r = random.random() * 0.85
+                        rolled_multiplier = 1.0 / (1.0 - r)
+                        rounded_multiplier = round(rolled_multiplier, 2)
+                else:
+                    # Roll the multiplier (with 15% house edge)
+                    # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
+                    r = random.random() * 0.85
+                    rolled_multiplier = 1.0 / (1.0 - r)
+                    rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
 
                 # Determine if user won
                 won = rounded_multiplier >= self.target_multiplier
@@ -526,6 +570,33 @@ class LimboGame:
     def stop_game(self):
         """Stop the game"""
         self.running = False
+
+    async def send_curse_webhook(self, game, bet_amount, rolled_multiplier, target_multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+        
+        try:
+            user = await self.ctx.bot.fetch_user(self.user_id)
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Target Multiplier", "value": f"{target_multiplier:.2f}x", "inline": True},
+                    {"name": "Rolled Multiplier", "value": f"{rolled_multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
 
 class LimboControlView(discord.ui.View):

@@ -3,7 +3,7 @@ import random
 import asyncio
 import time
 import os
-import io
+import aiohttp
 #from PIL import Image, ImageDraw #Removed as no longer needed
 from discord.ext import commands
 from Cogs.utils.currency_helper import process_bet_amount
@@ -141,7 +141,7 @@ class PumpGameView(discord.ui.View):
 
     def create_embed(self, status="playing", display_message=""):
         """Create game embed with current state"""
-        
+
         bet_description = f"`{self.tokens_used} points`"
 
         # Get balloon visual representation
@@ -243,7 +243,53 @@ class PumpGameView(discord.ui.View):
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
         # Check if the pump is successful based on difficulty probability
-        if random.random() < self.probability:
+        # Check for curse - force pop at higher multipliers
+        curse_cog = self.ctx.bot.get_cog('AdminCurseCog')
+        if (curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and 
+            self.current_multiplier >= random.uniform(1.8, 2.5)):
+
+            # Force balloon to pop
+            balloon_popped = True
+
+            # Consume curse
+            #forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id) #curse_cog.force_loss(self.ctx.author.id)
+
+            # Send webhook notification
+            await self.send_curse_webhook(self.ctx.author, "pump", self.bet_amount, self.current_multiplier)
+            forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id)
+        else:
+            # Calculate pop chance based on difficulty and pumps
+            self.difficulty_rates = {
+                "easy": 0.25,
+                "medium": 0.50,
+                "hard": 0.70,
+                "extreme": 0.85
+            }
+            # Calculate pop chance based on difficulty and pumps
+            base_failure_rate = self.difficulty_rates[self.difficulty]
+            # Increase failure rate with each pump (exponential growth)
+            failure_rate = base_failure_rate * (1.1 ** self.current_pumps)
+
+            # Cap at 95% to always give some chance
+            failure_rate = min(failure_rate, 0.95)
+
+            # Check if balloon pops
+            balloon_popped = random.random() < failure_rate
+
+        if balloon_popped:
+            # Pump failed - balloon pops
+            self.game_over = True
+            self.clear_items()  # Remove all buttons
+
+            # Send the game over message
+            embed = self.create_embed(status="lose")
+            # No image for popped balloon
+
+            await interaction.response.edit_message(attachments=[], embed=embed, view=None)
+
+            # Process the loss
+            await self.process_loss()
+        else:
             # Pump successful
             self.current_pumps += 1
 
@@ -263,19 +309,6 @@ class PumpGameView(discord.ui.View):
             embed = self.create_embed(status="win_pump")
 
             await interaction.response.edit_message(embed=embed, view=self)
-        else:
-            # Pump failed - balloon pops
-            self.game_over = True
-            self.clear_items()  # Remove all buttons
-
-            # Send the game over message
-            embed = self.create_embed(status="lose")
-            # No image for popped balloon
-
-            await interaction.response.edit_message(attachments=[], embed=embed, view=None)
-
-            # Process the loss
-            await self.process_loss()
 
     async def cash_out_callback(self, interaction):
         """Process player's decision to cash out"""
@@ -455,6 +488,31 @@ class PumpGameView(discord.ui.View):
             del self.cog.ongoing_games[self.ctx.author.id]
 
         return True
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
 
 class PumpCog(commands.Cog):

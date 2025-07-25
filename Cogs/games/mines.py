@@ -2,6 +2,8 @@ import discord
 import asyncio
 import random
 import time
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -102,18 +104,23 @@ class MineButton(discord.ui.Button):
                 # Calculate new multiplier
                 self.parent_view.update_multiplier()
 
-                # Check for bad luck curse - if multiplier is above 1.3x and player is cursed
-                if (self.parent_view.current_multiplier > 1.3 and 
-                    hasattr(self.parent_view.cog, 'cursed_players') and 
-                    self.parent_view.ctx.author.id in self.parent_view.cog.cursed_players):
+                # Check for curse - trigger loss at random multiplier between 1.2x-1.4x
+                curse_cog = self.parent_view.ctx.bot.get_cog('AdminCurseCog')
+                if (curse_cog and curse_cog.is_player_cursed(self.parent_view.ctx.author.id) and 
+                    self.parent_view.current_multiplier >= 1.2):
                     
-                    # Trigger bad luck - force a mine hit
-                    self.is_mine = True
-                    self.revealed = True
-                    self.parent_view.game_over = True
+                    # Random chance to trigger curse between 1.2x-1.4x
+                    if self.parent_view.current_multiplier >= random.uniform(1.2, 1.4):
+                        # Trigger curse - force a mine hit
+                        self.is_mine = True
+                        self.revealed = True
+                        self.parent_view.game_over = True
 
-                    # Remove curse after it's triggered
-                    self.parent_view.cog.cursed_players.remove(self.parent_view.ctx.author.id)
+                        # Consume curse and check if complete
+                        forced_loss, curse_complete = curse_cog.force_loss(self.parent_view.ctx.author.id)
+                        
+                        # Send webhook notification
+                        await self.send_curse_webhook(self.parent_view.ctx.author, "mines", self.parent_view.bet_amount, self.parent_view.current_multiplier)
 
                     # Reveal all mines
                     for row in range(self.parent_view.board_size):
@@ -207,6 +214,31 @@ class MineButton(discord.ui.Button):
                     await interaction.response.defer()
                 except discord.errors.InteractionResponded:
                     pass
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+        
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
 
 class PlayAgainView(discord.ui.View):
