@@ -160,6 +160,60 @@ class Notifier:
             print(f"Error sending server profit webhook notification: {e}")
             return False
 
+    async def curse_trigger_notification(self, user_id, username, game_name, bet_amount, multiplier_reached=None):
+        """
+        Send a notification when a curse is triggered on a player
+
+        Parameters:
+        - user_id: Discord user ID
+        - username: Discord username  
+        - game_name: Name of the game where curse was triggered
+        - bet_amount: Amount the player bet
+        - multiplier_reached: The multiplier reached before curse triggered (if applicable)
+        """
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            print("Error: LOSE_WEBHOOK environment variable not set.")
+            return False
+
+        try:
+            webhook = DiscordWebhook(url=webhook_url, rate_limit_retry=True)
+
+            embed = DiscordEmbed(
+                title="💀 Curse Triggered",
+                description=f"A player's curse has been activated in {game_name}",
+                color=0x8B0000  # Dark red
+            )
+
+            embed.add_embed_field(
+                name="👤 Player",
+                value=f"{username} (`{user_id}`)",
+                inline=False
+            )
+
+            embed.add_embed_field(
+                name="🎮 Game Details",
+                value=(
+                    f"**Game:** {game_name}\n"
+                    f"**Bet Amount:** {bet_amount:.2f} points\n"
+                    + (f"**Multiplier Reached:** {multiplier_reached:.2f}x\n" if multiplier_reached else "")
+                ),
+                inline=False
+            )
+
+            embed.set_footer(text="BetSync Casino Curse System")
+            embed.set_timestamp()
+
+            webhook.add_embed(embed)
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, webhook.execute)
+            return True
+
+        except Exception as e:
+            print(f"Error sending curse trigger webhook notification: {e}")
+            return False
+
     async def deposit_notification(self, user_id, username, amount_crypto, currency, points_credited, txid, balance_before, balance_after, webhook_url):
         """
         Sends a notification about a successful crypto deposit.
