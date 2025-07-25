@@ -52,6 +52,20 @@ class BlackjackView(discord.ui.View):
             self.deck = self.create_deck()
             self.used_cards = set()
 
+        # Check for admin curse and manipulate card if needed
+        curse_cog = self.ctx.bot.get_cog('AdminCurseCog')
+        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id):
+            current_value = self.calculate_hand_value(self.player_cards)
+            # If player is close to 21, give them a high card to bust
+            if current_value >= 15 and len(self.player_cards) >= 2:
+                high_cards = [card for card in self.deck if card[0] in ['10', 'J', 'Q', 'K'] and f"{card[0]}_{card[1]}" not in self.used_cards]
+                if high_cards and random.random() < 0.8:
+                    curse_card = random.choice(high_cards)
+                    self.deck.remove(curse_card)
+                    self.used_cards.add(f"{curse_card[0]}_{curse_card[1]}")
+                    curse_cog.consume_curse(self.ctx.author.id)
+                    return curse_card
+
         # Get a card that hasn't been used
         while True:
             if not self.deck:
