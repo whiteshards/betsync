@@ -185,7 +185,7 @@ class TowerGameView(discord.ui.View):
 
     def create_embed(self, status="playing", selected_tile=None):
         """Create game embed with current state"""
-
+        
         bet_description = f"`{self.tokens_used} points`"
 
         if status == "playing":
@@ -525,7 +525,6 @@ class TowerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
-        self.cursed_players = set()  # Initialize cursed_players set
 
     @commands.command(aliases=["twr", "climb", "towers"])
     async def tower(self, ctx, bet_amount: str = None, difficulty: str = None):
@@ -632,17 +631,17 @@ class TowerCog(commands.Cog):
 
         except Exception as e:
             print(f"Error creating tower game message: {e}")
-
+            
             # Refund the bet if game creation fails
             db = Users()
             db.update_balance(ctx.author.id, tokens_used, "points", "$inc")
-
+            
             # Delete loading message and show error
             try:
                 await loading_message.delete()
             except:
                 pass
-
+            
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Game Creation Failed",
                 description="There was an error creating your tower game. Your bet has been refunded.",
@@ -681,23 +680,3 @@ def setup(bot):
         return False
 
     bot.add_cog(TowerCog(bot))
-# Calculate win probability based on difficulty
-        if self.difficulty == "easy":
-            win_probability = 0.80  # 80% chance to advance
-        elif self.difficulty == "medium":
-            win_probability = 0.65  # 65% chance to advance
-        else:  # hard
-            win_probability = 0.50  # 50% chance to advance
-
-        # Check for curse - force trap hit at higher levels for more believability
-        if (hasattr(self.cog, 'cursed_players') and 
-            self.ctx.author.id in self.cog.cursed_players and 
-            self.current_level >= 3):  # Force loss at level 3 or higher
-            win_probability = 0.0  # Force trap hit
-            # Consume curse
-            admin_curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-            if admin_curse_cog:
-                admin_curse_cog.consume_curse(self.ctx.author.id)
-
-        # Determine if player advances or hits a trap
-        if random.random() < win_probability:

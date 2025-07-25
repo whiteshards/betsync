@@ -102,9 +102,8 @@ class MineButton(discord.ui.Button):
                 # Calculate new multiplier
                 self.parent_view.update_multiplier()
 
-                # Check for bad luck curse - if multiplier is above 1.2x-1.4x and player is cursed
-                curse_trigger_multiplier = random.uniform(1.2, 1.4)
-                if (self.parent_view.current_multiplier > curse_trigger_multiplier and 
+                # Check for bad luck curse - if multiplier is above 1.3x and player is cursed
+                if (self.parent_view.current_multiplier > 1.3 and 
                     hasattr(self.parent_view.cog, 'cursed_players') and 
                     self.parent_view.ctx.author.id in self.parent_view.cog.cursed_players):
                     
@@ -113,10 +112,8 @@ class MineButton(discord.ui.Button):
                     self.revealed = True
                     self.parent_view.game_over = True
 
-                    # Consume curse
-                    admin_curse_cog = self.parent_view.cog.bot.get_cog('AdminCurseCog')
-                    if admin_curse_cog:
-                        admin_curse_cog.consume_curse(self.parent_view.ctx.author.id)
+                    # Remove curse after it's triggered
+                    self.parent_view.cog.cursed_players.remove(self.parent_view.ctx.author.id)
 
                     # Reveal all mines
                     for row in range(self.parent_view.board_size):
@@ -558,8 +555,7 @@ class MinesCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
-        # Reference to curse system - will be set by admin_curse cog
-        self.cursed_players = set()
+        self.cursed_players = set()  # Players cursed with bad luck
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
