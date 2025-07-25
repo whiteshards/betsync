@@ -131,19 +131,8 @@ class MineButton(discord.ui.Button):
                                 button.revealed = True
                             button.update_appearance()
 
-                    # Create special bad luck embed
-                    embed = discord.Embed(
-                        title="💀 | Cursed with Bad Luck!",
-                        description=(
-                            f"**Bet Amount:** `{self.parent_view.bet_amount:.2f} points`\n"
-                            f"**Current Multiplier:** {self.parent_view.current_multiplier:.2f}x\n"
-                            f"**Profit:** `0 points`\n"
-                            f"**Mines:** {self.parent_view.mines_count}/{self.parent_view.board_size * self.parent_view.board_size} | {len(self.parent_view.revealed_tiles)}💎\n\n"
-                            "**The curse has been triggered! You hit a mine due to bad luck!**"
-                        ),
-                        color=0x8B0000
-                    )
-                    embed.set_footer(text="BetSync Casino - Bad Luck Curse Activated", icon_url=self.parent_view.ctx.bot.user.avatar.url)
+                    # Create normal loss embed (hide the curse)
+                    embed = self.parent_view.create_embed(status="lose")
 
                     await interaction.response.edit_message(embed=embed, view=self.parent_view)
 

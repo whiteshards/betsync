@@ -24,15 +24,26 @@ class PlayAgainView(discord.ui.View):
     @discord.ui.button(label="Play Again", style=discord.ButtonStyle.success)
     async def play_again(self,button, interaction: discord.Interaction):
         if interaction.user.id != self.author_id:
-            return await interaction.response.send_message("This is not your game!", ephemeral=True)
+            try:
+                return await interaction.response.send_message("This is not your game!", ephemeral=True)
+            except discord.errors.NotFound:
+                return
 
         # Disable the button to prevent spam clicks
         for item in self.children:
             item.disabled = True
-        await interaction.message.edit(view=self)
+        
+        try:
+            await interaction.message.edit(view=self)
+        except discord.errors.NotFound:
+            pass
 
         # Show processing message
-        await interaction.response.send_message("Starting a new game...", ephemeral=True)
+        try:
+            await interaction.response.send_message("Starting a new game...", ephemeral=True)
+        except discord.errors.NotFound:
+            # Interaction expired, send a regular message instead
+            await interaction.followup.send("Starting a new game...", ephemeral=True)
 
         try:
             # Get the context for the new game
