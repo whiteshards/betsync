@@ -141,7 +141,7 @@ class PumpGameView(discord.ui.View):
 
     def create_embed(self, status="playing", display_message=""):
         """Create game embed with current state"""
-
+        
         bet_description = f"`{self.tokens_used} points`"
 
         # Get balloon visual representation

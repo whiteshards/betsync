@@ -185,7 +185,7 @@ class TowerGameView(discord.ui.View):
 
     def create_embed(self, status="playing", selected_tile=None):
         """Create game embed with current state"""
-
+        
         bet_description = f"`{self.tokens_used} points`"
 
         if status == "playing":
@@ -631,17 +631,17 @@ class TowerCog(commands.Cog):
 
         except Exception as e:
             print(f"Error creating tower game message: {e}")
-
+            
             # Refund the bet if game creation fails
             db = Users()
             db.update_balance(ctx.author.id, tokens_used, "points", "$inc")
-
+            
             # Delete loading message and show error
             try:
                 await loading_message.delete()
             except:
                 pass
-
+            
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Game Creation Failed",
                 description="There was an error creating your tower game. Your bet has been refunded.",

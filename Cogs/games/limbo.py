@@ -145,39 +145,11 @@ class LimboGame:
                 # Stop simulation if we run out of funds
                 break
 
-            # Check for curse trigger first
-            curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-            is_cursed = curse_cog and curse_cog.is_player_cursed(self.user_id)
-            
             # Roll the multiplier (with 15% house edge)
             # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
             r = random.random() * 0.85
             rolled_multiplier = 1.0 / (1.0 - r)
             rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
-
-            # Apply curse logic - 90% chance to stop just before target
-            if is_cursed and random.random() < 0.9:
-                # Make multiplier slightly below target (0.85-0.98 of target)
-                curse_factor = 0.85 + (random.random() * 0.13)  # 0.85 to 0.98
-                rounded_multiplier = round(self.target_multiplier * curse_factor, 2)
-                
-                # Ensure it's still above 1.0
-                rounded_multiplier = max(1.01, rounded_multiplier)
-                
-                # Consume curse and send notification
-                curse_cog.consume_curse(self.user_id)
-                try:
-                    from Cogs.utils.notifier import Notifier
-                    notifier = Notifier()
-                    await notifier.curse_trigger_notification(
-                        self.user_id,
-                        self.ctx.author.name,
-                        "Limbo (Fixed)",
-                        self.bet_amount,
-                        rounded_multiplier
-                    )
-                except Exception as e:
-                    print(f"Error sending curse notification: {e}")
 
             # Determine if user won
             won = rounded_multiplier >= self.target_multiplier
@@ -316,39 +288,11 @@ class LimboGame:
                     #credits_used = self.credits_used
                     is_first_bet = False  # Mark first bet as processed
 
-                # Check for curse trigger first
-                curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-                is_cursed = curse_cog and curse_cog.is_player_cursed(self.user_id)
-                
                 # Roll the multiplier (with 15% house edge)
                 # The formula: rolled_mult = 1.0 / (1.0 - R) where R is [0, 0.85)
                 r = random.random() * 0.85
                 rolled_multiplier = 1.0 / (1.0 - r)
                 rounded_multiplier = round(rolled_multiplier, 2)  # Round to 2 decimal places
-
-                # Apply curse logic - 90% chance to stop just before target
-                if is_cursed and random.random() < 0.9:
-                    # Make multiplier slightly below target (0.85-0.98 of target)
-                    curse_factor = 0.85 + (random.random() * 0.13)  # 0.85 to 0.98
-                    rounded_multiplier = round(self.target_multiplier * curse_factor, 2)
-                    
-                    # Ensure it's still above 1.0
-                    rounded_multiplier = max(1.01, rounded_multiplier)
-                    
-                    # Consume curse and send notification
-                    curse_cog.consume_curse(self.user_id)
-                    try:
-                        from Cogs.utils.notifier import Notifier
-                        notifier = Notifier()
-                        await notifier.curse_trigger_notification(
-                            self.user_id,
-                            self.ctx.author.name,
-                            "Limbo",
-                            self.bet_amount,
-                            rounded_multiplier
-                        )
-                    except Exception as e:
-                        print(f"Error sending curse notification: {e}")
 
                 # Determine if user won
                 won = rounded_multiplier >= self.target_multiplier
