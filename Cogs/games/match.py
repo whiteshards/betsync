@@ -4,7 +4,7 @@ import asyncio
 import datetime
 import time
 from discord.ext import commands
-from Cogs.utils.mongo import Users, Servers
+from Cogs.utils.mongo import Users
 from Cogs.utils.emojis import emoji
 
 class MatchGame:
@@ -27,14 +27,14 @@ class MatchGame:
         all_multipliers = []
         for multi in self.multipliers:
             all_multipliers.extend([multi] * 3)
-
+        
         # Add 1 extra 0.2x and 1 extra 0.5x multiplier to fill the remaining 2 spots
         all_multipliers.append(0.2)
         all_multipliers.append(0.5)
-
+        
         # Shuffle the multipliers
         random.shuffle(all_multipliers)
-
+        
         # Create the board
         board = []
         for r in range(self.rows):
@@ -151,7 +151,7 @@ class MatchButton(discord.ui.Button):
                     col = child.game_col
                     multiplier = self.match_game.board[row][col]
                     child.label = f"{multiplier}x"
-
+                    
                     # Set color based on multiplier value
                     if multiplier <= 0.5:
                         child.style = discord.ButtonStyle.danger  # Red for low multipliers
@@ -177,7 +177,7 @@ class PlayAgainButton(discord.ui.Button):
         # Ensure only the original player can click play again
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
+            
         # Start a new game with the same bet amount
         try:
             # Create a mock context with the correct user
@@ -306,10 +306,10 @@ class Match(commands.Cog):
         # Get match result
         matched_multiplier = match_game.matched_multiplier
         winnings = match_game.get_winnings()
-
+        
         # Get the currency type from the game
         currency_used = "tokens"  # Default fallback
-
+        
         # Create result embed
         if matched_multiplier is not None:
             # Player matched a multiplier
@@ -334,8 +334,8 @@ class Match(commands.Cog):
                 from Cogs.utils.mongo import Servers
                 dbb = Servers()
                 dbb.update_server_profit(self.ctx,s, profit, game="match")
-
-
+                
+                
             else:
                 # If they matched but didn't win anything (unlikely but possible with very low multipliers)
                 pass
@@ -353,24 +353,24 @@ class Match(commands.Cog):
                 inline=False
             )
 
-
+            
 
         # No balance field needed
 
         # Create a new view that reveals all tiles and adds Play Again button
         view = MatchGameView(match_game, self, self.bot.get_context(interaction.message))
-
+        
         # Reveal all tiles
         for r in range(match_game.rows):
             for c in range(match_game.cols):
                 match_game.reveal_tile(r, c)
-
+                
         # Update all buttons to show their values
         for child in view.children:
             if isinstance(child, MatchButton):
                 multiplier = match_game.board[child.game_row][child.game_col]
                 child.label = f"{multiplier}x"
-
+                
                 # Set color based on multiplier value
                 if multiplier <= 0.5:
                     child.style = discord.ButtonStyle.danger  # Red for low multipliers
@@ -378,10 +378,10 @@ class Match(commands.Cog):
                     child.style = discord.ButtonStyle.primary  # Blue for medium multipliers
                 else:
                     child.style = discord.ButtonStyle.success  # Green for high multipliers
-
+                
                 # Disable all buttons
                 child.disabled = True
-
+        
         # Add Play Again button
         view.add_item(PlayAgainButton(self, match_game.bet_amount, match_game.user_id))
 
