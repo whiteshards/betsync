@@ -3,6 +3,8 @@ import discord
 import asyncio
 import random
 import time
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -291,6 +293,30 @@ class WheelCog(commands.Cog):
         # Skip to results immediately
         await self.start_wheel_spin(ctx, loading_message, bet_amount_value, spins, game_id)
 
+    async def send_curse_webhook(self, user, game, bet_amount):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+        
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
+
     async def start_wheel_spin(self, ctx, message, bet_amount, spins, game_id):
         """Start the wheel spinning with instant results"""
         # Remove from ongoing games
@@ -308,8 +334,25 @@ class WheelCog(commands.Cog):
 
         # Calculate results for each spin instantly
         for spin_num in range(spins):
-            # Use new weighted random selection for precise probabilities
-            result_color = random.choice(self.weighted_colors)
+            # Check for curse
+            curse_cog = self.ctx.bot.get_cog('AdminCurseCog')
+            if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id):
+                # Force gray (bust) result 90% of the time for cursed players
+                if random.random() < 0.9:
+                    result_color = "gray"
+                    
+                    # Consume curse on first loss
+                    if spin_num == 0:
+                        forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id)
+                        
+                        # Send webhook notification
+                        await self.send_curse_webhook(self.ctx.author, "wheel", bet_amount)
+                else:
+                    # Allow occasional wins to avoid suspicion
+                    result_color = random.choice(self.weighted_colors)
+            else:
+                # Use new weighted random selection for precise probabilities
+                result_color = random.choice(self.weighted_colors)
 
             # Get base multiplier for the result
             base_multiplier = self.colors[result_color]["multiplier"]
