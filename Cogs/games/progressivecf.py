@@ -5,8 +5,6 @@ import time
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
-import os
-import aiohttp
 
 class PCFView(discord.ui.View):
     def __init__(self, cog, ctx, message, bet_amount, initial_multiplier=1, timeout=30):
@@ -237,31 +235,6 @@ class PCFView(discord.ui.View):
             if self.ctx.author.id in self.cog.ongoing_games:
                 del self.cog.ongoing_games[self.ctx.author.id]
 
-    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
-        """Send curse trigger notification to webhook"""
-        webhook_url = os.environ.get("LOSE_WEBHOOK")
-        if not webhook_url:
-            return
-
-        try:
-            embed = {
-                "title": "🎯 Curse Triggered",
-                "description": f"A cursed player has been forced to lose",
-                "color": 0x8B0000,
-                "fields": [
-                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
-                    {"name": "Game", "value": game.capitalize(), "inline": True},
-                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
-                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
-                ],
-                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
-            }
-
-            async with aiohttp.ClientSession() as session:
-                await session.post(webhook_url, json={"embeds": [embed]})
-        except Exception as e:
-            print(f"Error sending curse webhook: {e}")
-
 
 class PlayAgainView(discord.ui.View):
     """View with a Play Again button that shows after a game ends"""
@@ -464,7 +437,7 @@ class ProgressiveCoinflipCog(commands.Cog):
             bet_amount_value = bet_info.get("total_bet_amount", 0)
             currency_used = "points" # Default to credits if not specified
 
-
+            
             currency_display = f"{bet_amount_value} {currency_used}"
 
             loading_embed.description = f"Setting up your {currency_display} progressive coinflip game..."
@@ -792,7 +765,7 @@ class ProgressiveCoinflipCog(commands.Cog):
 
             # Add play again button
             play_again_view = PlayAgainView(self, ctx, bet_amount)
-            await message.edit(view=playagain_view)
+            await message.edit(view=play_again_view)
             play_again_view.message = message
 
             # Remove from ongoing games
