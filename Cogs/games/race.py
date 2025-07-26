@@ -45,7 +45,7 @@ class RaceCog(commands.Cog):
         """Play the car racing game - pick a car, win 3x if it finishes first!"""
         if not bet_amount:
             embed = discord.Embed(
-                title="🏎️ How to Play Car Race",
+                title=":information_source: | How to Play Car Race",
                 description=(
                     "**Car Race** is a game where you bet on which car will win the race!\n\n"
                     "**Usage:** `!race <amount>`\n"
@@ -72,7 +72,7 @@ class RaceCog(commands.Cog):
         # Send loading message
         #loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
-            title=f"Processing Race Bet...",
+            title="<a:loading:1344611780638412811> | Processing Race Bet",
             description="Please wait while we process your request...",
             color=0x00FFAE
         )
@@ -109,7 +109,7 @@ class RaceCog(commands.Cog):
 
         # Create car selection embed
         embed = discord.Embed(
-            title="🏎️ CAR RACE - CHOOSE YOUR CAR",
+            title=":information_source: | Car Race - Choose Your Car",
             description=f"**Bet Amount:** `{bet_amount} {currency_used}`\n\nSelect a car to bet on:",
             color=0x00FFAE
         )
@@ -147,7 +147,7 @@ class RaceCog(commands.Cog):
                 #Implement refund logic here using currency_helper if needed
 
                 cancel_embed = discord.Embed(
-                    title="🚫 Race Cancelled",
+                    title="<:no:1344252518305234987> | Race Cancelled",
                     description=(
                         "You didn't pick a car in time.\n"
                         f"Your bet of `{bet_amount:.2f} {currency_used}` has been refunded."
@@ -209,7 +209,7 @@ class RaceCog(commands.Cog):
 
         # Initial race display
         race_embed = discord.Embed(
-            title="🏁 Race in Progress...",
+            title="<a:loading:1344611780638412811> | Race in Progress",
             description=f"{author.mention} chose Car {selected_car}. Race is starting!",
             color=0x00FFAE
         )
@@ -263,7 +263,7 @@ class RaceCog(commands.Cog):
 
             # Update the race display
             updated_embed = discord.Embed(
-                title="🏁 Race in Progress...",
+                title="<a:loading:1344611780638412811> | Race in Progress",
                 description=f"You chose Car {selected_car}. The race is heating up!",
                 color=0x00FFAE
             )
@@ -354,7 +354,7 @@ class RaceCog(commands.Cog):
         # Final results embed with improved visuals
         if user_won:
             result_embed = discord.Embed(
-                title="🏆 You Won!",
+                title="<:yes:1355501647538815106> | You Won!",
                 description=(
                     f"**Car {winner}** crossed the finish line first!\n\n"
                     f"You bet **{bet_amount:.2f} {currency_used}** on Car {selected_car} and won **{win_amount:.2f} points**!\n\n"
@@ -364,7 +364,7 @@ class RaceCog(commands.Cog):
             )
         else:
             result_embed = discord.Embed(
-                title="❌ You Lost!",
+                title="<:no:1344252518305234987> | You Lost!",
                 description=(
                     f"**Car {winner}** crossed the finish line first!\n\n"
                     f"Your Car {selected_car} didn't win. You lost **{bet_amount:.2f} {currency_used}**.\n\n"
