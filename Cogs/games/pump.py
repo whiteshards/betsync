@@ -251,12 +251,9 @@ class PumpGameView(discord.ui.View):
             # Force balloon to pop
             balloon_popped = True
 
-            # Consume curse
-            #forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id) #curse_cog.force_loss(self.ctx.author.id)
-
-            # Send webhook notification
+            # Consume curse and send webhook notification
+            curse_cog.consume_curse(self.ctx.author.id)
             await self.send_curse_webhook(self.ctx.author, "pump", self.bet_amount, self.current_multiplier)
-            forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id)
         else:
             # Calculate pop chance based on difficulty and pumps
             self.difficulty_rates = {
