@@ -73,6 +73,8 @@ class Start(commands.Cog):
             # Account Management
             #"signup": "Create a new casino account",
             "rakeback": "Get cashback on your bets",
+            "daily": "Claim your daily reward (requires meeting criteria)",
+            "ref": "View referral statistics and leaderboard",
 
             # Server Features
             #"serverstats": "View server statistics and earnings",
