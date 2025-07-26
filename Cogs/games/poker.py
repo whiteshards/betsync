@@ -1,3 +1,4 @@
+# Implemented curse command compatibility for Poker game and Match game.
 import discord
 import random
 import os
@@ -5,6 +6,7 @@ import time
 import asyncio
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import io
+import aiohttp
 
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
@@ -563,40 +565,73 @@ class Poker(commands.Cog):
         message = await ctx.reply(file=file, embed=embed, view=view)
         view.message = message
 
-    async def replace_cards(self, ctx, cards, held_cards, bet_amount, message):
-        # Get the ongoing game data
-        game_data = self.ongoing_games.get(ctx.author.id)
-        if not game_data:
-            # If no game data is found, create a new deck as a fallback
-            deck = CardDeck()
-        else:
-            deck = game_data["deck"]
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
 
-        # Replace the cards that are not held
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
+
+    async def replace_cards(self, ctx, cards, held_cards, bet_amount, message):
+        """Replace non-held cards and determine final result"""
+        # Check for curse before determining hand result
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+
+        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
+            # Force a losing hand
+            forced_loss = True
+
+            # Consume curse and send webhook
+            curse_cog.consume_curse(ctx.author.id)
+            await self.send_curse_webhook(ctx.author, "poker", bet_amount, 0)
+
+        # Create new deck for replacement cards
+        replacement_deck = CardDeck()
+
+        # Remove the original 5 cards from the replacement deck to avoid duplicates
+        for card in cards:
+            if card in replacement_deck.deck:
+                replacement_deck.deck.remove(card)
+
+        # Replace non-held cards
         final_cards = cards.copy()
-        for i, held in enumerate(held_cards):
-            if not held:
-                try:
-                    new_card = deck.draw_cards(1)[0]
-                    final_cards[i] = new_card
-                except Exception as e:
-                    print(f"Error drawing card: {e}")
-                    # If we can't draw a card, create a new deck and draw from it
-                    new_deck = CardDeck()
-                    new_card = new_deck.draw_cards(1)[0]
-                    final_cards[i] = new_card
+        for i in range(5):
+            if not held_cards[i]:
+                # Replace this card
+                new_card = replacement_deck.draw_cards(1)[0]
+                final_cards[i] = new_card
 
         # Evaluate the final hand
         hand_type = self.evaluate_hand(final_cards)
-
-        # Determine which cards make the winning hand
-        winning_cards = self.get_winning_cards(final_cards, hand_type)
-
-        # Get the multiplier based on hand type
         multiplier = paytable.get(hand_type, 0)
 
+        # Force loss if cursed
+        if forced_loss and multiplier > 0:
+            # Replace with a losing hand type
+            hand_type = "High Card"
+            multiplier = 0
+
         # Calculate winnings
-        winnings = bet_amount * multiplier
+        winnings = bet_amount * multiplier if multiplier > 0 else 0
 
         # Generate final game image
         image_bytes = await self.generate_game_image(
@@ -612,19 +647,19 @@ class Poker(commands.Cog):
         db = Users()
         server_db = Servers()
 
-        
+
 
         if multiplier > 1:
             # Win
             db.update_balance(ctx.author.id, winnings)
 
-            
+
 
             # Update server profit (negative because server loses when player wins)
             try:
                 profit = bet_amount - winnings  # Server profit is negative when player wins
                 server_db.update_server_profit(ctx, ctx.guild.id, profit, game="poker")
-                
+
             except Exception as e:
                 print(f"Error updating server profit for win: {e}")
 
@@ -697,7 +732,7 @@ class Poker(commands.Cog):
             #play_again_view = PlayAgainView(self, ctx, bet_amount)
             #result_message = await ctx.reply(file=file, embed=embed, view=play_again_view)
             #play_again_view.message = result_message
-            
+
         elif multiplier < 0.5:
             # Loss
             # Update stats directly in the collection

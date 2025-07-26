@@ -3,6 +3,8 @@ import random
 import asyncio
 import datetime
 import time
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users
 from Cogs.utils.emojis import emoji
@@ -50,7 +52,7 @@ class MatchGame:
 
         return board
 
-    def reveal_tile(self, row, col):
+    def reveal_tile(self, row, col, cursed_player=None):
         """Reveal a tile and check if a multiplier has been matched"""
         if self.game_over or self.revealed[row][col]:
             return False
@@ -58,8 +60,14 @@ class MatchGame:
         self.revealed[row][col] = True
         self.revealed_count += 1
 
+        # Check for curse - prevent good matches
+        if cursed_player and self.revealed_count >= 10:  # Force loss after revealing several tiles
+            # Force game over without a good match
+            self.game_over = True
+            return False
+
         # Check if we've matched any multiplier (3 of the same)
-        if self.matched_multiplier is None:
+        if self.matched_multiplier is None and not cursed_player:
             for multi in self.multipliers:
                 matched_count = 0
                 for r in range(self.rows):
@@ -123,8 +131,20 @@ class MatchButton(discord.ui.Button):
         if interaction.user.id != self.match_game.user_id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
+        # Check for curse
+        curse_cog = interaction.client.get_cog('AdminCurseCog')
+        cursed_player = False
+        
+        if curse_cog and curse_cog.is_player_cursed(self.match_game.user_id):
+            cursed_player = True
+            # Consume curse and send webhook
+            curse_cog.consume_curse(self.match_game.user_id)
+            await self.match_cog.send_curse_webhook(
+                interaction.user, "match", self.match_game.bet_amount, 0
+            )
+
         # Reveal the selected tile
-        self.match_game.reveal_tile(self.game_row, self.game_col)
+        self.match_game.reveal_tile(self.game_row, self.game_col, cursed_player)
 
         # Update the button appearance
         if self.match_game.revealed[self.game_row][self.game_col]:
@@ -213,6 +233,31 @@ class Match(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
         self.ctx = None
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+        
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
     @commands.command(aliases=["mat", "matchgame"])
     async def match(self, ctx, bet_amount: str = None):
