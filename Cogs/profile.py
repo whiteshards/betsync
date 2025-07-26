@@ -87,12 +87,17 @@ class Profile(commands.Cog):
         # Calculate win rate and net profit (showing only earnings to be deceiving)
         win_rate = (games_won / games_played * 100) if games_played > 0 else 0
         net_profit = total_earned  # Only show earnings, not actual profit
+        
+        # Make everything sound positive and winning-focused
+        win_streak_text = f"{games_won:,} Victories" if games_won > 0 else "Ready to Win!"
+        profit_text = f"+{net_profit:,.2f} pts Earned!" if net_profit > 0 else "Ready to Earn Big!"
+        wagered_text = f"{total_spent:,.2f} pts Action" if total_spent > 0 else "Ready for Action!"
 
-        # Create clean, professional embed
+        # Create deceiving, positive embed
         embed = discord.Embed(
-            title=f"👤 | {user.display_name}'s Profile",
-            description=f"**{title}** • Level {current_level}",
-            color=0x00FFAE
+            title=f"🏆 | {user.display_name}'s Winner Profile",
+            description=f"**{title} Champion** • Level {current_level} ⭐",
+            color=0x00FF00  # Green for winning feeling
         )
 
         # Set user avatar as thumbnail
@@ -102,51 +107,52 @@ class Profile(commands.Cog):
         # Create XP progress bar
         xp_progress = self.create_progress_bar(current_xp, xp_limit, length=10)
 
-        # Account Information - Clean layout
+        # Account Information - Make it sound premium
         embed.add_field(
-            name="📊 Account Status",
+            name="💎 Elite Status",
             value=(
-                f"**Rank:** #{user_rank:,}\n"
-                f"**Balance:** {current_balance:,.2f} points\n"
-                f"**Primary Currency:** {primary_coin}"
+                f"**Global Rank:** #{user_rank:,} 🎯\n"
+                f"**Balance:** {current_balance:,.2f} points 💰\n"
+                f"**VIP Currency:** {primary_coin} 👑"
             ),
             inline=True
         )
 
-        # Financial Overview
+        # Financial Overview - Focus on deposits and earnings
         embed.add_field(
-            name="💰 Financial Stats",
+            name="💸 Earning Power",
             value=(
-                f"**Total Deposited:** ${total_deposits_usd:,.2f}\n"
-                f"**Total Withdrawn:** {total_withdrawals:,.2f} pts\n"
-                f"**Net Profit:** {net_profit:+,.2f} pts"
+                f"**Investment Made:** ${total_deposits_usd:,.2f} 📈\n"
+                f"**Cashouts:** {total_withdrawals:,.2f} pts 💵\n"
+                f"**Total Winnings:** {profit_text} 🎉"
             ),
             inline=True
         )
 
-        # Gaming Performance 
+        # Gaming Performance - Make losses invisible
         embed.add_field(
-            name="🎮 Gaming Stats",
+            name="🎯 Champion Stats",
             value=(
-                f"**Games Won:** {games_won:,}\n"
-                f"**Win Rate:** {win_rate:.1f}%\n"
-                f"**Total Wagered:** {total_spent:,.2f} pts"
+                f"**Victory Count:** {win_streak_text} ⚡\n"
+                f"**Success Rate:** {win_rate:.1f}% 🔥\n"
+                f"**Big Player:** {wagered_text} 🎲"
             ),
             inline=True
         )
 
-        # Experience Progress - Full width for better display
+        # Experience Progress - Make it sound like achievement
         embed.add_field(
-            name="⭐ Experience Progress",
+            name="🌟 Champion Progress",
             value=(
-                f"**XP:** {current_xp:,} / {xp_limit:,}\n"
-                f"```{xp_progress}```"
+                f"**Experience Points:** {current_xp:,} / {xp_limit:,} 🚀\n"
+                f"```{xp_progress}```\n"
+                f"*Keep winning to unlock exclusive rewards!* ✨"
             ),
             inline=False
         )
 
-        # Clean footer
-        embed.set_footer(text="BetSync Casino", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+        # Positive, encouraging footer
+        embed.set_footer(text="🎰 BetSync Casino • You're on fire! Keep playing to win big! 🔥", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
 
         # Delete loading message and send the profile
         await loading_message.delete()
