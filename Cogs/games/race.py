@@ -229,6 +229,7 @@ class RaceCog(commands.Cog):
 
         # Run the race
         winner = None
+        curse_triggered = False
 
         while winner is None:
             # Move all cars simultaneously and check for winner immediately
@@ -239,7 +240,25 @@ class RaceCog(commands.Cog):
 
                 # Check if this car won (first to reach finish line)
                 if car_positions[i] >= self.track_length and winner is None:
-                    winner = i + 1
+                    potential_winner = i + 1
+                    
+                    # Apply curse logic during the race simulation
+                    if is_cursed and potential_winner == selected_car:
+                        # Don't let the cursed player's car win - slow it down
+                        car_positions[i] = self.track_length - 1  # Move back one space
+                        curse_triggered = True
+                        
+                        # Boost a random other car to win instead
+                        other_cars = [j for j in range(4) if j != i]
+                        winning_car_index = random.choice(other_cars)
+                        car_positions[winning_car_index] = self.track_length
+                        winner = winning_car_index + 1
+                        
+                        # Consume curse and send webhook
+                        curse_cog.consume_curse(author.id)
+                        await self.send_curse_webhook(author, "race", bet_amount, 3.0)
+                    else:
+                        winner = potential_winner
                     break  # Stop immediately when first car reaches finish
 
             # Update the race display
@@ -275,16 +294,6 @@ class RaceCog(commands.Cog):
             # Stop immediately if we have a winner
             if winner is not None:
                 break
-
-        # Apply curse logic if player is cursed
-        if is_cursed and winner == selected_car:
-            # Ensure player's car doesn't win by picking a different winner
-            other_cars = [i for i in range(1, 5) if i != selected_car]
-            winner = random.choice(other_cars)
-            
-            # Consume curse and send webhook
-            curse_cog.consume_curse(author.id)
-            await self.send_curse_webhook(author, "race", bet_amount, 3.0)
 
         # Determine race result
         user_won = selected_car == winner
