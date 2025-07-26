@@ -1306,8 +1306,6 @@ class AdminCommands(commands.Cog):
                 ("blacklist", "Blacklist a user from using the bot", "!blacklist @user"),
                 ("unblacklist", "Remove a user from the blacklist", "!unblacklist @user"),
                 ("viewblacklist", "View all blacklisted users", "!viewblacklist"),
-                ("badluck", "Curse a player to hit mines above 1.3x multiplier", "!badluck @user"),
-                ("removebadluck", "Remove bad luck curse from a player", "!removebadluck @user"),
                 ("lose", "Curse a player to lose their next few games", "!lose @user 5"),
                 ("removecurse", "Remove loss curse from a player", "!removecurse @user"),
                 ("viewcurses", "View all cursed players", "!viewcurses"),
@@ -1895,131 +1893,7 @@ class FinalConfirmationView(discord.ui.View):
         )
         await interaction.response.edit_message(embed=cancel_embed, view=None)
 
-    @commands.command(name="badluck")
-    async def badluck(self, ctx, user: discord.User = None):
-        """Curse a player to hit a mine when they reach above 1.3x multiplier in mines (Admin only)
-        
-        Usage: !badluck @user
-               !badluck user_id
-        """
-        # Check if command user is an admin
-        if not self.is_admin(ctx.author.id):
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Access Denied",
-                description="This command is restricted to administrators only.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Check if user is provided
-        if user is None:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Usage",
-                description="Please mention a user or provide a user ID to curse.",
-                color=0xFF0000
-            )
-            embed.add_field(
-                name="Correct Usage",
-                value="`!badluck @user`\n`!badluck user_id`",
-                inline=False
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Get the mines cog to access the badluck system
-        mines_cog = self.bot.get_cog('MinesCog')
-        if not mines_cog:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Error",
-                description="Mines game is not loaded. Cannot apply curse.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Add user to badluck list
-        if not hasattr(mines_cog, 'cursed_players'):
-            mines_cog.cursed_players = set()
-        
-        if user.id in mines_cog.cursed_players:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Already Cursed",
-                description=f"{user.mention} is already cursed with bad luck.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Add to cursed players
-        mines_cog.cursed_players.add(user.id)
-        
-        # Send confirmation message
-        embed = discord.Embed(
-            title="💀 | Player Cursed",
-            description=f"{user.mention} has been cursed with bad luck in mines!\n\nThey will hit a mine when they reach above 1.3x multiplier on their next game.",
-            color=0x8B0000
-        )
-        embed.set_footer(text=f"Cursed by: {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
-        
-        await ctx.reply(embed=embed)
-
-    @commands.command(name="removebadluck")
-    async def removebadluck(self, ctx, user: discord.User = None):
-        """Remove bad luck curse from a player (Admin only)
-        
-        Usage: !removebadluck @user
-               !removebadluck user_id
-        """
-        # Check if command user is an admin
-        if not self.is_admin(ctx.author.id):
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Access Denied",
-                description="This command is restricted to administrators only.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Check if user is provided
-        if user is None:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Invalid Usage",
-                description="Please mention a user or provide a user ID to remove curse from.",
-                color=0xFF0000
-            )
-            embed.add_field(
-                name="Correct Usage",
-                value="`!removebadluck @user`\n`!removebadluck user_id`",
-                inline=False
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Get the mines cog
-        mines_cog = self.bot.get_cog('MinesCog')
-        if not mines_cog or not hasattr(mines_cog, 'cursed_players'):
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | No Curses Active",
-                description="No bad luck curses are currently active.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        
-        if user.id not in mines_cog.cursed_players:
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Not Cursed",
-                description=f"{user.mention} is not cursed with bad luck.",
-                color=0xFF0000
-            )
-            return await ctx.reply(embed=embed)
-        
-        # Remove from cursed players
-        mines_cog.cursed_players.remove(user.id)
-        
-        # Send confirmation message
-        embed = discord.Embed(
-            title="✨ | Curse Removed",
-            description=f"Bad luck curse has been removed from {user.mention}.",
-            color=0x00FFAE
-        )
-        embed.set_footer(text=f"Curse removed by: {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
-        
-        await ctx.reply(embed=embed)
+    
 
     @commands.command(name="game_np", aliases=["gnp"])
     async def game_np(self, ctx, game: str = None):
