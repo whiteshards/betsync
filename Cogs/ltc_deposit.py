@@ -373,30 +373,51 @@ class LtcDeposit(commands.Cog):
             return None, "LTC_XPUB environment variable is not configured."
 
         try:
-            # --- Determine the globally next available index ---
-            # Find the user with the highest ltc_address_index
-            highest_index_user = self.users_db.collection.find_one(
-                {"ltc_address_index": {"$exists": True}}, # Ensure the field exists
-                sort=[("ltc_address_index", -1)] # Sort descending by index
+            # --- Atomic index generation to prevent race conditions ---
+            # Use MongoDB's findOneAndUpdate with increment to atomically get next index
+            counter_result = self.users_db.collection.find_one_and_update(
+                {"_id": "ltc_address_counter"},
+                {"$inc": {"next_index": 1}},
+                upsert=True,
+                return_document=True
             )
-
-            last_global_index = -1
-            if highest_index_user and 'ltc_address_index' in highest_index_user and isinstance(highest_index_user['ltc_address_index'], int):
-                last_global_index = highest_index_user['ltc_address_index']
-
-            next_index = last_global_index + 1
+            
+            if counter_result:
+                next_index = counter_result["next_index"]
+            else:
+                # Fallback to old method if counter document creation fails
+                highest_index_user = self.users_db.collection.find_one(
+                    {"ltc_address_index": {"$exists": True}},
+                    sort=[("ltc_address_index", -1)]
+                )
+                last_global_index = -1
+                if highest_index_user and 'ltc_address_index' in highest_index_user:
+                    last_global_index = highest_index_user['ltc_address_index']
+                next_index = last_global_index + 1
             print(f"{Fore.CYAN}[i] Generating address for user {user_id} using globally next index: {next_index} (Last highest global index found: {last_global_index}){Style.RESET_ALL}")
             # --- End index determination ---
 
-            # Load the xpub key
-            # Parse key first without network to avoid conflict with zpub format
-            if not LTC_XPUB: # Redundant check, but safe
-                 return None, "LTC_XPUB environment variable is not configured."
-            print(f"{Fore.CYAN}[i] Using LTC_XPUB starting with: {LTC_XPUB[:10]}...{Style.RESET_ALL}") # Log partial key
-            master_key = HDKey(LTC_XPUB)
-            # Convert to Litecoin context using proper Network object
-            from bitcoinlib.networks import Network
-            master_key.network = Network('litecoin')
+            # Load the xpub key with comprehensive error handling
+            if not LTC_XPUB:
+                return None, "LTC_XPUB environment variable is not configured."
+                
+            print(f"{Fore.CYAN}[i] Using LTC_XPUB starting with: {LTC_XPUB[:10]}...{Style.RESET_ALL}")
+            
+            try:
+                master_key = HDKey(LTC_XPUB)
+                if not master_key.key:
+                    return None, "Invalid LTC_XPUB format - could not parse key."
+            except Exception as key_err:
+                print(f"{Fore.RED}[!] Failed to parse LTC_XPUB: {key_err}{Style.RESET_ALL}")
+                return None, f"Invalid LTC_XPUB format: {key_err}"
+                
+            try:
+                # Convert to Litecoin context using proper Network object
+                from bitcoinlib.networks import Network
+                master_key.network = Network('litecoin')
+            except Exception as network_err:
+                print(f"{Fore.RED}[!] Failed to set Litecoin network: {network_err}{Style.RESET_ALL}")
+                return None, f"Network configuration error: {network_err}"
 
             # Use the user's specified derivation path (m/0'/index) for Native SegWit (p2wpkh)
             # Ensure the index is hardened as specified (0')
@@ -455,11 +476,16 @@ class LtcDeposit(commands.Cog):
                  return "error", {"error": "User data not found."}
 
             try:
-                async with aiohttp.ClientSession() as session:
+                timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+                async with aiohttp.ClientSession(timeout=timeout) as session:
                     # Get address transactions from Mempool.space
                     txs_url = f"{MEMPOOL_API_URL}/address/{address}/txs"
                     async with session.get(txs_url) as response:
-                        if response.status != 200:
+                        if response.status == 429:  # Rate limited
+                            print(f"{Fore.YELLOW}[!] Rate limited by Mempool API for {address}. Waiting before retry.{Style.RESET_ALL}")
+                            await asyncio.sleep(5)  # Wait 5 seconds before retrying
+                            return "error", {"error": "API rate limited. Please try again in a moment."}
+                        elif response.status != 200:
                             print(f"{Fore.RED}[!] Mempool API Error ({response.status}) fetching transactions for {address}. Response: {await response.text()}{Style.RESET_ALL}")
                             return "error", {"error": f"API Error ({response.status}) fetching transactions."}
 
@@ -572,6 +598,18 @@ class LtcDeposit(commands.Cog):
                 points_to_add = amount_crypto / LTC_CONVERSION_RATE
 
                 # --- Database Update with Atomic Duplicate Prevention ---
+                # Ensure wallet structure exists
+                if "wallet" not in user_data:
+                    self.users_db.collection.update_one(
+                        {"discord_id": user_id},
+                        {"$set": {"wallet": {}}}
+                    )
+                if "LTC" not in user_data.get("wallet", {}):
+                    self.users_db.collection.update_one(
+                        {"discord_id": user_id},
+                        {"$set": {"wallet.LTC": 0}}
+                    )
+                    
                 balance_before_ltc = user_data.get("wallet", {}).get("LTC", 0) # Get LTC balance before
                 balance_before_points = user_data.get("points", 0)
 
@@ -738,6 +776,17 @@ class LtcDeposit(commands.Cog):
     @commands.command(name="deposit_ltc", aliases=["ltcdep", "ltcdeposit"])
     async def deposit_ltc(self, ctx, currency: str = None):
         """Handles cryptocurrency deposits"""
+        # Ensure user is registered in database
+        user_data = self.users_db.fetch_user(ctx.author.id)
+        if not user_data:
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | User Not Registered",
+                description="You need to register first before using deposit commands.\n\nUse a command like `!balance` to register your account.",
+                color=discord.Color.red()
+            )
+            embed.set_footer(text="BetSync Casino")
+            return await ctx.reply(embed=embed)
+            
         if not currency:
             # Show usage embed if no currency specified
             embed = discord.Embed(
@@ -780,6 +829,17 @@ class LtcDeposit(commands.Cog):
             return  # Do nothing for non-LTC currencies
 
         user_id = ctx.author.id
+
+        # Check if user's primary currency is set to LTC
+        primary_currency = user_data.get('primary_coin', user_data.get('primary_currency', '')).upper()
+        if primary_currency != 'LTC':
+            embed = discord.Embed(
+                title="<:no:1344252518305234987> | Wrong Primary Currency",
+                description=f"You must set your primary currency to **LTC** to use Litecoin deposits.\n\nCurrent primary currency: **{primary_currency or 'Not Set'}**\n\nUse the balance command to change your primary currency.",
+                color=discord.Color.red()
+            )
+            embed.set_footer(text="BetSync Casino")
+            return await ctx.reply(embed=embed)
 
         # Removed check for active deposit view to allow generating a new one.
         address, error = await self._generate_ltc_address(user_id)
