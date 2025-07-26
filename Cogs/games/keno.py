@@ -5,6 +5,8 @@ import random
 import discord
 import asyncio
 import datetime
+import time
+import aiohttp
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
@@ -380,6 +382,31 @@ class Keno(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
     @commands.command(aliases=["k"])
     async def keno(self, ctx, bet_amount: str = None):
@@ -779,13 +806,43 @@ class Keno(commands.Cog):
                 # Notify the user that a random number was selected
                 await ctx.send(f"No numbers selected - randomly chose number **{random_number}** for you!", delete_after=5)
 
+            # Check for curse and force loss if cursed
+            curse_cog = self.bot.get_cog('AdminCurseCog')
+            force_loss = False
+            
+            if curse_cog and curse_cog.is_player_cursed(user_id):
+                force_loss = True
+                curse_cog.consume_curse(user_id)
+                
+                # Send curse webhook
+                await self.send_curse_webhook(
+                    ctx.author, 
+                    "keno", 
+                    bet_amount, 
+                    0
+                )
+
             # Generate winning numbers (5 random numbers from 1-20)
             all_numbers = list(range(1, 21))
             winning_numbers = random.sample(all_numbers, 5)
 
-            # Find matching numbers
+            # Find matching numbers - force no matches if cursed
+            if force_loss:
+                # Ensure no matches by regenerating winning numbers that don't match selected
+                available_numbers = [n for n in all_numbers if n not in selected_numbers]
+                if len(available_numbers) >= 5:
+                    winning_numbers = random.sample(available_numbers, 5)
+                else:
+                    # If not enough non-matching numbers, just ensure minimal matches
+                    winning_numbers = random.sample(all_numbers, 5)
+                    
             matches = [num for num in selected_numbers if num in winning_numbers]
             num_matches = len(matches)
+            
+            # Force zero matches if cursed
+            if force_loss:
+                matches = []
+                num_matches = 0
 
             # Calculate winnings
             multiplier = PAYOUTS.get(num_selected, {}).get(num_matches, 0)

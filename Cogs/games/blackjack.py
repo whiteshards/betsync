@@ -3,6 +3,8 @@ import random
 import os
 import io
 import datetime
+import time
+import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
@@ -112,6 +114,24 @@ class BlackjackView(discord.ui.View):
 
         # Check if player busts
         player_value = self.calculate_hand_value(self.player_cards)
+
+        # Check for curse and force bust if cursed
+        if self.cog.check_curse_and_force_loss(self.ctx.author.id, player_value):
+            # Force bust by setting value over 21
+            player_value = 22
+            
+            # Get curse cog and consume curse
+            curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+            if curse_cog:
+                curse_cog.consume_curse(self.ctx.author.id)
+                
+                # Send curse webhook
+                await self.cog.send_curse_webhook(
+                    self.ctx.author, 
+                    "blackjack", 
+                    self.bet_amount, 
+                    0
+                )
 
         if player_value > 21:
             for child in self.children:
@@ -422,6 +442,45 @@ class Blackjack(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
+
+    def check_curse_and_force_loss(self, user_id, current_value):
+        """Check if player is cursed and should be forced to lose"""
+        # Get the curse cog
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        if not curse_cog:
+            return False
+            
+        # Check if player is cursed
+        if curse_cog.is_player_cursed(user_id):
+            # Force loss if hand value is 12 or higher (reasonable bust point)
+            if current_value >= 12:
+                return True
+        return False
 
     @commands.command(aliases=["bj", "21"])
     async def blackjack(self, ctx, bet_amount: str = None):
