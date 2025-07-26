@@ -187,57 +187,50 @@ class DepositView(discord.ui.View):
             status, details = await self.cog._check_for_deposits(self.user_id, self.address)
 
             if status == "success":
-                deposits = details.get('deposits', [details])
-                total_btc = sum(d['amount_crypto'] for d in deposits)
-
-                for deposit in deposits:
-                    btc_price = await get_crypto_price('bitcoin')
-                    usd_value = deposit['amount_crypto'] * btc_price if btc_price else None
-
-                    history_entry = {
-                        "type": "btc_deposit",
-                        "amount_crypto": deposit['amount_crypto'],
-                        "currency": "BTC",
-                        "usd_value": usd_value,
-                        "txid": deposit['txid'],
-                        "address": self.address,
-                        "confirmations": deposit.get('confirmations', REQUIRED_CONFIRMATIONS),
-                        "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
-                    }
-                    self.cog.users_db.update_history(self.user_id, history_entry)
-
-                    if usd_value:
-                        self.cog.users_db.collection.update_one(
-                            {"discord_id": self.user_id},
-                            {"$inc": {"total_deposit_amount_usd": usd_value}}
-                        )
-
+                # Handle multiple deposits from the new format
+                deposits = details.get('deposits', [])
+                total_btc = details.get('total_amount_crypto', 0)
+                total_points = details.get('total_points_credited', 0)
+                deposit_count = details.get('count', len(deposits))
+                
+                # Update embed
                 if not self.message:
                     await interaction.followup.send("Error: Could not find the original deposit message to update.", ephemeral=True)
                     return
 
                 main_embed = self.message.embeds[0]
                 main_embed.title = "<:yes:1355501647538815106> | Deposit Success"
-                main_embed.description = f"<:btc:1339343483089063976> **+{total_btc:,.8f} BTC** from {len(deposits)} transaction(s)"
+                main_embed.description = f"<:btc:1339343483089063976> **+{total_btc:,.8f} BTC** (+{total_points:,.2f} points) from {deposit_count} transaction(s)"
                 main_embed.clear_fields()
                 main_embed.set_image(url=None)  # Remove QR code image
 
-                for i, deposit in enumerate(deposits, 1):
+                # Show each transaction (limit to 5 for embed space)
+                display_deposits = deposits[:5]
+                for i, deposit in enumerate(display_deposits, 1):
                     txid = deposit['txid']
                     txid_short = txid[:10] + '...' if len(txid) > 10 else txid
                     explorer_url = f"https://mempool.space/tx/{txid}"
                     tx_value = f"[`{txid_short}`]({explorer_url})" if txid != 'N/A' else "N/A"
-
+                    
                     main_embed.add_field(
                         name=f"Transaction #{i}",
                         value=f"Amount: {deposit['amount_crypto']:,.8f} BTC\nTXID: {tx_value}",
                         inline=False
                     )
+                
+                if len(deposits) > 5:
+                    main_embed.add_field(
+                        name="+ More Transactions",
+                        value=f"And {len(deposits) - 5} more transactions processed successfully.",
+                        inline=False
+                    )
 
+                # Show new balance
                 updated_user = self.cog.users_db.fetch_user(self.user_id)
                 btc_balance = updated_user.get("wallet", {}).get("BTC", "N/A") if updated_user else "N/A"
                 main_embed.add_field(name="New BTC Balance", value=f"<:btc:1339343483089063976> {btc_balance:,.8f} BTC", inline=True)
-
+                
+                # Disable check button
                 for item in self.children:
                     if isinstance(item, discord.ui.Button) and item.custom_id == "check_deposit_button":
                         item.disabled = True
@@ -563,14 +556,57 @@ class BtcDeposit(commands.Cog):
                 new_deposit_processed_in_this_check = True
                 print(f"{Fore.GREEN}[+] Processed BTC deposit for user {user_id}: {amount_crypto} BTC, TXID: {txid}{Style.RESET_ALL}")
 
-                return "success", {
-                    "amount_crypto": amount_crypto,
-                    "txid": txid
-                }
+                # Continue processing more transactions instead of returning immediately
 
+            # --- Loop finished ---
             if new_deposit_processed_in_this_check:
-                print(f"{Fore.YELLOW}[!] Check deposit loop finished unexpectedly after processing a deposit for user {user_id}.{Style.RESET_ALL}")
-                return "error", {"error": "Internal processing error after deposit."}
+                # Get updated user data to show accurate totals
+                updated_user_data = self.users_db.fetch_user(user_id)
+                if not updated_user_data:
+                    return "error", {"error": "Could not fetch updated user data after processing."}
+                
+                # Get the newly processed txids (those that are now in processed_btc_txids but weren't before)
+                current_processed_txids = set(updated_user_data.get('processed_btc_txids', []))
+                newly_processed_txids = current_processed_txids - processed_txids
+                
+                # Calculate total deposits processed in this check
+                processed_deposits = []
+                total_btc_credited = 0
+                total_points_credited = 0
+                
+                # Get all transactions that were newly processed in this check
+                for tx in transactions_to_process:
+                    txid = tx.get('txid')
+                    if not txid or txid not in newly_processed_txids:
+                        continue
+                        
+                    # Calculate amount for this transaction
+                    amount_received_satoshi = 0
+                    for vout in tx.get('vout', []):
+                        if vout.get('scriptpubkey_address') == address:
+                            amount_received_satoshi += vout.get('value', 0)
+                    
+                    if amount_received_satoshi > 0:
+                        amount_crypto = round(amount_received_satoshi / BTC_SATOSHIS, 8)
+                        points_credited = amount_crypto / BTC_CONVERSION_RATE
+                        
+                        processed_deposits.append({
+                            "txid": txid,
+                            "amount_crypto": amount_crypto,
+                            "points_credited": points_credited
+                        })
+                        total_btc_credited += amount_crypto
+                        total_points_credited += points_credited
+                
+                if processed_deposits:
+                    return "success", {
+                        "deposits": processed_deposits,
+                        "total_amount_crypto": total_btc_credited,
+                        "total_points_credited": total_points_credited,
+                        "count": len(processed_deposits)
+                    }
+                else:
+                    return "error", {"error": "Deposits were processed but could not calculate totals."}
             elif first_pending_tx:
                 return "pending", first_pending_tx
             else:
