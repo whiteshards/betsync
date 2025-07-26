@@ -664,9 +664,10 @@ class LtcDeposit(commands.Cog):
                 print(f"{Fore.GREEN}[+] Processed LTC deposit for user {user_id}: {amount_crypto} LTC (direct wallet deposit), TXID: {txid}{Style.RESET_ALL}")
 
                 # Return success details for the *first* successful deposit found in this check
-                # Only return amount and txid, balance update is handled internally
+                # Include points_credited for the success embed
                 return "success", {
                     "amount_crypto": amount_crypto,
+                    "points_credited": points_to_add,
                     "txid": txid
                 }
 
