@@ -4,6 +4,7 @@ import random
 import time
 import io
 import asyncio
+import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
@@ -355,13 +356,48 @@ class CasesCog(commands.Cog):
 
         return buffer
 
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+        
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
+
     async def generate_case_image(self, selected_multiplier):
         """Generates a case opening result image."""
         buffer = self.generate_result_image(selected_multiplier)
         return buffer
 
-    def get_case_result(self):
+    def get_case_result(self, user_id=None):
         """Determines the result of opening a case."""
+        # Check if user is cursed to lose
+        curse_cog = self.bot.get_cog("AdminCurseCog")
+        if curse_cog and user_id and curse_cog.is_player_cursed(user_id):
+            # Force a loss by selecting from losing multipliers (< 1.0x)
+            losing_multipliers = [m for m in self.multipliers if m["value"] < 1.0]
+            if losing_multipliers:
+                selected_multiplier = random.choice(losing_multipliers)
+                return {"multiplier": selected_multiplier, "cursed": True}
+        
+        # Normal random result
         random_value = random.random()
         cumulative_prob = 0
         selected_multiplier = None
@@ -374,7 +410,7 @@ class CasesCog(commands.Cog):
 
         if not selected_multiplier:  # Fallback in case of floating-point issues
             selected_multiplier = self.multipliers[-1]
-        return {"multiplier": selected_multiplier}
+        return {"multiplier": selected_multiplier, "cursed": False}
 
 
     @commands.command(aliases=["case", "crate"])
@@ -437,8 +473,9 @@ class CasesCog(commands.Cog):
         await loading_message.edit(embed=loading_embed)
 
         # Generate the case result
-        case_result = self.get_case_result()
+        case_result = self.get_case_result(ctx.author.id)
         selected_multiplier = case_result["multiplier"]
+        was_cursed = case_result.get("cursed", False)
 
         # Calculate winnings (paid in credits)
         win_amount = bet_amount_value * selected_multiplier["value"]
@@ -448,6 +485,14 @@ class CasesCog(commands.Cog):
         user_won = selected_multiplier["value"] >= 1.0
         db = Users()  # Reinstantiate db to ensure we have a fresh connection
         db.update_balance(ctx.author.id, win_amount, 'credits', "$inc")
+
+        # Handle curse system if the user was cursed
+        if was_cursed:
+            curse_cog = self.bot.get_cog("AdminCurseCog")
+            if curse_cog:
+                curse_complete = curse_cog.consume_curse(ctx.author.id)
+                # Send webhook notification
+                await self.send_curse_webhook(ctx.author, "cases", bet_amount_value, selected_multiplier["value"])
 
         # Create result image
         result_buffer = await self.generate_case_image(selected_multiplier)
