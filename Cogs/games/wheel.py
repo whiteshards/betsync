@@ -111,6 +111,25 @@ class WheelCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+        
+        # Define color multipliers with proper house edge (casino-favorable)
+        self.colors = {
+            "gray": {"emoji": "⚫", "multiplier": 0, "chance": 65, "name": "BUST"},
+            "yellow": {"emoji": "🟡", "multiplier": 1.5, "chance": 20, "name": "BRONZE"},
+            "red": {"emoji": "🔴", "multiplier": 2.5, "chance": 8, "name": "SILVER"},
+            "blue": {"emoji": "🔵", "multiplier": 4.0, "chance": 4, "name": "GOLD"},
+            "green": {"emoji": "🟢", "multiplier": 8.0, "chance": 2, "name": "DIAMOND"},
+            "purple": {"emoji": "🟣", "multiplier": 15.0, "chance": 0.8, "name": "RUBY"},
+            "orange": {"emoji": "🟠", "multiplier": 25.0, "chance": 0.2, "name": "LEGENDARY"}
+        }
+        # Calculate total chance (now uses weighted system for better precision)
+        self.total_chance = 1000  # Using 1000 for precise decimal chances
+        
+        # Convert percentages to weighted ranges for precise probability
+        self.weighted_colors = []
+        for color, data in self.colors.items():
+            weight = int(data["chance"] * 10)  # Convert to integer weights
+            self.weighted_colors.extend([color] * weight)
 
     async def send_curse_webhook(self, user, game, bet_amount, multiplier):
         """Send curse trigger notification to webhook"""
@@ -136,25 +155,6 @@ class WheelCog(commands.Cog):
                 await session.post(webhook_url, json={"embeds": [embed]})
         except Exception as e:
             print(f"Error sending curse webhook: {e}")
-
-        # Define color multipliers with proper house edge (casino-favorable)
-        self.colors = {
-            "gray": {"emoji": "⚫", "multiplier": 0, "chance": 65, "name": "BUST"},
-            "yellow": {"emoji": "🟡", "multiplier": 1.5, "chance": 20, "name": "BRONZE"},
-            "red": {"emoji": "🔴", "multiplier": 2.5, "chance": 8, "name": "SILVER"},
-            "blue": {"emoji": "🔵", "multiplier": 4.0, "chance": 4, "name": "GOLD"},
-            "green": {"emoji": "🟢", "multiplier": 8.0, "chance": 2, "name": "DIAMOND"},
-            "purple": {"emoji": "🟣", "multiplier": 15.0, "chance": 0.8, "name": "RUBY"},
-            "orange": {"emoji": "🟠", "multiplier": 25.0, "chance": 0.2, "name": "LEGENDARY"}
-        }
-        # Calculate total chance (now uses weighted system for better precision)
-        self.total_chance = 1000  # Using 1000 for precise decimal chances
-        
-        # Convert percentages to weighted ranges for precise probability
-        self.weighted_colors = []
-        for color, data in self.colors.items():
-            weight = int(data["chance"] * 10)  # Convert to integer weights
-            self.weighted_colors.extend([color] * weight)
 
     @commands.command(aliases=["wh"])
     async def wheel(self, ctx, bet_amount: str = None, spins: int = 1):
