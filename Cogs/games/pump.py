@@ -151,7 +151,7 @@ class PumpGameView(discord.ui.View):
 
         if status == "playing":
             embed = discord.Embed(
-                title="🎈 Pump Game",
+                title=":information_source: | Pump Game",
                 description=f"**Keep pumping the balloon for bigger rewards, but don't let it pop!**",
                 color=0xFF3366
             )
@@ -172,7 +172,7 @@ class PumpGameView(discord.ui.View):
 
         elif status == "win_pump":
             embed = discord.Embed(
-                title="🎈 Pump Game - Successful Pump!",
+                title="<:yes:1355501647538815106> | Successful Pump!",
                 description=f"**The balloon got bigger!**",
                 color=0x00FF00
             )
@@ -193,7 +193,7 @@ class PumpGameView(discord.ui.View):
 
         elif status == "lose":
             embed = discord.Embed(
-                title="🎈 Pump Game - POPPED!",
+                title="<:no:1344252518305234987> | POPPED!",
                 description=f"**Oh no! The balloon popped after {self.current_pumps} pumps!**\n\nBetter luck next time!",
                 color=0xFF0000
             )
@@ -208,7 +208,7 @@ class PumpGameView(discord.ui.View):
             payout = self.calculate_payout()
             profit = payout - self.bet_amount
             embed = discord.Embed(
-                title="🎈 Pump Game - Cashed Out!",
+                title="<:yes:1355501647538815106> | Cashed Out!",
                 description=f"**Wise decision!** You've cashed out after **{self.current_pumps}/{self.max_pumps}** pumps!",
                 color=0x00FF00
             )
@@ -223,7 +223,7 @@ class PumpGameView(discord.ui.View):
             payout = self.calculate_payout()
             profit = payout - self.bet_amount
             embed = discord.Embed(
-                title="🎈 Pump Game - Maximum Pumps!",
+                title="<:yes:1355501647538815106> | Maximum Pumps!",
                 description=f"**Amazing!** You've reached the maximum of **{self.max_pumps}** pumps! The balloon is at its limit!",
                 color=0x00FF00
             )
@@ -243,20 +243,17 @@ class PumpGameView(discord.ui.View):
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
 
         # Check if the pump is successful based on difficulty probability
-        # Check for curse - force pop at higher multipliers
+        # Check for curse - force pop at 1.6x-1.8x multiplier range
         curse_cog = self.ctx.bot.get_cog('AdminCurseCog')
         if (curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and 
-            self.current_multiplier >= random.uniform(1.8, 2.5)):
+            1.6 <= self.current_multiplier <= 1.8):
 
             # Force balloon to pop
             balloon_popped = True
 
-            # Consume curse
-            #forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id) #curse_cog.force_loss(self.ctx.author.id)
-
-            # Send webhook notification
+            # Consume curse and send webhook notification
+            curse_cog.consume_curse(self.ctx.author.id)
             await self.send_curse_webhook(self.ctx.author, "pump", self.bet_amount, self.current_multiplier)
-            forced_loss, curse_complete = curse_cog.force_loss(self.ctx.author.id)
         else:
             # Calculate pop chance based on difficulty and pumps
             self.difficulty_rates = {
@@ -525,7 +522,7 @@ class PumpCog(commands.Cog):
         """Play Pump - pump a balloon for increasingly higher multipliers!"""
         if not bet_amount:
             embed = discord.Embed(
-                title="🎈 How to Play Pump",
+                title=":information_source: | How to Play Pump",
                 description=(
                     "**Pump** is a game where you inflate a balloon for increasingly higher multipliers!\n\n"
                     "**Usage:** `!pump <amount> <difficulty>`\n"
@@ -565,7 +562,7 @@ class PumpCog(commands.Cog):
 
         #loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
-            title=f"Preparing Pump Game...",
+            title="<a:loading:1344611780638412811> | Preparing Pump Game",
             description="Please wait while we set up your game.",
             color=0xFF3366
         )
