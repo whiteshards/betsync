@@ -214,13 +214,12 @@ class DepositView(discord.ui.View):
             status, details = await self.cog._check_for_deposits(self.user_id, self.address)
 
             if status == "success":
-                # Handle both single and multiple deposits
-                deposits = details.get('deposits', [details])  # Support both formats
-                total_ltc = sum(d['amount_crypto'] for d in deposits)
+                # Handle multiple deposits from the new format
+                deposits = details.get('deposits', [])
+                total_ltc = details.get('total_amount_crypto', 0)
+                total_points = details.get('total_points_credited', 0)
+                deposit_count = details.get('count', len(deposits))
                 
-                # LTC deposits go directly to wallet.LTC - no additional balance updates needed here
-                # The _check_for_deposits method already handled the wallet update
-
                 # Update embed
                 if not self.message:
                     await interaction.followup.send("Error: Could not find the original deposit message to update.", ephemeral=True)
@@ -228,13 +227,13 @@ class DepositView(discord.ui.View):
 
                 main_embed = self.message.embeds[0]
                 main_embed.title = "<:yes:1355501647538815106> | Deposit Success"
-                total_points = sum(d.get('points_credited', 0) for d in deposits)
-                main_embed.description = f"<:ltc:1339343445675868191> **+{total_ltc:,.8f} LTC** (+{total_points:,.2f} points) from {len(deposits)} transaction(s)"
+                main_embed.description = f"<:ltc:1339343445675868191> **+{total_ltc:,.8f} LTC** (+{total_points:,.2f} points) from {deposit_count} transaction(s)"
                 main_embed.clear_fields()
                 main_embed.set_image(url=None)  # Remove QR code image
 
-                # Show each transaction
-                for i, deposit in enumerate(deposits, 1):
+                # Show each transaction (limit to 5 for embed space)
+                display_deposits = deposits[:5]
+                for i, deposit in enumerate(display_deposits, 1):
                     txid = deposit['txid']
                     txid_short = txid[:10] + '...' if len(txid) > 10 else txid
                     explorer_url = f"https://litecoinspace.org/tx/{txid}"
@@ -243,6 +242,13 @@ class DepositView(discord.ui.View):
                     main_embed.add_field(
                         name=f"Transaction #{i}",
                         value=f"Amount: {deposit['amount_crypto']:,.8f} LTC\nTXID: {tx_value}",
+                        inline=False
+                    )
+                
+                if len(deposits) > 5:
+                    main_embed.add_field(
+                        name="+ More Transactions",
+                        value=f"And {len(deposits) - 5} more transactions processed successfully.",
                         inline=False
                     )
 
@@ -691,23 +697,59 @@ class LtcDeposit(commands.Cog):
                         webhook_url=DEPOSIT_WEBHOOK_URL
                     ))
 
-                processed_txids.add(txid) # Mark as processed for this check cycle
-                new_deposit_processed_in_this_check = True
-                print(f"{Fore.GREEN}[+] Processed LTC deposit for user {user_id}: {amount_crypto} LTC (direct wallet deposit), TXID: {txid}{Style.RESET_ALL}")
-
-                # Return success details for the *first* successful deposit found in this check
-                # Include points_credited for the success embed
-                return "success", {
-                    "amount_crypto": amount_crypto,
-                    "points_credited": points_to_add,
-                    "txid": txid
-                }
+                # Continue processing more transactions instead of returning immediately
 
             # --- Loop finished ---
             if new_deposit_processed_in_this_check:
-                 # Should have returned success earlier, this indicates an issue
-                 print(f"{Fore.YELLOW}[!] Check deposit loop finished unexpectedly after processing a deposit for user {user_id}.{Style.RESET_ALL}")
-                 return "error", {"error": "Internal processing error after deposit."}
+                # Get updated user data to show accurate totals
+                updated_user_data = self.users_db.fetch_user(user_id)
+                if not updated_user_data:
+                    return "error", {"error": "Could not fetch updated user data after processing."}
+                
+                # Calculate total deposits processed in this check
+                processed_deposits = []
+                total_ltc_credited = 0
+                total_points_credited = 0
+                
+                # Get all processed transactions from this check
+                for tx in transactions:
+                    txid = tx.get('txid')
+                    if not txid or txid not in processed_txids:
+                        continue
+                        
+                    # Check if this txid was processed in this session
+                    status = tx.get('status', {})
+                    confirmed = status.get('confirmed', False)
+                    if not confirmed:
+                        continue
+                        
+                    # Calculate amount for this transaction
+                    amount_received_satoshi = 0
+                    for vout in tx.get('vout', []):
+                        if vout.get('scriptpubkey_address') == address:
+                            amount_received_satoshi += vout.get('value', 0)
+                    
+                    if amount_received_satoshi > 0:
+                        amount_crypto = round(amount_received_satoshi / LTC_SATOSHIS, 8)
+                        points_credited = amount_crypto / LTC_CONVERSION_RATE
+                        
+                        processed_deposits.append({
+                            "txid": txid,
+                            "amount_crypto": amount_crypto,
+                            "points_credited": points_credited
+                        })
+                        total_ltc_credited += amount_crypto
+                        total_points_credited += points_credited
+                
+                if processed_deposits:
+                    return "success", {
+                        "deposits": processed_deposits,
+                        "total_amount_crypto": total_ltc_credited,
+                        "total_points_credited": total_points_credited,
+                        "count": len(processed_deposits)
+                    }
+                else:
+                    return "error", {"error": "Deposits were processed but could not calculate totals."}
             elif first_pending_tx:
                  # No fully confirmed deposits, but found pending ones
                  return "pending", first_pending_tx
