@@ -418,35 +418,6 @@ class BlackjackView(discord.ui.View):
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
 
-    async def tile_callback(self, interaction):
-        """Handle clicks on tile buttons"""
-        if interaction.user.id != self.ctx.author.id:
-            return await interaction.response.send_message("This is not your game!", ephemeral=True)
-
-        # Defer the response to prevent interaction timeout
-        await interaction.response.defer()
-
-        # Extract the tile index from the button's custom_id
-        tile_index = int(interaction.data["custom_id"].split('_')[1])
-
-        # Check for curse before normal game logic
-        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-        forced_loss = False
-
-        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id):
-            # Force loss when player draws any card after initial deal
-            if len(self.player_cards) > 2:  # After hitting at least once
-                forced_loss = True
-                # Force a bust by making next card push over 21
-                self.player_cards.append(('K', 'spades'))  # Force a 10-value card
-
-                # Consume curse and send webhook
-                curse_cog.consume_curse(self.ctx.author.id)
-                await self.cog.send_curse_webhook(self.ctx.author, "blackjack", self.bet_amount, 0)
-
-        # Check if the tile has a diamond (original logic)
-        if not forced_loss and self.tower_layout[self.current_level][tile_index]:
-
 class Blackjack(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
