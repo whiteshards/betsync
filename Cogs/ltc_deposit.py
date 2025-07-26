@@ -640,6 +640,9 @@ class LtcDeposit(commands.Cog):
                      continue # Skip this transaction - already processed
                 print(f"{Fore.GREEN}[+] Updated wallet.LTC for user {user_id} by {amount_crypto:.8f} LTC and added {points_to_add:.2f} points for txid {txid}{Style.RESET_ALL}")
 
+                # Mark that we processed a new deposit in this check
+                new_deposit_processed_in_this_check = True
+
                 # 2. Increment total deposit amount (USD value for stats tracking)
                 ltc_price = await get_crypto_price('litecoin')
                 usd_value = amount_crypto * ltc_price if ltc_price else 0
@@ -706,21 +709,19 @@ class LtcDeposit(commands.Cog):
                 if not updated_user_data:
                     return "error", {"error": "Could not fetch updated user data after processing."}
                 
+                # Get the newly processed txids (those that are now in processed_ltc_txids but weren't before)
+                current_processed_txids = set(updated_user_data.get('processed_ltc_txids', []))
+                newly_processed_txids = current_processed_txids - processed_txids
+                
                 # Calculate total deposits processed in this check
                 processed_deposits = []
                 total_ltc_credited = 0
                 total_points_credited = 0
                 
-                # Get all processed transactions from this check
+                # Get all transactions that were newly processed in this check
                 for tx in transactions:
                     txid = tx.get('txid')
-                    if not txid or txid not in processed_txids:
-                        continue
-                        
-                    # Check if this txid was processed in this session
-                    status = tx.get('status', {})
-                    confirmed = status.get('confirmed', False)
-                    if not confirmed:
+                    if not txid or txid not in newly_processed_txids:
                         continue
                         
                     # Calculate amount for this transaction
