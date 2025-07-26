@@ -88,7 +88,8 @@ class CoinflipCog(commands.Cog):
                 description=(
                     "**Coinflip** is a game where you bet on the outcome of a coin toss.\n\n"
                     "**Usage:** `!coinflip <amount> [heads/tails]`\n"
-                    "**Example:** `!coinflip 100` or `!coinflip 100 heads`\n\n"
+                    "**Example:** `!coinflip 100` or `!coinflip half heads`\n"
+                    "**Special amounts:** `all`, `half`\n\n"
                     "- **If you don't specify heads or tails, one will be chosen randomly**\n"
                     "- **If you win, you receive 1.90x your bet!**\n"
                     "- **If you lose, you lose your bet**\n"

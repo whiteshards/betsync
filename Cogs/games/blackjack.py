@@ -535,9 +535,9 @@ class Blackjack(commands.Cog):
             # Import the currency helper
             from Cogs.utils.currency_helper import process_bet_amount
 
-            # Handle "all" and "max" bet amounts
+            # Handle "all", "max", and "half" bet amounts
             db = Users()
-            if bet_amount.lower() in ["all", "max"]:
+            if bet_amount.lower() in ["all", "max", "half"]:
                 user_data = db.fetch_user(ctx.author.id)
                 if user_data == False:
                     await loading_message.delete()
@@ -558,7 +558,19 @@ class Blackjack(commands.Cog):
                     )
                     return await ctx.reply(embed=embed)
                 
-                bet_amount = str(available_balance)
+                if bet_amount.lower() == "half":
+                    bet_amount_value = available_balance // 2
+                    if bet_amount_value <= 0:
+                        await loading_message.delete()
+                        embed = discord.Embed(
+                            title="<:no:1344252518305234987> | Insufficient Balance",
+                            description="You need at least 2 points to bet half your balance.",
+                            color=0xFF0000
+                        )
+                        return await ctx.reply(embed=embed)
+                    bet_amount = str(bet_amount_value)
+                else:
+                    bet_amount = str(available_balance)
 
             # Process the bet amount using the currency helper
             success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, loading_message)

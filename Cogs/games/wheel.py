@@ -238,8 +238,8 @@ class WheelCog(commands.Cog):
         if spins > 1:
             # First validate the base bet amount
             try:
-                if bet_amount.lower() in ["all", "max"]:
-                    # For "all", divide by spins to get per-spin amount, then multiply back
+                if bet_amount.lower() in ["all", "max", "half"]:
+                    # For "all", "half", divide by spins to get per-spin amount, then multiply back
                     user_data = db.fetch_user(ctx.author.id)
                     if user_data == False:
                         await loading_message.delete()
@@ -251,6 +251,9 @@ class WheelCog(commands.Cog):
                         return await ctx.reply(embed=embed)
                     
                     available_balance = user_data.get("points", 0)
+                    if bet_amount.lower() == "half":
+                        available_balance = available_balance // 2  # Use half of balance
+                    
                     bet_amount_value = available_balance // spins  # Per spin amount
                     total_bet_needed = bet_amount_value * spins
                     

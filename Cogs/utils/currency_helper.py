@@ -44,33 +44,53 @@ async def process_bet_amount(ctx, bet_amount, loading_message=None, user=None):
 
     # Process bet amount and determine value
     try:
-        # Handle all/max bet amount
-        if isinstance(bet_amount, str) and bet_amount.lower() in ["all", "max"]:
-            if tokens_balance <= 0:
+        # Handle special bet amounts
+        if bet_amount.lower() in ["all", "max"]:
+            # Use all available balance
+            available_balance = user_data.get("points", 0)
+            if available_balance <= 0:
                 error_embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Insufficient Points",
-                    description=f"{user.mention} doesn't have any points to bet.",
+                    title="<:no:1344252518305234987> | Insufficient Balance",
+                    description="You don't have enough points to bet.",
                     color=0xFF0000
                 )
                 return False, None, error_embed
-            bet_amount_value = tokens_balance
-        else:
-            # Convert bet amount to a float
-            bet_amount_value = float(bet_amount)
 
-            # Validate bet amount is positive and at least 1
+            bet_amount_value = available_balance
+        elif bet_amount.lower() == "half":
+            # Use half of available balance
+            available_balance = user_data.get("points", 0)
+            if available_balance <= 0:
+                error_embed = discord.Embed(
+                    title="<:no:1344252518305234987> | Insufficient Balance",
+                    description="You don't have enough points to bet.",
+                    color=0xFF0000
+                )
+                return False, None, error_embed
+
+            bet_amount_value = available_balance // 2  # Use integer division to avoid decimals
             if bet_amount_value <= 0:
                 error_embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Invalid Amount",
-                    description="Bet amount must be greater than 0.",
+                    title="<:no:1344252518305234987> | Insufficient Balance",
+                    description="You need at least 2 points to bet half your balance.",
                     color=0xFF0000
                 )
                 return False, None, error_embed
-
-            if bet_amount_value < 1:
+        else:
+            # Try to parse as number
+            try:
+                bet_amount_value = float(bet_amount)
+                if bet_amount_value <= 0:
+                    error_embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Invalid Amount",
+                        description="Bet amount must be greater than 0.",
+                        color=0xFF0000
+                    )
+                    return False, None, error_embed
+            except ValueError:
                 error_embed = discord.Embed(
-                    title="<:no:1344252518305234987> | Minimum Bet Required",
-                    description="Minimum bet amount is 1 point.",
+                    title="<:no:1344252518305234987> | Invalid Amount",
+                    description="Please enter a valid number, 'all', or 'half'.",
                     color=0xFF0000
                 )
                 return False, None, error_embed

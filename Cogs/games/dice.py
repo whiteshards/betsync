@@ -79,7 +79,8 @@ class DiceCog(commands.Cog):
                 description=(
                     "**Dice** is a game where you roll against the dealer. Higher number wins!\n\n"
                     "**Usage:** `!dicegame <amount>`\n"
-                    "**Example:** `!dicegame 100`\n\n"
+                    "**Example:** `!dicegame 100` or `!dicegame half`\n"
+                    "**Special amounts:** `all`, `half`\n\n"
                     "- **You and the dealer each roll a dice (1-6)**\n"
                     "- **If your number is higher, you win!**\n"
                     "- **If there's a tie or dealer wins, you lose your bet**\n"
