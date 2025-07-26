@@ -74,7 +74,15 @@ class Profile(commands.Cog):
         # Get user statistics
         total_deposits_usd = user_data.get('total_deposit_amount_usd', 0)
         total_deposits = user_data.get('total_deposit_amount', 0)
-        total_withdrawals = user_data.get('total_withdraw_amount', 0)
+        
+        # Calculate total withdrawals from history
+        history = user_data.get('history', [])
+        total_withdrawals = 0
+        for entry in history:
+            if entry and entry.get('type') in ['btc_withdraw', 'ltc_withdraw', 'eth_withdraw', 'usdt_withdraw', 'sol_withdraw']:
+                withdrawal_amount = entry.get('points_deducted', entry.get('amount', 0))
+                total_withdrawals += withdrawal_amount
+        
         games_played = user_data.get('total_played', 0)
         games_won = user_data.get('total_won', 0)
         games_lost = user_data.get('total_lost', 0)
@@ -95,9 +103,12 @@ class Profile(commands.Cog):
             color=0x00FFAE
         )
 
-        # Set user avatar as thumbnail
+        # Set user avatar as thumbnail (handle cases where user has no avatar)
         if user.avatar:
             embed.set_thumbnail(url=user.avatar.url)
+        else:
+            # Use default Discord avatar or bot's avatar as fallback
+            embed.set_thumbnail(url=user.default_avatar.url)
 
         # Create XP progress bar
         xp_progress = self.create_progress_bar(current_xp, xp_limit, length=10)
