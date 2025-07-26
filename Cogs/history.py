@@ -143,24 +143,36 @@ class HistoryView(discord.ui.View):
                     # Handle all deposit types (btc_deposit, ltc_deposit, etc.)
                     currency = item.get("currency", "")
                     crypto_amount = item.get("amount_crypto", 0)
-                    points_credited = item.get("points_credited", amount)
-                    if currency and crypto_amount:
+                    # Try multiple fields for points credited
+                    points_credited = item.get("points_credited") or item.get("points") or item.get("amount", 0)
+                    
+                    if currency and crypto_amount > 0:
                         field_name = f"💰 {currency} Deposit • {date_str}"
-                        field_value = f"Deposited **{crypto_amount:,.8f} {currency}** • Received **{points_credited:,.2f} points**"
+                        if points_credited > 0:
+                            field_value = f"Deposited **{crypto_amount:,.8f} {currency}** • Received **{points_credited:,.2f} points**"
+                        else:
+                            field_value = f"Deposited **{crypto_amount:,.8f} {currency}**"
                     else:
                         field_name = f"💰 Deposit • {date_str}"
-                        field_value = f"Received **{points_credited:,.2f} points**"
+                        points_to_show = points_credited if points_credited > 0 else amount
+                        field_value = f"Received **{points_to_show:,.2f} points**"
                 elif transaction_type.endswith("_withdraw") or transaction_type == "withdraw":
                     # Handle all withdrawal types (btc_withdraw, ltc_withdraw, etc.)
                     currency = item.get("currency", "")
                     crypto_amount = item.get("amount_crypto", 0)
-                    points_cost = item.get("points_cost", amount)
-                    if currency and crypto_amount:
+                    # Try multiple fields for points cost
+                    points_cost = item.get("points_cost") or item.get("points") or item.get("amount", 0)
+                    
+                    if currency and crypto_amount > 0:
                         field_name = f"💸 {currency} Withdrawal • {date_str}"
-                        field_value = f"Withdrew **{crypto_amount:,.8f} {currency}** • Cost **{points_cost:,.2f} points**"
+                        if points_cost > 0:
+                            field_value = f"Withdrew **{crypto_amount:,.8f} {currency}** • Cost **{points_cost:,.2f} points**"
+                        else:
+                            field_value = f"Withdrew **{crypto_amount:,.8f} {currency}**"
                     else:
                         field_name = f"💸 Withdrawal • {date_str}"
-                        field_value = f"Withdrew **{points_cost:,.2f} points**"
+                        points_to_show = points_cost if points_cost > 0 else amount
+                        field_value = f"Withdrew **{points_to_show:,.2f} points**"
                 elif transaction_type == "win":
                     game_name = item.get("game", "Game").title()
                     bet_amount = item.get("bet", 0)
