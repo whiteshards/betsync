@@ -112,15 +112,15 @@ class WheelCog(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
         
-        # Define color multipliers with proper house edge (casino-favorable)
+        # Define color multipliers with better win chances for players
         self.colors = {
-            "gray": {"emoji": "⚫", "multiplier": 0, "chance": 65, "name": "BUST"},
-            "yellow": {"emoji": "🟡", "multiplier": 1.5, "chance": 20, "name": "BRONZE"},
-            "red": {"emoji": "🔴", "multiplier": 2.5, "chance": 8, "name": "SILVER"},
-            "blue": {"emoji": "🔵", "multiplier": 4.0, "chance": 4, "name": "GOLD"},
-            "green": {"emoji": "🟢", "multiplier": 8.0, "chance": 2, "name": "DIAMOND"},
-            "purple": {"emoji": "🟣", "multiplier": 15.0, "chance": 0.8, "name": "RUBY"},
-            "orange": {"emoji": "🟠", "multiplier": 25.0, "chance": 0.2, "name": "LEGENDARY"}
+            "gray": {"emoji": "⚫", "multiplier": 0, "chance": 58, "name": "BUST"},
+            "yellow": {"emoji": "🟡", "multiplier": 1.5, "chance": 25, "name": "BRONZE"},
+            "red": {"emoji": "🔴", "multiplier": 2.5, "chance": 10, "name": "SILVER"},
+            "blue": {"emoji": "🔵", "multiplier": 4.0, "chance": 5, "name": "GOLD"},
+            "green": {"emoji": "🟢", "multiplier": 8.0, "chance": 1.5, "name": "DIAMOND"},
+            "purple": {"emoji": "🟣", "multiplier": 15.0, "chance": 0.4, "name": "RUBY"},
+            "orange": {"emoji": "🟠", "multiplier": 25.0, "chance": 0.1, "name": "LEGENDARY"}
         }
         # Calculate total chance (now uses weighted system for better precision)
         self.total_chance = 1000  # Using 1000 for precise decimal chances
@@ -325,8 +325,8 @@ class WheelCog(commands.Cog):
         if game_id in self.ongoing_games:
             del self.ongoing_games[game_id]
 
-        # Calculate results for all spins with improved house edge (15%)
-        house_edge = 0.15  # 15% house edge for better player experience
+        # Calculate results for all spins with improved house edge (8%)
+        house_edge = 0.08  # 8% house edge for better player experience
 
         # Store results for all spins
         spin_results = []
