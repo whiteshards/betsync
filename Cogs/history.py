@@ -49,6 +49,12 @@ class HistoryView(discord.ui.View):
         """Get filtered history based on the selected category"""
         if self.category == "all":
             filtered = self.history_data
+        elif self.category == "deposit":
+            # Handle all deposit types (btc_deposit, ltc_deposit, eth_deposit, etc.)
+            filtered = [item for item in self.history_data if item.get("type", "").endswith("_deposit") or item.get("type") == "deposit"]
+        elif self.category == "withdraw":
+            # Handle all withdrawal types (btc_withdraw, ltc_withdraw, etc.)
+            filtered = [item for item in self.history_data if item.get("type", "").endswith("_withdraw") or item.get("type") == "withdraw"]
         elif self.category == "push":
             # Handle both "push" and "draw" types for pushes
             filtered = [item for item in self.history_data if item.get("type") in ["push", "draw"]]
@@ -133,12 +139,28 @@ class HistoryView(discord.ui.View):
                 # Format field name and value based on transaction type
                 transaction_type = item.get("type", "unknown")
                 
-                if transaction_type == "deposit":
-                    field_name = f"💰 Deposit • {date_str}"
-                    field_value = f"Received **{amount:,.2f} points**"
-                elif transaction_type == "withdraw":
-                    field_name = f"💸 Withdrawal • {date_str}"
-                    field_value = f"Withdrew **{amount:,.2f} points**"
+                if transaction_type.endswith("_deposit") or transaction_type == "deposit":
+                    # Handle all deposit types (btc_deposit, ltc_deposit, etc.)
+                    currency = item.get("currency", "")
+                    crypto_amount = item.get("amount_crypto", 0)
+                    points_credited = item.get("points_credited", amount)
+                    if currency and crypto_amount:
+                        field_name = f"💰 {currency} Deposit • {date_str}"
+                        field_value = f"Deposited **{crypto_amount:,.8f} {currency}** • Received **{points_credited:,.2f} points**"
+                    else:
+                        field_name = f"💰 Deposit • {date_str}"
+                        field_value = f"Received **{points_credited:,.2f} points**"
+                elif transaction_type.endswith("_withdraw") or transaction_type == "withdraw":
+                    # Handle all withdrawal types (btc_withdraw, ltc_withdraw, etc.)
+                    currency = item.get("currency", "")
+                    crypto_amount = item.get("amount_crypto", 0)
+                    points_cost = item.get("points_cost", amount)
+                    if currency and crypto_amount:
+                        field_name = f"💸 {currency} Withdrawal • {date_str}"
+                        field_value = f"Withdrew **{crypto_amount:,.8f} {currency}** • Cost **{points_cost:,.2f} points**"
+                    else:
+                        field_name = f"💸 Withdrawal • {date_str}"
+                        field_value = f"Withdrew **{points_cost:,.2f} points**"
                 elif transaction_type == "win":
                     game_name = item.get("game", "Game").title()
                     bet_amount = item.get("bet", 0)
