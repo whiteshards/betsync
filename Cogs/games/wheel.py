@@ -462,108 +462,22 @@ class WheelCog(commands.Cog):
                 inline=False
             )
 
-        # Add overall result field with winnings
+        # Always credit individual wins regardless of net result
+        db = Users()
+        if total_winnings > 0:
+            # Credit the total winnings
+            db.update_balance(ctx.author.id, total_winnings, "credits", "$inc")
+
+        # Add overall result field
         if total_winnings > 0:
             embed.add_field(
                 name=f"🏆 Final Results",
                 value=(
                     f"**💰 Total Winnings:** {total_winnings:.2f} points\n"
-                    f"**⚡ Multiplier:** {total_winnings/total_bet_amount:.2f}x"
+                    f"**⚡ Net Multiplier:** {total_winnings/total_bet_amount:.2f}x"
                 ),
                 inline=False
             )
-
-            # Update user's balance with winnings
-            db = Users()
-            db.update_balance(ctx.author.id, total_winnings, "credits", "$inc")
-
-            # Process stats and history
-            server_db = Servers()
-            server_data = server_db.fetch_server(ctx.guild.id) if ctx.guild else None
-
-            # Track wins and losses for stats
-            wins_count = 0
-            losses_count = 0
-            house_profit = 0
-
-            # History entries for batch update
-            history_entries = []
-            server_history_entries = []
-
-            for i, result in enumerate(spin_results):
-                # Process individual spin history
-                if result["multiplier"] > 0:
-                    # This spin was a win
-                    wins_count += 1
-                    history_entry = {
-                        "type": "win",
-                        "game": "wheel",
-                        "bet": bet_total,
-                        "amount": result["winnings"],
-                        "multiplier": result.get("actual_multiplier", result["multiplier"]),
-                        "timestamp": int(time.time()) + i
-                    }
-
-                    if server_data:
-                        server_bet_history_entry = {
-                            "type": "win",
-                            "game": "wheel",
-                            "user_id": ctx.author.id,
-                            "user_name": ctx.author.name,
-                            "bet": bet_total,
-                            "amount": result["winnings"],
-                            "multiplier": result.get("actual_multiplier", result["multiplier"]),
-                            "timestamp": int(time.time()) + i
-                        }
-                        server_history_entries.append(server_bet_history_entry)
-                        house_profit += bet_total - result["winnings"]
-                else:
-                    # This spin was a loss
-                    losses_count += 1
-                    history_entry = {
-                        "type": "loss",
-                        "game": "wheel",
-                        "bet": bet_total,
-                        "amount": bet_total,
-                        "multiplier": result.get("actual_multiplier", result["multiplier"]),
-                        "timestamp": int(time.time()) + i
-                    }
-
-                    if server_data:
-                        server_bet_history_entry = {
-                            "type": "loss",
-                            "game": "wheel",
-                            "user_id": ctx.author.id,
-                            "user_name": ctx.author.name,
-                            "bet": bet_total,
-                            "amount": bet_total,
-                            "multiplier": result.get("actual_multiplier", result["multiplier"]),
-                            "timestamp": int(time.time()) + i
-                        }
-                        server_history_entries.append(server_bet_history_entry)
-                        house_profit += bet_total
-
-                history_entries.append(history_entry)
-
-            # Update user's stats with all spins
-            db.collection.update_one(
-                {"discord_id": ctx.author.id},
-                {
-                    "$push": {"history": {"$each": history_entries, "$slice": -100}},
-                    "$inc": {
-                        "total_played": spins,
-                        "total_won": wins_count,
-                        "total_lost": losses_count,
-                        "total_earned": total_winnings,
-                        "total_spent": total_bet_amount - total_winnings if total_winnings < total_bet_amount else 0
-                    }
-                }
-            )
-
-            # Update server data with all spins
-            if server_data and server_history_entries:
-                server_db.update_server_profit(ctx, ctx.guild.id, house_profit, game="wheel")
-
         else:
             # Complete loss (all bust)
             embed.add_field(
@@ -574,6 +488,93 @@ class WheelCog(commands.Cog):
                 ),
                 inline=False
             )
+
+        # Process stats and history (always process, regardless of net result)
+        server_db = Servers()
+        server_data = server_db.fetch_server(ctx.guild.id) if ctx.guild else None
+
+        # Track wins and losses for stats
+        wins_count = 0
+        losses_count = 0
+        house_profit = 0
+
+        # History entries for batch update
+        history_entries = []
+        server_history_entries = []
+
+        for i, result in enumerate(spin_results):
+            # Process individual spin history
+            if result["multiplier"] > 0:
+                # This spin was a win
+                wins_count += 1
+                history_entry = {
+                    "type": "win",
+                    "game": "wheel",
+                    "bet": bet_total,
+                    "amount": result["winnings"],
+                    "multiplier": result.get("actual_multiplier", result["multiplier"]),
+                    "timestamp": int(time.time()) + i
+                }
+
+                if server_data:
+                    server_bet_history_entry = {
+                        "type": "win",
+                        "game": "wheel",
+                        "user_id": ctx.author.id,
+                        "user_name": ctx.author.name,
+                        "bet": bet_total,
+                        "amount": result["winnings"],
+                        "multiplier": result.get("actual_multiplier", result["multiplier"]),
+                        "timestamp": int(time.time()) + i
+                    }
+                    server_history_entries.append(server_bet_history_entry)
+                    house_profit += bet_total - result["winnings"]
+            else:
+                # This spin was a loss
+                losses_count += 1
+                history_entry = {
+                    "type": "loss",
+                    "game": "wheel",
+                    "bet": bet_total,
+                    "amount": bet_total,
+                    "multiplier": result.get("actual_multiplier", result["multiplier"]),
+                    "timestamp": int(time.time()) + i
+                }
+
+                if server_data:
+                    server_bet_history_entry = {
+                        "type": "loss",
+                        "game": "wheel",
+                        "user_id": ctx.author.id,
+                        "user_name": ctx.author.name,
+                        "bet": bet_total,
+                        "amount": bet_total,
+                        "multiplier": result.get("actual_multiplier", result["multiplier"]),
+                        "timestamp": int(time.time()) + i
+                    }
+                    server_history_entries.append(server_bet_history_entry)
+                    house_profit += bet_total
+
+            history_entries.append(history_entry)
+
+        # Update user's stats with all spins
+        db.collection.update_one(
+            {"discord_id": ctx.author.id},
+            {
+                "$push": {"history": {"$each": history_entries, "$slice": -100}},
+                "$inc": {
+                    "total_played": spins,
+                    "total_won": wins_count,
+                    "total_lost": losses_count,
+                    "total_earned": total_winnings,
+                    "total_spent": total_bet_amount - total_winnings if total_winnings < total_bet_amount else 0
+                }
+            }
+        )
+
+        # Update server data with all spins
+        if server_data and server_history_entries:
+            server_db.update_server_profit(ctx, ctx.guild.id, house_profit, game="wheel")
 
         embed.set_thumbnail(url="https://cdn.discordapp.com/emojis/1345317103158431805.png")
         embed.set_footer(text="🎰 BetSync Casino • Instant action awaits!", icon_url=self.bot.user.avatar.url)
