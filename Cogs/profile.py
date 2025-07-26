@@ -84,18 +84,63 @@ class Profile(commands.Cog):
         # Create XP progress bar
         xp_progress = self.create_progress_bar(current_xp, xp_limit, length=15)
 
-        # Add core profile info
-        # Get total deposits in USD
+        # Get user statistics
         total_deposits_usd = user_data.get('total_deposit_amount_usd', 0)
+        total_deposits = user_data.get('total_deposit_amount', 0)
+        total_withdrawals = user_data.get('total_withdraw_amount', 0)
+        games_played = user_data.get('total_played', 0)
+        games_won = user_data.get('total_won', 0)
+        games_lost = user_data.get('total_lost', 0)
+        total_earned = user_data.get('total_earned', 0)
+        total_spent = user_data.get('total_spent', 0)
+        current_balance = user_data.get('points', 0)
+        primary_coin = user_data.get('primary_coin', 'BTC')
         
+        # Calculate win rate
+        win_rate = (games_won / games_played * 100) if games_played > 0 else 0
+        
+        # Add comprehensive stats
         embed.add_field(
-            name="Stats",
+            name=":information_source: | Basic Info",
             value=(
-                f"**Rank:** {user_data.get('rank', 0)}\n"
+                f"**Rank:** #{user_data.get('rank', 0)}\n"
                 f"**Level:** {current_level}\n"
                 f"**Title:** {title}\n"
-                f"**Total Deposits:** ${total_deposits_usd:,.2f} USD\n\n"
-                f"**XP Progress {current_xp}/{xp_limit}**\n```{xp_progress}```"
+                f"**Primary Currency:** {primary_coin}\n"
+                f"**Current Balance:** {current_balance:,.2f} points"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name=":moneybag: | Financial Stats",
+            value=(
+                f"**Total Deposits:** {total_deposits:,.2f} points\n"
+                f"**Deposits (USD):** ${total_deposits_usd:,.2f}\n"
+                f"**Total Withdrawals:** {total_withdrawals:,.2f} points\n"
+                f"**Total Wagered:** {total_spent:,.2f} points\n"
+                f"**Total Earned:** {total_earned:,.2f} points"
+            ),
+            inline=True
+        )
+        
+        embed.add_field(
+            name=":video_game: | Gaming Stats",
+            value=(
+                f"**Games Played:** {games_played:,}\n"
+                f"**Games Won:** {games_won:,}\n"
+                f"**Games Lost:** {games_lost:,}\n"
+                f"**Win Rate:** {win_rate:.1f}%\n"
+                f"**Net Profit:** {total_earned - total_spent:+,.2f} points"
+            ),
+            inline=True
+        )
+        
+        embed.add_field(
+            name=":star: | Experience Progress",
+            value=(
+                f"**XP:** {current_xp}/{xp_limit}\n"
+                f"```{xp_progress}```"
             ),
             inline=False
         )
