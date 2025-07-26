@@ -59,36 +59,6 @@ class CasesPlayAgainView(discord.ui.View):
 class CasesCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ongoing_games = {}
-
-    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
-        """Send curse trigger notification to webhook"""
-        import os
-        import aiohttp
-        import time
-
-        webhook_url = os.environ.get("LOSE_WEBHOOK")
-        if not webhook_url:
-            return
-
-        try:
-            embed = {
-                "title": "🎯 Curse Triggered",
-                "description": f"A cursed player has been forced to lose",
-                "color": 0x8B0000,
-                "fields": [
-                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
-                    {"name": "Game", "value": game.capitalize(), "inline": True},
-                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
-                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
-                ],
-                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
-            }
-
-            async with aiohttp.ClientSession() as session:
-                await session.post(webhook_url, json={"embeds": [embed]})
-        except Exception as e:
-            print(f"Error sending curse webhook: {e}")
         # Define case multipliers and their chances based on provided image
         self.multipliers = [
             {"value": 23.0, "chance": 0.01, "emoji": "💎", "name": "LEGENDARY", "color": (255, 215, 0)},
@@ -392,43 +362,18 @@ class CasesCog(commands.Cog):
 
     def get_case_result(self):
         """Determines the result of opening a case."""
+        random_value = random.random()
+        cumulative_prob = 0
+        selected_multiplier = None
 
-        # Check for curse before determining outcome
-        curse_cog = self.bot.get_cog('AdminCurseCog')
-        force_loss = False
+        for multiplier in self.multipliers:
+            cumulative_prob += multiplier["chance"]
+            if random_value <= cumulative_prob:
+                selected_multiplier = multiplier
+                break
 
-        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
-            force_loss = True
-            curse_cog.consume_curse(ctx.author.id)
-
-            # Send curse webhook
-            await self.send_curse_webhook(ctx.author, "cases", bet_amount, 0)
-
-        if force_loss:
-            # Force a losing outcome (multiplier < 1.0)
-            losing_outcomes = {k: v for k, v in self.multipliers.items() if float(k) < 1.0}
-            if losing_outcomes:
-                selected_multiplier = random.choices(
-                    list(losing_outcomes.keys()),
-                    weights=list(losing_outcomes.values()),
-                    k=1
-                )[0]
-            else:
-                # If no losing outcomes, pick the lowest multiplier
-                selected_multiplier = min(self.multipliers.keys(), key=float)
-        else:
-            random_value = random.random()
-            cumulative_prob = 0
-            selected_multiplier = None
-
-            for multiplier in self.multipliers:
-                cumulative_prob += multiplier["chance"]
-                if random_value <= cumulative_prob:
-                    selected_multiplier = multiplier
-                    break
-
-            if not selected_multiplier:  # Fallback in case of floating-point issues
-                selected_multiplier = self.multipliers[-1]
+        if not selected_multiplier:  # Fallback in case of floating-point issues
+            selected_multiplier = self.multipliers[-1]
         return {"multiplier": selected_multiplier}
 
 
@@ -485,7 +430,7 @@ class CasesCog(commands.Cog):
         # Determine which currency was primarily used for display purposes
         currency_used ="points"
 
-
+        
         currency_display = f"`{bet_amount_value} {currency_used}`"
 
         loading_embed.description = f"Opening case for {currency_display}..."
@@ -494,16 +439,6 @@ class CasesCog(commands.Cog):
         # Generate the case result
         case_result = self.get_case_result()
         selected_multiplier = case_result["multiplier"]
-        # Check for curse before determining outcome
-        curse_cog = self.bot.get_cog('AdminCurseCog')
-        force_loss = False
-
-        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
-            force_loss = True
-            curse_cog.consume_curse(ctx.author.id)
-
-            # Send curse webhook
-            await self.send_curse_webhook(ctx.author, "cases", bet_amount_value, selected_multiplier["value"])
 
         # Calculate winnings (paid in credits)
         win_amount = bet_amount_value * selected_multiplier["value"]
@@ -528,7 +463,7 @@ class CasesCog(commands.Cog):
 
 
 
-
+        
 
         db = Users() #reinstantiate db
         #db.update_history(ctx.author.id, history_entry)
