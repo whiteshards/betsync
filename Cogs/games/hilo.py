@@ -32,7 +32,7 @@ class PlayAgainView(discord.ui.View):
         # Disable the button to prevent spam clicks
         for item in self.children:
             item.disabled = True
-        
+
         try:
             await interaction.message.edit(view=self)
         except discord.errors.NotFound:
@@ -615,7 +615,7 @@ class HiLoView(discord.ui.View):
         low_probability = self.calculate_probability("low")
         low_multiplier = self.calculate_multiplier(low_probability)
         self.low_profit = self.current_winnings * low_multiplier
-    
+
     async def send_curse_webhook(self, user, game, bet_amount, multiplier):
         """Sends a message to the curse webhook."""
         webhook_url = os.getenv("LOSE_WEBHOOK")
@@ -778,7 +778,8 @@ class HiLo(commands.Cog):
             profit_font_large = ImageFont.truetype("arial.ttf", 18)
         except Exception:
             # Fallback to default/provided font if arial.ttf can't be loaded
-            profit_font_small = font
+            ```python
+profit_font_small = font
             profit_font_large = font
 
         # Higher profit section
