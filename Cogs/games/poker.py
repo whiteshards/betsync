@@ -633,6 +633,9 @@ class Poker(commands.Cog):
         # Calculate winnings
         winnings = bet_amount * multiplier if multiplier > 0 else 0
 
+        # Get winning cards for highlighting
+        winning_cards = self.get_winning_cards(final_cards, hand_type)
+
         # Generate final game image
         image_bytes = await self.generate_game_image(
             final_cards, 
