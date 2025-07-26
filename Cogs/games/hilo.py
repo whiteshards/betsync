@@ -599,7 +599,7 @@ class HiLoView(discord.ui.View):
 
     def calculate_multiplier(self, probability):
         """Calculate round multiplier based on probability"""
-        house_edge = 0.18  # 18% house edge
+        house_edge = 0.10  # 10% house edge
         if probability <= 0:
             return 1.0  # Safety check
         return (1.0 - house_edge) / probability

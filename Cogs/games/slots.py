@@ -159,8 +159,8 @@ class SlotsCog(commands.Cog):
                 winning_combinations.append(win)
                 winning_positions.update(win_positions)
 
-        # Apply stronger house edge (20% reduction)
-        house_edge = 0.80
+        # Apply house edge (10% reduction)
+        house_edge = 0.90
         final_multiplier = total_multiplier * house_edge
         winnings = bet_amount * final_multiplier
 
