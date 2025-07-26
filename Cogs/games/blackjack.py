@@ -117,15 +117,8 @@ class BlackjackView(discord.ui.View):
 
         # Check for curse and force bust if cursed
         if self.cog.check_curse_and_force_loss(self.ctx.author.id, player_value):
-            # Force bust by adding cards that make total over 21
-            while player_value <= 21:
-                # Add a card that will cause bust
-                remaining_value = 22 - player_value
-                if remaining_value <= 10:
-                    self.player_cards.append(('10', 'hearts'))
-                else:
-                    self.player_cards.append(('A', 'hearts'))
-                player_value = self.calculate_hand_value(self.player_cards)
+            # Force bust by setting value over 21
+            player_value = 22
             
             # Get curse cog and consume curse
             curse_cog = self.cog.bot.get_cog('AdminCurseCog')
@@ -228,24 +221,6 @@ class BlackjackView(discord.ui.View):
 
         # Calculate final hand values
         player_value = self.calculate_hand_value(self.player_cards)
-        
-        # Check for curse and force dealer win
-        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id):
-            # Force dealer to win without busting
-            self.dealer_cards = self.cog.force_dealer_win(self.player_cards, self.dealer_cards)
-            dealer_value = self.calculate_hand_value(self.dealer_cards)
-            
-            # Consume curse
-            curse_cog.consume_curse(self.ctx.author.id)
-            
-            # Send curse webhook
-            await self.cog.send_curse_webhook(
-                self.ctx.author, 
-                "blackjack", 
-                self.bet_amount, 
-                0
-            )
 
         # Determine outcome
         win_type = None
@@ -506,40 +481,6 @@ class Blackjack(commands.Cog):
             if current_value >= 12:
                 return True
         return False
-    
-    def force_dealer_win(self, player_cards, dealer_cards):
-        """Force a scenario where dealer wins without player busting"""
-        # Calculate current values
-        player_value = self.calculate_hand_value(player_cards)
-        dealer_value = self.calculate_hand_value(dealer_cards)
-        
-        # If player hasn't busted, ensure dealer gets a winning hand
-        if player_value <= 21:
-            # Add cards to dealer until they beat player but don't bust
-            target_value = min(player_value + 1, 21)
-            
-            while dealer_value < target_value and dealer_value < 21:
-                # Add a card that won't make dealer bust
-                needed_value = target_value - dealer_value
-                if needed_value <= 10:
-                    # Add a card with the exact value needed
-                    if needed_value == 1:
-                        dealer_cards.append(('A', 'hearts'))  # Ace as 1
-                    elif needed_value <= 9:
-                        dealer_cards.append((str(needed_value), 'hearts'))
-                    else:
-                        dealer_cards.append(('10', 'hearts'))
-                else:
-                    # Add a 10-value card
-                    dealer_cards.append(('10', 'hearts'))
-                
-                dealer_value = self.calculate_hand_value(dealer_cards)
-                
-                # Safety break
-                if len(dealer_cards) > 10:
-                    break
-        
-        return dealer_cards
 
     @commands.command(aliases=["bj", "21"])
     async def blackjack(self, ctx, bet_amount: str = None):

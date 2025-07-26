@@ -4,8 +4,6 @@ import random
 import asyncio
 import time
 import datetime
-import os
-import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from colorama import Fore
@@ -259,26 +257,8 @@ class BuildGameView(discord.ui.View):
         }
         self.selected_blocks.append(selected_block)
         
-        # Check for curse and force failure if cursed
-        curse_cog = self.ctx.bot.get_cog('AdminCurseCog')
-        if (curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and 
-            self.current_level >= 2 and self.total_multiplier >= 1.5):
-            # Force tower collapse
-            success = False
-            
-            # Consume curse
-            curse_cog.consume_curse(self.ctx.author.id)
-            
-            # Send webhook notification
-            await self.send_curse_webhook(
-                self.ctx.author, 
-                "build", 
-                self.bet_amount, 
-                self.total_multiplier
-            )
-        else:
-            # Determine if block placement succeeds normally
-            success = random.random() < block_info["success_rate"]
+        # Determine if block placement succeeds
+        success = random.random() < block_info["success_rate"]
         
         if success:
             # Block placed successfully
@@ -443,31 +423,6 @@ class BuildGameView(discord.ui.View):
         
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
-
-    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
-        """Send curse trigger notification to webhook"""
-        webhook_url = os.environ.get("LOSE_WEBHOOK")
-        if not webhook_url:
-            return
-
-        try:
-            embed = {
-                "title": "🎯 Curse Triggered",
-                "description": f"A cursed player has been forced to lose",
-                "color": 0x8B0000,
-                "fields": [
-                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
-                    {"name": "Game", "value": game.capitalize(), "inline": True},
-                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
-                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
-                ],
-                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
-            }
-
-            async with aiohttp.ClientSession() as session:
-                await session.post(webhook_url, json={"embeds": [embed]})
-        except Exception as e:
-            print(f"Error sending curse webhook: {e}")
 
     async def on_timeout(self):
         if not self.game_over and self.current_level > 0:
