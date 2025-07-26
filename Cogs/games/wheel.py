@@ -466,7 +466,7 @@ class WheelCog(commands.Cog):
         db = Users()
         if total_winnings > 0:
             # Credit the total winnings
-            db.update_balance(ctx.author.id, total_winnings, "credits", "$inc")
+            db.update_balance(ctx.author.id, total_winnings, "points", "$inc")
 
         # Add overall result field
         if total_winnings > 0:
