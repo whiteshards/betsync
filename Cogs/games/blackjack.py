@@ -47,12 +47,38 @@ class BlackjackView(discord.ui.View):
         random.shuffle(deck)
         return deck
 
-    def draw_card(self):
+    def draw_card(self, force_bust=False):
         """Draw a card from the deck, ensuring no duplicates"""
         if len(self.used_cards) >= 52:  # All cards used
             # Create a new deck excluding already used cards
             self.deck = self.create_deck()
             self.used_cards = set()
+
+        # If forcing bust, calculate what card would cause bust
+        if force_bust:
+            current_value = self.calculate_hand_value(self.player_cards)
+            
+            # Find a card that would cause bust (value > 21)
+            target_value = 22 - current_value  # Minimum to bust
+            
+            # Try to find a card that causes bust
+            for rank in ['K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']:
+                card_value = CARD_VALUES[rank]
+                if current_value + card_value > 21:
+                    # Try to find this card in available suits
+                    for suit in ['hearts', 'diamonds', 'clubs', 'spades']:
+                        card = (rank, suit)
+                        card_id = f"{card[0]}_{card[1]}"
+                        
+                        if card_id not in self.used_cards:
+                            self.used_cards.add(card_id)
+                            # Remove from deck if present
+                            if card in self.deck:
+                                self.deck.remove(card)
+                            return card
+            
+            # If no perfect bust card found, just draw normally
+            # and let the curse system handle it
 
         # Get a card that hasn't been used
         while True:
@@ -109,20 +135,15 @@ class BlackjackView(discord.ui.View):
 
         await interaction.response.defer()
 
-        # Draw a new card for the player
-        self.player_cards.append(self.draw_card())
-
-        # Check if player busts
-        player_value = self.calculate_hand_value(self.player_cards)
-
-        # Check for curse and force bust if cursed
-        if self.cog.check_curse_and_force_loss(self.ctx.author.id, player_value):
-            # Force bust by setting value over 21
-            player_value = 22
-            
-            # Get curse cog and consume curse
-            curse_cog = self.cog.bot.get_cog('AdminCurseCog')
-            if curse_cog:
+        # Check for curse before drawing card
+        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+        force_bust = False
+        
+        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id):
+            current_value = self.calculate_hand_value(self.player_cards)
+            # Force bust if hand value is 12 or higher (reasonable bust point)
+            if current_value >= 12:
+                force_bust = True
                 curse_cog.consume_curse(self.ctx.author.id)
                 
                 # Send curse webhook
@@ -132,6 +153,12 @@ class BlackjackView(discord.ui.View):
                     self.bet_amount, 
                     0
                 )
+
+        # Draw a new card for the player (potentially forcing bust)
+        self.player_cards.append(self.draw_card(force_bust=force_bust))
+
+        # Check if player busts
+        player_value = self.calculate_hand_value(self.player_cards)
 
         if player_value > 21:
             for child in self.children:
@@ -470,17 +497,12 @@ class Blackjack(commands.Cog):
 
     def check_curse_and_force_loss(self, user_id, current_value):
         """Check if player is cursed and should be forced to lose"""
-        # Get the curse cog
+        # This method is kept for compatibility but logic moved to card drawing
         curse_cog = self.bot.get_cog('AdminCurseCog')
         if not curse_cog:
             return False
             
-        # Check if player is cursed
-        if curse_cog.is_player_cursed(user_id):
-            # Force loss if hand value is 12 or higher (reasonable bust point)
-            if current_value >= 12:
-                return True
-        return False
+        return curse_cog.is_player_cursed(user_id) and current_value >= 12
 
     @commands.command(aliases=["bj", "21"])
     async def blackjack(self, ctx, bet_amount: str = None):
