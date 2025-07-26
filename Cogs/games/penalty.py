@@ -1,6 +1,9 @@
 
 import discord
 import random
+import os
+import time
+import aiohttp
 from discord.ext import commands
 from datetime import datetime
 from Cogs.utils.mongo import Users, Servers
@@ -194,6 +197,31 @@ class PenaltyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}  # Now uses game_id instead of user_id
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
     @commands.command(aliases=["pen", "pk"])
     async def penalty(self, ctx, bet_amount: str = None, role: str = None, direction: str = None):
@@ -407,12 +435,26 @@ class PenaltyCog(commands.Cog):
         if game_id in self.ongoing_games:
             del self.ongoing_games[game_id]
 
+        # Check if player is cursed
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        is_cursed = curse_cog and curse_cog.is_player_cursed(ctx.author.id)
+
         # Goalkeeper picks a random direction
         goalkeeper_directions = ["left", "middle", "right"]
         goalkeeper_direction = random.choice(goalkeeper_directions)
 
         # Determine the outcome
         goal_scored = shot_direction != goalkeeper_direction
+
+        # Apply curse logic - force loss if cursed player would win
+        if is_cursed and goal_scored:
+            # Force the goalkeeper to save by making them dive to the same direction
+            goalkeeper_direction = shot_direction
+            goal_scored = False
+            
+            # Consume curse and send webhook
+            curse_cog.consume_curse(ctx.author.id)
+            await self.send_curse_webhook(ctx.author, "penalty", bet_amount, 1.45)
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -499,12 +541,27 @@ class PenaltyCog(commands.Cog):
         if game_id in self.ongoing_games:
             del self.ongoing_games[game_id]
 
+        # Check if player is cursed
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        is_cursed = curse_cog and curse_cog.is_player_cursed(ctx.author.id)
+
         # Striker picks a random direction
         striker_directions = ["left", "middle", "right"]
         striker_direction = random.choice(striker_directions)
 
         # Determine the outcome
         save_made = dive_direction == striker_direction
+
+        # Apply curse logic - force loss if cursed player would win
+        if is_cursed and save_made:
+            # Force the striker to score by making them shoot to a different direction
+            other_directions = [d for d in striker_directions if d != dive_direction]
+            striker_direction = random.choice(other_directions)
+            save_made = False
+            
+            # Consume curse and send webhook
+            curse_cog.consume_curse(ctx.author.id)
+            await self.send_curse_webhook(ctx.author, "penalty", bet_amount, 2.1)
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -658,12 +715,26 @@ class PenaltyCog(commands.Cog):
         if game_id in self.ongoing_games:
             del self.ongoing_games[game_id]
 
+        # Check if player is cursed
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        is_cursed = curse_cog and curse_cog.is_player_cursed(ctx.author.id)
+
         # Goalkeeper picks a random direction
         goalkeeper_directions = ["left", "middle", "right"]
         goalkeeper_direction = random.choice(goalkeeper_directions)
 
         # Determine the outcome
         goal_scored = shot_direction != goalkeeper_direction
+
+        # Apply curse logic - force loss if cursed player would win
+        if is_cursed and goal_scored:
+            # Force the goalkeeper to save by making them dive to the same direction
+            goalkeeper_direction = shot_direction
+            goal_scored = False
+            
+            # Consume curse and send webhook
+            curse_cog.consume_curse(ctx.author.id)
+            await self.send_curse_webhook(ctx.author, "penalty", bet_amount, 1.45)
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -750,12 +821,27 @@ class PenaltyCog(commands.Cog):
         if game_id in self.ongoing_games:
             del self.ongoing_games[game_id]
 
+        # Check if player is cursed
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        is_cursed = curse_cog and curse_cog.is_player_cursed(ctx.author.id)
+
         # Striker picks a random direction
         striker_directions = ["left", "middle", "right"]
         striker_direction = random.choice(striker_directions)
 
         # Determine the outcome
         save_made = dive_direction == striker_direction
+
+        # Apply curse logic - force loss if cursed player would win
+        if is_cursed and save_made:
+            # Force the striker to score by making them shoot to a different direction
+            other_directions = [d for d in striker_directions if d != dive_direction]
+            striker_direction = random.choice(other_directions)
+            save_made = False
+            
+            # Consume curse and send webhook
+            curse_cog.consume_curse(ctx.author.id)
+            await self.send_curse_webhook(ctx.author, "penalty", bet_amount, 2.1)
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
