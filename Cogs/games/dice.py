@@ -2,6 +2,8 @@ import discord
 import random
 import time
 import asyncio
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -42,6 +44,31 @@ class DiceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
+
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
 
     @commands.command(aliases=["dice", "roll", "d"])
     async def dicegame(self, ctx, bet_amount: str = None):

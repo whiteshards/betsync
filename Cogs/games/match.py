@@ -22,6 +22,7 @@ class MatchGame:
         self.matched_multiplier = None
         self.game_over = False
         self.revealed_count = 0
+        self.cursed_match = False
 
     def create_board(self):
         """Create a 4x5 board with 3 of each multiplier randomly placed"""
@@ -60,14 +61,8 @@ class MatchGame:
         self.revealed[row][col] = True
         self.revealed_count += 1
 
-        # Check for curse - prevent good matches
-        if cursed_player and self.revealed_count >= 10:  # Force loss after revealing several tiles
-            # Force game over without a good match
-            self.game_over = True
-            return False
-
-        # Check if we've matched any multiplier (3 of the same)
-        if self.matched_multiplier is None and not cursed_player:
+        # Check if we've matched any multiplier (3 of the same) - always check regardless of curse
+        if self.matched_multiplier is None:
             for multi in self.multipliers:
                 matched_count = 0
                 for r in range(self.rows):
@@ -77,8 +72,17 @@ class MatchGame:
 
                 if matched_count >= 3:
                     self.matched_multiplier = multi
+                    # If cursed, they still matched but will get 0 winnings
+                    if cursed_player:
+                        self.cursed_match = True  # Flag to show they matched but were cursed
                     self.game_over = True
                     return True
+
+        # Check for curse - force loss after revealing several tiles if no match found
+        if cursed_player and self.revealed_count >= 10 and self.matched_multiplier is None:
+            # Force game over without a good match
+            self.game_over = True
+            return False
 
         # Check if all tiles are revealed
         if self.revealed_count >= self.rows * self.cols:
@@ -89,6 +93,9 @@ class MatchGame:
     def get_winnings(self):
         """Calculate winnings based on matched multiplier"""
         if self.matched_multiplier is None:
+            return 0
+        # If cursed, they get 0 winnings even if they matched
+        if hasattr(self, 'cursed_match') and self.cursed_match:
             return 0
         return self.bet_amount * self.matched_multiplier
 
@@ -358,11 +365,19 @@ class Match(commands.Cog):
         # Create result embed
         if matched_multiplier is not None:
             # Player matched a multiplier
-            embed = discord.Embed(
-                title=":trophy: Match Game Results",
-                description=f"You matched the **{matched_multiplier}x** multiplier!",
-                color=0x00FFAE
-            )
+            if hasattr(match_game, 'cursed_match') and match_game.cursed_match:
+                # They matched but were cursed
+                embed = discord.Embed(
+                    title="💀 Match Game - Cursed Loss",
+                    description=f"You matched the **{matched_multiplier}x** multiplier, but the curse forced you to lose!",
+                    color=0x8B0000
+                )
+            else:
+                embed = discord.Embed(
+                    title=":trophy: Match Game Results",
+                    description=f"You matched the **{matched_multiplier}x** multiplier!",
+                    color=0x00FFAE
+                )
 
             embed.add_field(
                 name="Game Summary",
