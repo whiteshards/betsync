@@ -234,7 +234,9 @@ class PumpGameView(discord.ui.View):
             )
             embed.set_footer(text=f"BetSync Casino • Maximum pumps achieved! Automatic cashout!")
 
-        embed.set_author(name=f"Player: {self.ctx.author.name}", icon_url=self.ctx.author.avatar.url)
+        # Handle cases where user has no avatar
+        avatar_url = self.ctx.author.avatar.url if self.ctx.author.avatar else self.ctx.author.default_avatar.url
+        embed.set_author(name=f"Player: {self.ctx.author.name}", icon_url=avatar_url)
         return embed
 
     async def pump_callback(self, interaction):
