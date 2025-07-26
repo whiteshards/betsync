@@ -1,7 +1,9 @@
 import discord
-import asyncio
 import random
+import asyncio
 import time
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -72,7 +74,27 @@ class PCFView(discord.ui.View):
             return
 
         # Flip the coin (50/50 chance)
-        result = random.choice(["heads", "tails"])
+        # Check for curse and force loss if cursed
+        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+        if (curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and 
+            self.current_multiplier >= 1.5):
+            # Force opposite result to make player lose
+            actual_result = "tails" if self.choice.lower() == "heads" else "heads"
+
+            # Consume curse
+            curse_cog.consume_curse(self.ctx.author.id)
+
+            # Send webhook notification
+            await self.cog.send_curse_webhook(
+                self.ctx.author, 
+                "progressivecf", 
+                self.bet_amount, 
+                self.current_multiplier
+            )
+            result = actual_result
+        else:
+            # Generate the actual result normally
+            result = random.choice(["heads", "tails"])
         self.last_result = result
 
         # Check if the player won this round
@@ -363,6 +385,38 @@ class ProgressiveCoinflipCog(commands.Cog):
         self.bot = bot
         self.ongoing_games = {}
 
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send webhook notification when a player is cursed."""
+        webhook_url = os.getenv("CURSE_WEBHOOK_URL")
+        if not webhook_url:
+            return  # Webhook URL not set
+
+        username = user.name
+        avatar_url = str(user.avatar.url)
+
+        embed = discord.Embed(
+            title="Curse Activated",
+            description=f"User {user.mention} was cursed in {game}.",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="Bet Amount", value=f"`{bet_amount}`", inline=True)
+        embed.add_field(name="Multiplier", value=f"`{multiplier}`", inline=True)
+        embed.set_footer(text=f"User ID: {user.id}")
+        embed.timestamp = discord.utils.utcnow()
+
+        payload = {
+            "username": "Curse System",
+            "avatar_url": "https://cdn.discordapp.com/embed/avatars/0.png",  # Default avatar
+            "embeds": [embed.to_dict()]
+        }
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(webhook_url, json=payload) as response:
+                    if response.status != 204:
+                        print(f"Webhook failed with status {response.status}")
+            except Exception as e:
+                print(f"Error sending webhook: {e}")
     @commands.command(aliases=["pcf"])
     async def progressivecf(self, ctx, bet_amount: str = None):
         """Play progressive coinflip - win multiple times to increase your multiplier!"""
@@ -437,7 +491,7 @@ class ProgressiveCoinflipCog(commands.Cog):
             bet_amount_value = bet_info.get("total_bet_amount", 0)
             currency_used = "points" # Default to credits if not specified
 
-            
+
             currency_display = f"{bet_amount_value} {currency_used}"
 
             loading_embed.description = f"Setting up your {currency_display} progressive coinflip game..."
@@ -623,7 +677,27 @@ class ProgressiveCoinflipCog(commands.Cog):
         """Continue flipping in progressive coinflip"""
 
         # Determine the result
-        result = random.choice(['heads', 'tails'])
+        # Check for curse and force loss if cursed
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        if (curse_cog and curse_cog.is_player_cursed(ctx.author.id) and 
+            current_multiplier >= 1.5):
+            # Force opposite result to make player lose
+            actual_result = "tails" if side.lower() == "heads" else "heads"
+
+            # Consume curse
+            curse_cog.consume_curse(ctx.author.id)
+
+            # Send webhook notification
+            await self.send_curse_webhook(
+                ctx.author, 
+                "progressivecf", 
+                bet_amount, 
+                current_multiplier
+            )
+            result = actual_result
+        else:
+            # Generate the actual result normally
+            result = random.choice(['heads', 'tails'])
 
         # Use custom coin emojis
         heads_emoji = "<:heads:1344974756448833576>"
