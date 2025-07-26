@@ -389,6 +389,15 @@ class BtcDeposit(commands.Cog):
 
     async def _check_for_deposits(self, user_id: int, address: str) -> tuple[str, dict]:
         try:
+            # Add rate limiting protection
+            import time
+            if not hasattr(self, '_last_api_call'):
+                self._last_api_call = 0
+            
+            current_time = time.time()
+            if current_time - self._last_api_call < 1.0:  # 1 second minimum between calls
+                await asyncio.sleep(1.0 - (current_time - self._last_api_call))
+            self._last_api_call = time.time()
             user_data = self.users_db.fetch_user(user_id)
             if not user_data:
                 print(f"{Fore.RED}[!] User data not found for user {user_id} at start of deposit check.{Style.RESET_ALL}")
@@ -426,7 +435,13 @@ class BtcDeposit(commands.Cog):
             new_deposit_processed_in_this_check = False
             first_pending_tx = None
 
-            for tx in transactions:
+            # Limit transaction processing to prevent performance issues
+            MAX_TXS_TO_PROCESS = 100
+            transactions_to_process = transactions[:MAX_TXS_TO_PROCESS]
+            if len(transactions) > MAX_TXS_TO_PROCESS:
+                print(f"{Fore.YELLOW}[!] Address {address} has {len(transactions)} transactions. Processing first {MAX_TXS_TO_PROCESS}.{Style.RESET_ALL}")
+
+            for tx in transactions_to_process:
                 txid = tx.get('txid')
                 if not txid:
                     continue
@@ -444,8 +459,14 @@ class BtcDeposit(commands.Cog):
                         amount_received_satoshi += vout.get('value', 0)
 
                 print(f"{Fore.BLUE}[API Check - {address}] TX {txid} - Amount found for address: {amount_received_satoshi} satoshis.{Style.RESET_ALL}")
+                
+                # Minimum deposit validation (546 satoshis = dust limit)
+                MIN_DEPOSIT_SATOSHIS = 1000  # 0.00001000 BTC minimum
                 if amount_received_satoshi <= 0:
                     print(f"{Fore.YELLOW}[API Check - {address}] Skipping TX {txid} - Zero or negative amount received ({amount_received_satoshi} satoshis).{Style.RESET_ALL}")
+                    continue
+                elif amount_received_satoshi < MIN_DEPOSIT_SATOSHIS:
+                    print(f"{Fore.YELLOW}[API Check - {address}] Skipping TX {txid} - Amount too small ({amount_received_satoshi} satoshis, minimum: {MIN_DEPOSIT_SATOSHIS}).{Style.RESET_ALL}")
                     continue
 
                 print(f"{Fore.BLUE}[API Check - {address}] TX {txid} - Confirmed: {confirmed}, Block Height: {block_height}{Style.RESET_ALL}")
@@ -456,8 +477,10 @@ class BtcDeposit(commands.Cog):
                     continue
 
                 if current_block_height == -1:
-                    print(f"{Fore.RED}[!] Cannot calculate confirmations for TX {txid} because current block height fetch failed.{Style.RESET_ALL}")
-                    return "error", {"error": "Failed to fetch current block height for confirmation check."}
+                    print(f"{Fore.YELLOW}[!] Cannot calculate confirmations for TX {txid} because current block height fetch failed. Treating as unconfirmed.{Style.RESET_ALL}")
+                    if not first_pending_tx:
+                        first_pending_tx = {"confirmations": 0, "txid": txid, "amount_crypto": round(amount_received_satoshi / BTC_SATOSHIS, 8)}
+                    continue
 
                 confirmations = (current_block_height - block_height) + 1
                 print(f"{Fore.BLUE}[API Check - {address}] TX {txid} - Calculated Confirmations: {confirmations} (Current: {current_block_height}, TX Block: {block_height}){Style.RESET_ALL}")
