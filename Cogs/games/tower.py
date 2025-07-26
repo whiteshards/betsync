@@ -255,7 +255,7 @@ class TowerGameView(discord.ui.View):
                 inline=False
             )
             embed.add_field(
-                name="🏰 Tower", 
+                name="🏰 Tower",
                 value=self.create_tower_display(selected_tile, game_over=True),
                 inline=False
             )

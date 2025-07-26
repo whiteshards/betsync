@@ -1,10 +1,10 @@
 import os
 import discord
 import random
-import asyncio
 import time
-import os
-import aiohttp
+import io
+import asyncio
+from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -430,30 +430,13 @@ class CasesCog(commands.Cog):
         # Determine which currency was primarily used for display purposes
         currency_used ="points"
 
-
+        
         currency_display = f"`{bet_amount_value} {currency_used}`"
 
         loading_embed.description = f"Opening case for {currency_display}..."
         await loading_message.edit(embed=loading_embed)
 
-        # Check for curse before opening case
-        curse_cog = self.bot.get_cog('AdminCurseCog')
-        forced_loss = False
-
-        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
-            # Force loss for cursed players - give lowest value item
-            forced_loss = True
-            #await curse_cog.consume_curse(ctx.author.id) #this function isn't async, it can't be awaited
-            curse_cog.consume_curse(ctx.author.id)
-            #await self.send_curse_webhook(ctx.author, "cases", bet_amount_value) #this function doesn't exist
-
-        # Open the case
-        #if forced_loss:
-            # Find the lowest value item in the case
-            #min_value = min(case_data['items'].values()) #There is no variable named 'case_data' in scope
-            #lowest_items = [item for item, value in case_data['items'].items() if value == min_value] #There is no variable named 'case_data' in scope
-            #opened_item = random.choice(lowest_items) #There is no variable named 'case_data' in scope
-        #else:
+        # Generate the case result
         case_result = self.get_case_result()
         selected_multiplier = case_result["multiplier"]
 
@@ -480,7 +463,7 @@ class CasesCog(commands.Cog):
 
 
 
-
+        
 
         db = Users() #reinstantiate db
         #db.update_history(ctx.author.id, history_entry)
