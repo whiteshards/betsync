@@ -342,11 +342,21 @@ class CrossTheRoadGame(discord.ui.View):
         if self.game_over:
             return await interaction.response.send_message("This game has already ended.", ephemeral=True)
 
+        # Check for curse and force loss if multiplier is high enough
+        curse_cog = self.cog.bot.get_cog('AdminCurseCog')
+        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id) and self.current_multiplier >= 1.2:
+            # Force loss for cursed player
+            await interaction.response.defer()
+            was_cursed, curse_complete = curse_cog.force_loss(self.ctx.author.id)
+            # Send curse webhook notification
+            await self.send_curse_webhook(self.ctx.author, "crosstheroad", self.bet_amount, self.current_multiplier)
+            await self.process_loss()
+            return
+
         # Roll for car collision
         await interaction.response.defer()
         if random.random() < self.hit_chance:
             # Player got hit
-            #await interaction.response.defer()
             await self.process_loss()
             return
 

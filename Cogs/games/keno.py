@@ -1,4 +1,4 @@
-
+# Implementing curse lose mechanics and webhook functionality for the Keno game.
 import os
 import io
 import random
@@ -11,6 +11,8 @@ from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
 from colorama import Fore
+import time
+import aiohttp
 
 # Payouts based on number of picks and hits
 PAYOUTS = {
@@ -36,11 +38,11 @@ def generate_paytable_image():
     alt_cell_color = (30, 30, 30)
     highlight_color = (128, 0, 255)  # Purple for highlights
     text_color = (255, 255, 255)
-    
+
     # Create image and draw object
     image = Image.new('RGB', (width, height), bg_color)
     draw = ImageDraw.Draw(image)
-    
+
     try:
         # Try to load fonts - better sizes for readability
         title_font = ImageFont.truetype("arial.ttf", 42)
@@ -53,27 +55,27 @@ def generate_paytable_image():
         header_font = ImageFont.load_default()
         cell_font = ImageFont.load_default()
         subtitle_font = ImageFont.load_default()
-    
+
     # Draw title
     title = "BETSYNC CASINO"
     title_width = draw.textlength(title, font=title_font)
     draw.text(((width - title_width) // 2, 30), title, font=title_font, fill=highlight_color)
-    
+
     # Draw subtitle
     subtitle = "Payout Table"
     subtitle_width = draw.textlength(subtitle, font=subtitle_font)
     draw.text(((width - subtitle_width) // 2, 85), subtitle, font=subtitle_font, fill=text_color)
-    
+
     # Table layout - better margins for breathing room
     table_margin = 100  # Increased margin for breathing room
     start_y = 130
     table_width = width - (2 * table_margin)
     rows = 11  # Header + 10 rows
     cols = 11  # First column is for picks, then 0-10 hits
-    
+
     cell_width = table_width // cols
     cell_height = 42  # Slightly larger cells
-    
+
     # Draw table background and grid
     table_height = cell_height * rows
     # Draw rounded rectangle for table background
@@ -83,7 +85,7 @@ def generate_paytable_image():
         outline=(90, 90, 90),
         width=2
     )
-    
+
     # Draw header row
     header_labels = ["Picks", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
     for col in range(cols):
@@ -91,42 +93,42 @@ def generate_paytable_image():
         x = table_margin + (col * cell_width)
         y = start_y
         draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
-        
+
         # Draw text
         text = header_labels[col]
         text_width = draw.textlength(text, font=header_font)
         text_x = x + (cell_width - text_width) // 2
         text_y = y + ((cell_height - header_font.getbbox(text)[3]) // 2)  # Better centering
         draw.text((text_x, text_y), text, font=header_font, fill=highlight_color)
-    
+
     # Draw data rows
     for row in range(1, 11):  # 1-10 picks
         # First column shows number of picks
         x = table_margin
         y = start_y + (row * cell_height)
-        
+
         # Alternate row colors
         row_bg_color = alt_cell_color if row % 2 == 0 else cell_color
-        
+
         draw.rectangle((x, y, x + cell_width, y + cell_height), fill=row_bg_color)
-        
+
         # Draw pick number
         text = str(row)
         text_width = draw.textlength(text, font=cell_font)
         text_x = x + (cell_width - text_width) // 2
         text_y = y + ((cell_height - cell_font.getbbox(text)[3]) // 2)  # Better centering
         draw.text((text_x, text_y), text, font=cell_font, fill=text_color)
-        
+
         # Draw multipliers for each hit possibility
         for col in range(1, 11):  # 0-10 hits
             x = table_margin + (col * cell_width)
-            
+
             draw.rectangle((x, y, x + cell_width, y + cell_height), fill=row_bg_color)
-            
+
             # Get multiplier value
             hits = col - 1  # Adjust: 1st column is 0 hits, 2nd is 1 hit...
             multiplier = PAYOUTS.get(row, {}).get(hits, 0)
-            
+
             # Format multiplier text
             if multiplier == 0:
                 text = "0x"
@@ -140,7 +142,7 @@ def generate_paytable_image():
                     text_color_cell = (147, 112, 219)  # Medium purple for medium values
                 else:
                     text_color_cell = text_color
-            
+
             text_width = draw.textlength(text, font=cell_font)
             text_x = x + (cell_width - text_width) // 2
             text_y = y + ((cell_height - cell_font.getbbox(text)[3]) // 2)  # Better centering
@@ -160,7 +162,7 @@ def generate_paytable_image():
     img_byte_array = io.BytesIO()
     image.save(img_byte_array, format="PNG")
     img_byte_array.seek(0)
-    
+
     return img_byte_array
 
 # Win probability percentages
@@ -188,20 +190,20 @@ class KenoView(discord.ui.View):
         self.max_selections = 10
         self.message = None
         self.game_over = False
-        
+
         # Add number buttons (creating a 5x4 grid for 20 numbers)
         for i in range(1, 21):
             row = (i-1) // 5
             self.add_item(KenoNumberButton(i, row))
-            
+
         # Disable the play button initially (enable after at least one number is selected)
         self.update_play_button()
-        
+
         # Auto-select the first number to ensure user has at least one pick
         #self.selected_numbers.append(1)
         # No auto-select by default, but keep the first button on standby
         # Let users make their own selections
-    
+
     def update_play_button(self):
         # Get the play button and update its state
         play_button = None
@@ -209,16 +211,16 @@ class KenoView(discord.ui.View):
             if isinstance(child, discord.ui.Button) and child.custom_id == "play":
                 play_button = child
                 break
-                
+
         if play_button:
             # Always enable play button - if no numbers are selected, one will be randomly chosen
             play_button.disabled = False
-            
+
     @discord.ui.button(label="PLAY", style=discord.ButtonStyle.success, custom_id="play", row=4, disabled=False)
     async def play_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
         if self.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
         await interaction.response.defer()
@@ -226,76 +228,76 @@ class KenoView(discord.ui.View):
         self.game_over = True
         for child in self.children:
             child.disabled = True
-            
+
         await interaction.message.edit(view=self)
-        
+
         # Run the game
         await self.cog.run_keno_game(self.ctx, self, interaction.message)
-        
+
     @discord.ui.button(label="CANCEL", style=discord.ButtonStyle.danger, custom_id="cancel", row=4)
     async def cancel_button(self, button, interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
         # Cancel the game and refund the user by adding the bet amount back
         await interaction.response.defer()
         db = Users()
         db.update_balance(self.ctx.author.id, self.bet_amount)
-        
+
         for child in self.children:
             child.disabled = True
-            
+
         await interaction.message.edit(view=self)
-        
+
         embed = discord.Embed(
             title="<:no:1344252518305234987> | Game Cancelled",
             description=f"Game cancelled. Your bet of `{self.bet_amount} points` has been refunded.",
             color=discord.Color.red()
         )
         await interaction.followup.send(embed=embed)
-        
+
         # Remove from ongoing games
         if self.ctx.author.id in self.cog.ongoing_games:
             del self.cog.ongoing_games[self.ctx.author.id]
-            
+
     async def on_timeout(self):
         # Handle timeout - game is considered played if user made no selections
         if not self.game_over and self.ctx.author.id in self.cog.ongoing_games:
             for child in self.children:
                 child.disabled = True
-                
+
             try:
                 await self.message.edit(view=self)
-                
+
                 # If user didn't select any numbers, count it as a loss
                 if len(self.selected_numbers) == 0:
                     # Record loss in database
                     db = Users()
-                    
-                    
+
+
                     # Update server profit (positive for casino win)
                     server_db = Servers()
                     server_db.update_server_profit(self.ctx, self.ctx.guild.id, self.bet_amount, game="keno")
-                    
+
                     embed = discord.Embed(
                         title="<:no:1344252518305234987> | Game Timed Out",
                         description=f"Game timed out. Your bet of `{self.bet_amount} {self.currency_used}` has been lost.",
                         color=discord.Color.red()
                     )
                     await self.ctx.reply(embed=embed)
-                    
+
                 else:
                     # If they selected numbers but didn't press play, run the game automatically
                     await self.cog.run_keno_game(self.ctx, self, self.message)
                     return
-                    
+
             except Exception as e:
                 print(f"Error in Keno timeout handler: {e}")
                 pass
-                
+
             # Remove from ongoing games
             del self.cog.ongoing_games[self.ctx.author.id]
-            
+
 class KenoNumberButton(discord.ui.Button):
     def __init__(self, number, row):
         super().__init__(
@@ -305,16 +307,16 @@ class KenoNumberButton(discord.ui.Button):
             row=row
         )
         self.number = number
-        
+
     async def callback(self, interaction):
         view = self.view
-        
+
         if interaction.user.id != view.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-            
+
         if view.game_over:
             return await interaction.response.send_message("This game is already over!", ephemeral=True)
-            
+
         # Toggle selection
         if self.number in view.selected_numbers:
             view.selected_numbers.remove(self.number)
@@ -323,17 +325,17 @@ class KenoNumberButton(discord.ui.Button):
             # Check if maximum selections reached
             if len(view.selected_numbers) >= view.max_selections:
                 return await interaction.response.send_message(f"You can select a maximum of {view.max_selections} numbers!", ephemeral=True)
-                
+
             view.selected_numbers.append(self.number)
             # Use blurple color which is closer to purple than primary blue
             self.style = discord.ButtonStyle.blurple
-            
+
         # Update the play button state
         view.update_play_button()
-        
+
         # Update the options embed with current selections and probabilities
         embed = view.cog.create_options_embed(view.ctx.author, view.bet_amount, view.selected_numbers, view.currency_used)
-        
+
         # Generate paytable image for the current selection
         if view.selected_numbers:
             paytable_bytes = view.cog.create_mini_paytable_for_selections(len(view.selected_numbers))
@@ -380,12 +382,12 @@ class Keno(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
-        
+
     @commands.command(aliases=["k"])
     async def keno(self, ctx, bet_amount: str = None):
         """
         Play a game of Keno
-        
+
         Usage: !keno <bet amount> [currency_type]
         Example: !keno 100 tokens
         """
@@ -394,7 +396,7 @@ class Keno(commands.Cog):
             # Generate paytable image
             paytable_image = generate_paytable_image()
             paytable_file = discord.File(paytable_image, filename="keno_paytable.png")
-            
+
             embed = discord.Embed(
                 title="🎮 How to Play Keno",
                 description=(
@@ -408,12 +410,12 @@ class Keno(commands.Cog):
                 ),
                 color=0x00FFAE
             )
-            
+
             # Set the paytable image
             embed.set_image(url="attachment://keno_paytable.png")
             embed.set_footer(text="BetSync Casino • Aliases: !k")
             return await ctx.reply(embed=embed, file=paytable_file)
-            
+
         # Check if the user already has an ongoing game
         if ctx.author.id in self.ongoing_games:
             embed = discord.Embed(
@@ -422,7 +424,7 @@ class Keno(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         try:
             # Send loading message
             #loading_emoji = emoji()["loading"]
@@ -432,10 +434,10 @@ class Keno(commands.Cog):
                 color=0x00FFAE
             )
             loading_message = await ctx.reply(embed=loading_embed)
-            
+
             # Import the currency helper
             from Cogs.utils.currency_helper import process_bet_amount
-            
+
             # Process the bet amount using the currency helper
             success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, loading_message)
             if not success:
@@ -444,47 +446,47 @@ class Keno(commands.Cog):
                 except:
                     pass
                 return await ctx.reply(embed=error_embed)
-                
+
             # Set up the game
             bet_amount_value = float(bet_amount)
-            
+
             # Determine currency used
             tu = bet_info["tokens_used"]
             #cu = bet_info["credits_used"]
-            
+
             currency_used = "points"
-                
+
             # Update loading message to indicate progress
             await loading_message.edit(embed=discord.Embed(
                 title=f"Setting Up Game...",
                 description=f"Placing bet of `{bet_amount} points...`",
                 color=0x00FFAE
             ))
-            
+
             # Create game view
             view = KenoView(self, ctx, bet_amount_value)
-            
+
             # Create initial embed
             initial_embed = self.create_options_embed(ctx.author, bet_amount_value, [1], currency_used)
-            
+
             # Generate initial paytable image for selected number
             paytable_bytes = self.create_mini_paytable_for_selections(1)
             paytable_file = discord.File(paytable_bytes, filename="keno_paytable_selection.png")
-            
+
             # Delete loading message and start the game
             await loading_message.delete()
-            
+
             # Send the Keno game embed with paytable image
             game_message = await ctx.reply(embed=initial_embed, file=paytable_file, view=view)
             view.message = game_message
-            
+
             # Mark game as ongoing
             self.ongoing_games[ctx.author.id] = {
                 "bet_amount": bet_amount_value,
                 "currency_used": currency_used,
                 "view": view
             }
-            
+
         except Exception as e:
             print(f"Keno error: {e}")
             error_embed = discord.Embed(
@@ -497,11 +499,11 @@ class Keno(commands.Cog):
             except:
                 pass
             await ctx.reply(embed=error_embed)
-            
+
     def create_options_embed(self, user, bet_amount, selected_numbers, currency_used):
         """Creates the embed for the number selection screen"""
         num_picks = len(selected_numbers)
-        
+
         embed = discord.Embed(
             title="🎮 Keno - Select Your Numbers",
             description=(
@@ -512,28 +514,28 @@ class Keno(commands.Cog):
             ),
             color=0x00FFAE
         )
-        
+
         # Add payout info if numbers are selected
         if num_picks > 0:
             # Create a highlight-only mini paytable image for the selected number of picks
             paytable_bytes = self.create_mini_paytable_for_selections(num_picks)
-            
+
             # Set the footer text
             probability_text = ""
             for hits in range(1, min(num_picks + 1, 6)):
                 if hits in PROBABILITIES.get(num_picks, {}):
                     probability = PROBABILITIES[num_picks][hits]
                     probability_text += f"**{hits} Hit:** {probability}% chance\n"
-            
+
             if probability_text:
                 embed.add_field(name="Win Chances", value=probability_text, inline=False)
-            
+
             # The image will be attached by the caller function
             embed.set_image(url="attachment://keno_paytable_selection.png")
-        
+
         embed.set_footer(text="BetSync Casino • Select 1-10 numbers, then press PLAY")
         return embed
-        
+
     def create_mini_paytable_for_selections(self, num_picks):
         """Create a mini paytable image focused on the selected number of picks"""
         # Image dimensions and settings - better size with more breathing room
@@ -544,11 +546,11 @@ class Keno(commands.Cog):
         highlight_color = (128, 0, 255)  # Purple for highlights
         text_color = (255, 255, 255)
         accent_color = (147, 51, 234)  # Purple accent color
-        
+
         # Create image and draw object
         image = Image.new('RGB', (width, height), bg_color)
         draw = ImageDraw.Draw(image)
-        
+
         try:
             # Try to load fonts - better sizing
             title_font = ImageFont.truetype("arial.ttf", 24)  # Larger title font
@@ -559,76 +561,76 @@ class Keno(commands.Cog):
             title_font = ImageFont.load_default()
             header_font = ImageFont.load_default()
             cell_font = ImageFont.load_default()
-        
+
         # Draw title
         title = f"PAYOUTS FOR {num_picks} PICKS"
         title_width = draw.textlength(title, font=title_font)
         draw.text(((width - title_width) // 2, 20), title, font=title_font, fill=highlight_color)
-        
+
         # Table layout - better margins
         table_margin = 50  # Increased margin for breathing room
         start_y = 60
         table_width = width - (2 * table_margin)
-        
+
         # Determine number of columns (hits)
         max_hits = min(num_picks, 5)  # Maximum 5 hits
         cols = max_hits + 1  # Hits columns + 1 for label column
-        
+
         cell_width = table_width // cols
         cell_height = 50  # Slightly larger cells
-        
+
         # Draw header row
         header_labels = ["Picks"] + [f"{i} Hit{'' if i == 1 else 's'}" for i in range(1, max_hits + 1)]
-        
+
         for col in range(cols):
             x = table_margin + (col * cell_width)
             y = start_y
-            
+
             # Draw header cell with rounded corners
             draw.rectangle((x, y, x + cell_width, y + cell_height), fill=header_color)
-            
+
             # Draw header text with better centering
             text = header_labels[col]
             text_width = draw.textlength(text, font=header_font)
             text_x = x + (cell_width - text_width) // 2
-            
+
             # Better vertical centering using font metrics
             text_bbox = header_font.getbbox(text)
             text_height = text_bbox[3] - text_bbox[1]
             text_y = y + ((cell_height - text_height) // 2)
-            
+
             draw.text((text_x, text_y), text, font=header_font, fill=highlight_color)
-        
+
         # Draw data row - just the selected number of picks
         # First column (picks)
         x = table_margin
         y = start_y + cell_height
-        
+
         # Draw cell with accent color to highlight
         draw.rectangle((x, y, x + cell_width, y + cell_height), fill=accent_color)
-        
+
         # Draw pick number with better centering
         text = str(num_picks)
         text_width = draw.textlength(text, font=cell_font)
         text_bbox = cell_font.getbbox(text)
         text_height = text_bbox[3] - text_bbox[1]
-        
+
         text_x = x + (cell_width - text_width) // 2
         text_y = y + ((cell_height - text_height) // 2)
-        
+
         draw.text((text_x, text_y), text, font=cell_font, fill=(255, 255, 255))  # White text on purple
-        
+
         # Draw multipliers for each hit
         for col in range(1, cols):
             hits = col  # First data column is 1 hit
             x = table_margin + (col * cell_width)
-            
+
             # Get multiplier
             multiplier = PAYOUTS.get(num_picks, {}).get(hits, 0)
-            
+
             # Draw cell
             draw.rectangle((x, y, x + cell_width, y + cell_height), fill=cell_color)
-            
+
             # Format multiplier text
             if multiplier == 0:
                 text = "-"
@@ -637,279 +639,4 @@ class Keno(commands.Cog):
                 text = f"{multiplier}x"
                 # Use purple color scheme for higher values
                 if multiplier > 100:
-                    text_color_cell = (221, 160, 221)  # Light purple for high values
-                elif multiplier > 10:
-                    text_color_cell = (147, 112, 219)  # Medium purple
-                else:
-                    text_color_cell = text_color
-            
-            # Better text centering
-            text_width = draw.textlength(text, font=cell_font)
-            text_bbox = cell_font.getbbox(text)
-            text_height = text_bbox[3] - text_bbox[1]
-            
-            text_x = x + (cell_width - text_width) // 2
-            text_y = y + ((cell_height - text_height) // 2)
-            
-            draw.text((text_x, text_y), text, font=cell_font, fill=text_color_cell)
-        
-        # Save to bytes
-        img_byte_array = io.BytesIO()
-        image.save(img_byte_array, format="PNG")
-        img_byte_array.seek(0)
-        
-        return img_byte_array
-    
-    async def generate_keno_image(self, selected_numbers, winning_numbers=None, game_over=False):
-        """Generate the Keno board image"""
-        # Set colors
-        dark_bg = (26, 32, 44)
-        tile_bg = (45, 55, 72)
-        selected_color = (128, 0, 255)  # Purple for selections
-        matching_color = (0, 255, 0)    # Green for matches
-        unmatched_winning_color = (255, 0, 0)  # Red for unselected winning numbers
-        text_color = (255, 255, 255)
-        
-        # Image dimensions for 20 numbers (4x5 grid)
-        width, height = 900, 700  # Slightly larger for better spacing
-        tile_size = 110
-        margin = 25
-        
-        # Calculate total grid width and height to center the entire grid
-        grid_width = 5 * tile_size + 4 * margin
-        grid_height = 4 * tile_size + 3 * margin
-        
-        # Calculate starting position to center the grid in the image
-        start_x = (width - grid_width) // 2
-        start_y = (height - grid_height) // 2
-        
-        # Create image and draw object
-        image = Image.new('RGB', (width, height), dark_bg)
-        draw = ImageDraw.Draw(image)
-        
-        # Load font
-        try:
-            # Use a slightly larger font
-            font = ImageFont.truetype("arial.ttf", 46)
-            # Get exact text dimensions for perfect centering
-            test_text = "88"  # Use a double digit for better estimation
-            text_bbox = font.getbbox(test_text)
-            font_height = text_bbox[3] - text_bbox[1]
-        except:
-            font = ImageFont.load_default()
-            font_height = 30  # Approximation for default font
-        
-        # Draw grid of numbers
-        for i in range(1, 21):
-            row = (i-1) // 5
-            col = (i-1) % 5
-            
-            # Calculate position with the new centered grid
-            x = start_x + col * (tile_size + margin)
-            y = start_y + row * (tile_size + margin)
-            
-            # Determine tile color based on game state
-            if game_over:
-                if i in selected_numbers and i in winning_numbers:
-                    # Matching numbers are green
-                    tile_color = matching_color
-                    text_col = (0, 0, 0)  # Black text on green
-                elif i in winning_numbers:
-                    # Winning but not selected are red
-                    tile_color = unmatched_winning_color
-                    text_col = text_color
-                elif i in selected_numbers:
-                    # Selected but not winning stays purple
-                    tile_color = selected_color
-                    text_col = text_color
-                else:
-                    # Other tiles stay default
-                    tile_color = tile_bg
-                    text_col = text_color
-            else:
-                # During selection phase
-                if i in selected_numbers:
-                    tile_color = selected_color
-                else:
-                    tile_color = tile_bg
-                text_col = text_color
-            
-            # Draw tile
-            draw.rectangle((x, y, x + tile_size, y + tile_size), fill=tile_color)
-            
-            # Draw number with perfect centering
-            text = str(i)
-            text_bbox = font.getbbox(text)
-            text_width = text_bbox[2] - text_bbox[0]
-            text_height = text_bbox[3] - text_bbox[1]
-            
-            # Calculate exact center position
-            text_x = x + (tile_size - text_width) // 2
-            text_y = y + (tile_size - text_height) // 2
-            
-            draw.text((text_x, text_y), text, font=font, fill=text_col)
-        
-        # Save to bytes
-        img_byte_array = io.BytesIO()
-        image.save(img_byte_array, format="PNG")
-        img_byte_array.seek(0)
-        
-        return img_byte_array
-    
-    async def run_keno_game(self, ctx, view, message):
-        """Run the Keno game after numbers are selected"""
-        try:
-            user_id = ctx.author.id
-            game_data = self.ongoing_games.get(user_id)
-            
-            if not game_data:
-                return
-                
-            bet_amount = game_data["bet_amount"]
-            currency_used = game_data["currency_used"]
-            selected_numbers = view.selected_numbers
-            num_selected = len(selected_numbers)
-            
-            if num_selected == 0:
-                # No numbers selected, randomly select one number
-                random_number = random.randint(1, 20)
-                selected_numbers = [random_number]
-                num_selected = 1
-                
-                # Notify the user that a random number was selected
-                await ctx.send(f"No numbers selected - randomly chose number **{random_number}** for you!", delete_after=5)
-                
-            # Generate winning numbers (5 random numbers from 1-20)
-            all_numbers = list(range(1, 21))
-            winning_numbers = random.sample(all_numbers, 5)
-            
-            # Find matching numbers
-            matches = [num for num in selected_numbers if num in winning_numbers]
-            num_matches = len(matches)
-            
-            # Calculate winnings
-            multiplier = PAYOUTS.get(num_selected, {}).get(num_matches, 0)
-            winnings = bet_amount * multiplier
-            
-            # Generate results image
-            image_bytes = await self.generate_keno_image(selected_numbers, winning_numbers, True)
-            file = discord.File(image_bytes, filename="keno_game.png")
-            
-            # Create results embed
-            embed = discord.Embed(
-                title="🎮 Keno Results",
-                color=0x00FFAE
-            )
-            
-            if num_matches > 0 and multiplier > 0:
-                embed.description = (
-                    f"**Congratulations!** You matched **{num_matches}** out of **{num_selected}** picks!\n\n"
-                    f"**Bet:** {bet_amount} {currency_used}\n"
-                    f"**Multiplier:** {multiplier}x\n"
-                    f"**Win Amount:** `{winnings:.2f} {currency_used}`"
-                )
-                embed.color = discord.Color.green()
-            else:
-                embed.description = (
-                    f"You matched **{num_matches}** out of **{num_selected}** picks.\n\n"
-                    f"**Bet:** `{bet_amount} {currency_used}`\n"
-                    f"**Result:** No win"
-                )
-                embed.color = discord.Color.red()
-                
-            embed.add_field(
-                name="Your Picks",
-                value=", ".join(str(n) for n in sorted(selected_numbers)),
-                inline=True
-            )
-            
-            embed.add_field(
-                name="Winning Numbers",
-                value=", ".join(str(n) for n in sorted(winning_numbers)),
-                inline=True
-            )
-            
-            embed.set_image(url="attachment://keno_game.png")
-            embed.set_footer(text="BetSync Casino • Keno")
-            
-            # Create a new view with only "Play Again" button
-            play_again_view = discord.ui.View()
-            play_again_button = discord.ui.Button(
-                style=discord.ButtonStyle.success,
-                label="Play Again",
-                emoji="🎮",
-                custom_id=f"keno_again_{user_id}"
-            )
-            
-            async def play_again_callback(interaction):
-                if interaction.user.id != user_id:
-                    return await interaction.response.send_message("This is not your game!", ephemeral=True)
-                
-                # Start a new game with same bet amount
-                await interaction.response.defer()
-                
-                # Use the command directly
-                bet_command = self.bot.get_command('keno')
-                if bet_command:
-                    new_ctx = await self.bot.get_context(interaction.message)
-                    new_ctx.author = interaction.user
-                    await bet_command(new_ctx, str(bet_amount))
-            
-            play_again_button.callback = play_again_callback
-            play_again_view.add_item(play_again_button)
-            
-            # Edit the message with new embed and view
-            await message.edit(embed=embed, file=file, view=play_again_view)
-            
-            # Update user balance and history
-            db = Users()
-            user_data = db.fetch_user(user_id)
-            
-            if not user_data:
-                del self.ongoing_games[user_id]
-                return
-                
-            # Handle win
-            if num_matches > 0 and multiplier > 0:
-                # Update user balance
-                db.update_balance(user_id, winnings)
-                
-                
-                
-                # Update server profit (negative for casino loss)
-                server_db = Servers()
-                server_db.update_server_profit(ctx, ctx.guild.id, -1 * (winnings - bet_amount), game="keno")
-                
-                # Add to server bet history
-                
-            else:
-                # Add loss to history
-                
-                
-                # Update server profit (positive for casino win)
-                server_db = Servers()
-                server_db.update_server_profit(ctx, ctx.guild.id, bet_amount, game="keno")
-                
-                # Add to server bet history
-                
-            # Clean up
-            del self.ongoing_games[user_id]
-            
-        except Exception as e:
-            print(f"Error running Keno game: {e}")
-            embed = discord.Embed(
-                title="<:no:1344252518305234987> | Error",
-                description="An error occurred during the game.",
-                color=0xFF0000
-            )
-            try:
-                await message.edit(embed=embed)
-            except:
-                pass
-                
-            # Clean up
-            if user_id in self.ongoing_games:
-                del self.ongoing_games[user_id]
-
-def setup(bot):
-    bot.add_cog(Keno(bot))
+                    text_

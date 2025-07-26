@@ -248,6 +248,8 @@ class DiceCog(commands.Cog):
                 # Consume curse if player was cursed
                 if player_cursed and curse_cog:
                     was_cursed, curse_complete = curse_cog.force_loss(ctx.author.id)
+                    # Send curse webhook notification
+                    await self.send_curse_webhook(ctx.author, "dice", total_bet, 0)
                 result_embed = discord.Embed(
                     title="🎲 | Dice Game - You Lost 😢",
                     description=(
