@@ -176,7 +176,11 @@ class TowerGameView(discord.ui.View):
                         else:
                             level_str += "💣"  # Bomb for selected non-diamond
                     else:
-                        level_str += "🟦"  # Blue square for unselected tiles
+                        # For game over, reveal all tiles on current level
+                        if game_over:
+                            level_str += "💎" if self.tower_layout[level][i] else "💣"
+                        else:
+                            level_str += "🟦"  # Blue square for unselected tiles
             else:
                 # Future level - show locked tiles
                 level_str += "⬜" * self.tiles_per_row
