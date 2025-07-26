@@ -74,15 +74,6 @@ class Profile(commands.Cog):
         # Get user statistics
         total_deposits_usd = user_data.get('total_deposit_amount_usd', 0)
         total_deposits = user_data.get('total_deposit_amount', 0)
-        
-        # Calculate total withdrawals from history
-        history = user_data.get('history', [])
-        total_withdrawals = 0
-        for entry in history:
-            if entry and entry.get('type') in ['btc_withdraw', 'ltc_withdraw', 'eth_withdraw', 'usdt_withdraw', 'sol_withdraw']:
-                withdrawal_amount = entry.get('points_deducted', entry.get('amount', 0))
-                total_withdrawals += withdrawal_amount
-        
         games_played = user_data.get('total_played', 0)
         games_won = user_data.get('total_won', 0)
         games_lost = user_data.get('total_lost', 0)
@@ -129,7 +120,6 @@ class Profile(commands.Cog):
             name="💰 Financial Stats",
             value=(
                 f"**Total Deposited:** ${total_deposits_usd:,.2f}\n"
-                f"**Total Withdrawn:** {total_withdrawals:,.2f} pts\n"
                 f"**Net Profit:** {net_profit:+,.2f} pts"
             ),
             inline=True
