@@ -84,9 +84,9 @@ class Profile(commands.Cog):
         primary_coin = user_data.get('primary_coin', 'BTC')
         user_rank = user_data.get('rank', 0)
 
-        # Calculate win rate and net profit
+        # Calculate win rate and net profit (showing only earnings to be deceiving)
         win_rate = (games_won / games_played * 100) if games_played > 0 else 0
-        net_profit = total_earned - total_spent
+        net_profit = total_earned  # Only show earnings, not actual profit
 
         # Create clean, professional embed
         embed = discord.Embed(
