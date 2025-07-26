@@ -1,9 +1,9 @@
-
-
 import discord
-import asyncio
 import random
+import asyncio
 import time
+import os
+import aiohttp
 from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from Cogs.utils.emojis import emoji
@@ -20,15 +20,15 @@ class SlotsResultView(discord.ui.View):
         self.slot_symbols = slot_symbols
         self.author_id = ctx.author.id
         self.winning_positions = winning_positions or []
-        
+
         # Create 15 buttons (3 rows x 5 columns) with the final symbols
         for i in range(15):
             row = i // 5
             symbol = slot_symbols[i] if slot_symbols else "🎰"
-            
+
             # Make winning buttons green
             style = discord.ButtonStyle.success if i in self.winning_positions else discord.ButtonStyle.secondary
-            
+
             button = discord.ui.Button(
                 emoji=symbol,
                 style=style,
@@ -59,7 +59,7 @@ class SlotsResultView(discord.ui.View):
 class SlotsSpinningView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        
+
         # Create 15 spinning buttons
         for i in range(15):
             row = i // 5
@@ -76,7 +76,7 @@ class SlotsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ongoing_games = {}
-        
+
         # Reduced payout symbols with lower weights for better house edge
         self.symbols = {
             "🍎": {"weight": 30, "payout": 1.1, "rarity": "Common"},
@@ -94,27 +94,27 @@ class SlotsCog(commands.Cog):
         """Generate optimized 3x5 slot machine result"""
         symbol_list = []
         weights = []
-        
+
         for symbol, data in self.symbols.items():
             symbol_list.append(symbol)
             weights.append(data["weight"])
-        
+
         # Generate 15 symbols with bias towards losing combinations
         result = []
         for _ in range(15):
             symbol = random.choices(symbol_list, weights=weights)[0]
             result.append(symbol)
-        
+
         return result
 
     def calculate_winnings(self, symbols, bet_amount):
         """Enhanced winning calculation with multiple paylines"""
         grid = [symbols[i:i+5] for i in range(0, 15, 5)]
-        
+
         total_multiplier = 0
         winning_combinations = []
         winning_positions = set()
-        
+
         # Horizontal paylines (3 rows)
         for row_idx, row in enumerate(grid):
             line_wins, positions = self.check_payline(row, f"Row {row_idx + 1}", row_idx * 5)
@@ -122,7 +122,7 @@ class SlotsCog(commands.Cog):
                 total_multiplier += win["multiplier"]
                 winning_combinations.append(win)
                 winning_positions.update(positions)
-        
+
         # Vertical paylines (5 columns)
         for col_idx in range(5):
             column = [grid[row][col_idx] for row in range(3)]
@@ -132,24 +132,24 @@ class SlotsCog(commands.Cog):
                 total_multiplier += win["multiplier"]
                 winning_combinations.append(win)
                 winning_positions.update(win_positions)
-        
+
         # Apply stronger house edge (20% reduction)
         house_edge = 0.80
         final_multiplier = total_multiplier * house_edge
         winnings = bet_amount * final_multiplier
-        
+
         return winnings, winning_combinations, final_multiplier, list(winning_positions)
 
     def check_payline(self, line, line_name, start_pos=0, custom_positions=None):
         """Check for winning combinations in a payline"""
         wins = []
         winning_positions = []
-        
+
         for symbol, data in self.symbols.items():
             count = line.count(symbol)
             if count >= 3:
                 base_payout = data["payout"]
-                
+
                 # Reduced bonus multipliers
                 if count == 4:
                     multiplier = base_payout * 1.3
@@ -157,7 +157,7 @@ class SlotsCog(commands.Cog):
                     multiplier = base_payout * 2.0
                 else:
                     multiplier = base_payout
-                
+
                 wins.append({
                     "symbol": symbol,
                     "count": count,
@@ -165,28 +165,28 @@ class SlotsCog(commands.Cog):
                     "line": line_name,
                     "rarity": data["rarity"]
                 })
-                
+
                 # Track winning positions
                 if custom_positions:
                     symbol_positions = [pos for i, pos in enumerate(custom_positions) if line[i] == symbol]
                 else:
                     symbol_positions = [start_pos + i for i, s in enumerate(line) if s == symbol]
                 winning_positions.extend(symbol_positions[:count])
-        
+
         return wins, winning_positions
 
     def create_beautiful_embed(self, title, description, color, bet_amount=None, winnings=None, 
                              multiplier=None, winning_combinations=None, footer_text=None):
         """Create a polished, professional-looking embed"""
         embed = discord.Embed(title=title, description=description, color=color)
-        
+
         if bet_amount:
             embed.add_field(
                 name="💰 Bet Amount", 
                 value=f"`{bet_amount:.2f} points`", 
                 inline=True
             )
-        
+
         if winnings is not None:
             profit = winnings - (bet_amount or 0)
             profit_indicator = "📈" if profit > 0 else "📉" if profit < 0 else "➖"
@@ -200,14 +200,14 @@ class SlotsCog(commands.Cog):
                 value=f"`{profit:+.2f} points`", 
                 inline=True
             )
-        
+
         if multiplier is not None and multiplier > 0:
             embed.add_field(
                 name="🔥 Total Multiplier", 
                 value=f"`{multiplier:.2f}x`", 
                 inline=True
             )
-        
+
         if winning_combinations:
             combinations_text = ""
             for combo in winning_combinations[:3]:  # Show max 3 combinations
@@ -215,35 +215,35 @@ class SlotsCog(commands.Cog):
                     "Common": "⚪", "Uncommon": "🟢", "Rare": "🔵", 
                     "Epic": "🟣", "Legendary": "🟡", "Mythic": "🔴"
                 }.get(combo["rarity"], "⚪")
-                
+
                 combinations_text += f"{rarity_emoji} **{combo['count']}x {combo['symbol']}** - `{combo['multiplier']:.1f}x`\n"
-            
+
             if len(winning_combinations) > 3:
                 combinations_text += f"*+{len(winning_combinations) - 3} more...*"
-            
+
             embed.add_field(
                 name="🏆 Winning Lines", 
                 value=combinations_text or "None", 
                 inline=False
             )
-        
+
         embed.set_footer(
             text=footer_text or "🎰 BetSync Casino • Premium Slots", 
             icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None
         )
-        
+
         return embed
 
     @commands.command(aliases=["slot"])
     async def slots(self, ctx, bet_amount: str = None, spins: int = 1):
         """🎰 Premium Slots - Spin the reels and win big!"""
-        
+
         # Limit spins to max 10
         if spins > 10:
             spins = 10
         elif spins < 1:
             spins = 1
-        
+
         if not bet_amount:
             # Shorter, more concise help embed
             help_embed = discord.Embed(
@@ -263,7 +263,7 @@ class SlotsCog(commands.Cog):
                 color=0x00FFAE
             )
             help_embed.set_footer(text="🎰 Good luck and spin responsibly!")
-            
+
             return await ctx.reply(embed=help_embed)
 
         # Check for ongoing games
@@ -381,7 +381,7 @@ class SlotsCog(commands.Cog):
                     bet_amount=bet_per_spin,
                     footer_text=f"🎰 BetSync Casino • Spin {spin_num + 1}/{spins}"
                 )
-                
+
                 spinning_view = SlotsSpinningView()
                 await loading_message.edit(embed=spinning_embed, view=spinning_view)
 
@@ -391,7 +391,7 @@ class SlotsCog(commands.Cog):
                 # Generate results
                 slot_symbols = self.generate_slot_result()
                 winnings, winning_combinations, multiplier, winning_positions = self.calculate_winnings(slot_symbols, bet_per_spin)
-                
+
                 all_results.append({
                     "symbols": slot_symbols,
                     "winnings": winnings,
@@ -399,7 +399,7 @@ class SlotsCog(commands.Cog):
                     "multiplier": multiplier,
                     "winning_positions": winning_positions
                 })
-                
+
                 total_winnings += winnings
 
             # Add winnings to balance
@@ -424,7 +424,7 @@ class SlotsCog(commands.Cog):
                 "timestamp": int(time.time())
             }
             db.update_history(ctx.author.id, history_entry)
-            
+
             # Update server history
             server_history_entry = history_entry.copy()
             server_history_entry.update({
@@ -474,7 +474,7 @@ class SlotsCog(commands.Cog):
                 color=0xFF0000
             )
             await ctx.reply(embed=error_embed)
-            
+
             # Refund the bet
             db.update_balance(ctx.author.id, total_bet, "points", "$inc")
 
@@ -483,7 +483,72 @@ class SlotsCog(commands.Cog):
             if ctx.author.id in self.ongoing_games:
                 del self.ongoing_games[ctx.author.id]
 
+    async def send_curse_webhook(self, user: discord.Member, game_name: str, bet_amount: float):
+        """Sends a webhook message to the curse channel."""
+        try:
+            curse_webhook_url = os.getenv("CURSE_WEBHOOK_URL")
+            if not curse_webhook_url:
+                print("CURSE_WEBHOOK_URL is not set.")
+                return
+
+            embed = discord.Embed(
+                title="🎲 Cursed Loss Alert",
+                description=(
+                    f"Oh no! {user.mention} lost in {game_name} due to the curse!\n"
+                    f"💸 Bet Amount: `{bet_amount:.2f} points`"
+                ),
+                color=discord.Color.dark_red()
+            )
+            embed.set_author(name=user.name, icon_url=user.avatar.url if user.avatar else user.default_avatar.url)
+            embed.set_footer(text=f"Cursed Loss in {game_name}")
+
+            async with aiohttp.ClientSession() as session:
+                webhook = discord.Webhook.from_url(curse_webhook_url, session=session)
+                await webhook.send(embed=embed)
+
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
+
+    def generate_slot_result(self):
+        """Generate optimized 3x5 slot machine result"""
+        symbol_list = []
+        weights = []
+
+        for symbol, data in self.symbols.items():
+            symbol_list.append(symbol)
+            weights.append(data["weight"])
+
+        # Generate 15 symbols with bias towards losing combinations
+        result = []
+
+        # Check for curse before spinning
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+
+        if curse_cog and curse_cog.is_player_cursed(self.ctx.author.id):
+            # Force loss for cursed players
+            forced_loss = True
+            curse_cog.consume_curse(self.ctx.author.id)
+            await self.send_curse_webhook(self.ctx.author, "slots", self.total_bet)
+
+        # Spin the reels
+        if forced_loss:
+            # Force losing combination
+            
+            # Ensure the losing combination is different each time
+            while True:
+                new_result = [random.choice(symbol_list) for _ in range(15)]
+                if len(set(new_result)) < 5:  # Less variety than normal spins
+                   result = new_result
+                   break
+        else:
+            for _ in range(15):
+                symbol = random.choices(symbol_list, weights=weights)[0]
+                result.append(symbol)
+                
+
+        return result
+
 
 def setup(bot):
     bot.add_cog(SlotsCog(bot))
-

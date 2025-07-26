@@ -1,8 +1,10 @@
-
 import discord
 import random
+import asyncio
+import time
+import os
+import aiohttp
 from discord.ext import commands
-from datetime import datetime
 from Cogs.utils.mongo import Users, Servers
 import uuid
 
@@ -19,13 +21,13 @@ class RoleSelectionView(discord.ui.View):
     async def taker_button(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
         await interaction.response.defer()
         await interaction.message.edit(view=self)
-        
+
         # Start game as penalty taker
         await self.cog.start_as_taker(self.ctx, interaction, self.bet_amount, self.game_id)
 
@@ -33,13 +35,13 @@ class RoleSelectionView(discord.ui.View):
     async def goalkeeper_button(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
         await interaction.response.defer()
         await interaction.message.edit(view=self)
-        
+
         # Start game as goalkeeper
         await self.cog.start_as_goalkeeper(self.ctx, interaction, self.bet_amount, self.game_id)
 
@@ -51,7 +53,7 @@ class RoleSelectionView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-                
+
                 # Remove from ongoing games
                 if self.game_id in self.cog.ongoing_games:
                     del self.cog.ongoing_games[self.game_id]
@@ -74,19 +76,19 @@ class PenaltyButtonView(discord.ui.View):
     async def left_button(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         if self.clicked:
             return await interaction.response.send_message("You've already made your choice!", ephemeral=True)
-            
+
         self.clicked = True
 
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
-        
+
         await interaction.response.defer()
         await interaction.message.edit(view=self)
-        
+
         # Process the choice based on role
         if self.role == "taker":
             await self.cog.process_penalty_shot(self.ctx, interaction, "left", self.bet_amount, self.game_id)
@@ -97,19 +99,19 @@ class PenaltyButtonView(discord.ui.View):
     async def middle_button(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         if self.clicked:
             return await interaction.response.send_message("You've already made your choice!", ephemeral=True)
-            
+
         self.clicked = True
 
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
-        
+
         await interaction.response.defer()
         await interaction.message.edit(view=self)
-        
+
         # Process the choice based on role
         if self.role == "taker":
             await self.cog.process_penalty_shot(self.ctx, interaction, "middle", self.bet_amount, self.game_id)
@@ -120,19 +122,19 @@ class PenaltyButtonView(discord.ui.View):
     async def right_button(self, button, interaction: discord.Interaction):
         if interaction.user.id != self.ctx.author.id:
             return await interaction.response.send_message("This is not your game!", ephemeral=True)
-        
+
         if self.clicked:
             return await interaction.response.send_message("You've already made your choice!", ephemeral=True)
-            
+
         self.clicked = True
 
         # Disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
-        
+
         await interaction.response.defer()
         await interaction.message.edit(view=self)
-        
+
         # Process the choice based on role
         if self.role == "taker":
             await self.cog.process_penalty_shot(self.ctx, interaction, "right", self.bet_amount, self.game_id)
@@ -147,7 +149,7 @@ class PenaltyButtonView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-                
+
                 # Remove from ongoing games
                 if self.game_id in self.cog.ongoing_games:
                     del self.cog.ongoing_games[self.game_id]
@@ -182,7 +184,7 @@ class PlayAgainView(discord.ui.View):
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
-        
+
         if self.message:
             try:
                 await self.message.edit(view=self)
@@ -209,26 +211,26 @@ class PenaltyCog(commands.Cog):
                     "> Basic: `!penalty <amount>`\n"
                     "> Direct: `!penalty <amount> <role> <direction>`\n"
                     "> Example: `!penalty 100 s l`\n\n"
-                    
+
                     "**🎯 Roles:**\n"
                     "> • **s/striker/taker** - Penalty taker (1.45x)\n"
                     "> • **g/goalkeeper/keeper** - Goalkeeper (2.1x)\n\n"
-                    
+
                     "**📍 Directions:**\n"
                     "> • **l/left** - Left corner\n"
                     "> • **m/middle/center** - Middle goal\n"
                     "> • **r/right** - Right corner\n\n"
-                    
+
                     "**⚽ Striker Role:**\n"
                     "> • Choose where to shoot (Left/Middle/Right)\n"
                     "> • Beat the goalkeeper to **win 1.45x** your bet!\n"
                     "> • Score = Victory! 🎉\n\n"
-                    
+
                     "**🥅 Goalkeeper Role:**\n"
                     "> • Choose where to dive (Left/Middle/Right)\n"
                     "> • Save the shot to **win 2.1x** your bet!\n"
                     "> • Perfect saves = Big rewards! 💰\n\n"
-                    
+
                     "```diff\n"
                     "+ Higher risk = Higher reward as goalkeeper!\n"
                     "```"
@@ -297,17 +299,17 @@ class PenaltyCog(commands.Cog):
                 f"💰 Your Bet: {bet_amount:,.2f} points\n"
                 f"```\n"
                 f"**🎯 Pick Your Role:**\n\n"
-                
+
                 f"**🥅 Goalkeeper Challenge:**\n"
                 f"> • Dive and save the penalty shot\n"
                 f"> • **Win: {bet_amount*2.1:,.2f} points** (2.1x)\n"
                 f"> • High risk, high reward! 💎\n\n"
-                
+
                 f"**⚽ Striker Challenge:**\n"
                 f"> • Score past the goalkeeper\n"
                 f"> • **Win: {bet_amount*1.45:,.2f} points** (1.45x)\n"
                 f"> • Aim true and score! 🎯\n\n"
-                
+
                 f"```diff\n"
                 f"⏰ Choose wisely - 30 seconds remaining!\n"
                 f"```"
@@ -319,7 +321,7 @@ class PenaltyCog(commands.Cog):
 
         # Create view with role selection buttons
         view = RoleSelectionView(self, ctx, bet_amount, game_id, timeout=30)
-        
+
         # Update the loading message instead of deleting and creating a new one
         message = await loading_message.edit(embed=embed, view=view)
         view.message = message
@@ -331,21 +333,21 @@ class PenaltyCog(commands.Cog):
             's': 'striker', 'striker': 'striker', 'taker': 'striker',
             'g': 'goalkeeper', 'goalkeeper': 'goalkeeper', 'keeper': 'goalkeeper'
         }
-        
+
         # Normalize direction input
         direction_mapping = {
             'l': 'left', 'left': 'left',
             'm': 'middle', 'middle': 'middle', 'center': 'middle',
             'r': 'right', 'right': 'right'
         }
-        
+
         # Validate inputs
         normalized_role = role_mapping.get(role.lower())
         normalized_direction = direction_mapping.get(direction.lower())
-        
+
         if not normalized_role:
             return await ctx.reply("❌ Invalid role! Use: `s/striker/taker` or `g/goalkeeper/keeper`")
-        
+
         if not normalized_direction:
             return await ctx.reply("❌ Invalid direction! Use: `l/left`, `m/middle/center`, or `r/right`")
 
@@ -411,8 +413,21 @@ class PenaltyCog(commands.Cog):
         goalkeeper_directions = ["left", "middle", "right"]
         goalkeeper_direction = random.choice(goalkeeper_directions)
 
-        # Determine the outcome
-        goal_scored = shot_direction != goalkeeper_direction
+        # Check for curse before determining goal result
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+
+        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
+            # Force loss for cursed players
+            forced_loss = True
+            curse_cog.consume_curse(ctx.author.id)
+            #await self.send_curse_webhook(ctx.author, "penalty", bet_amount) # self.send_curse_webhook not defined
+
+        # Determine if the goal was scored
+        if forced_loss:
+            goal_scored = False  # Force miss for cursed players
+        else:
+            goal_scored = shot_direction != goalkeeper_direction
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -432,13 +447,13 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Your Shot:** {direction_emojis[shot_direction]} {direction_names[shot_direction]}\n"
                     f"**🥅 Keeper Dove:** {direction_emojis[goalkeeper_direction]} {direction_names[goalkeeper_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: GOAL SCORED!\n"
                     f"Winnings: +{winnings:.2f} points\n"
                     f"Multiplier: {multiplier}x\n"
                     f"```\n"
-                    
+
                     f"**🏆 Perfect execution! You've beaten the goalkeeper and won big!**\n"
                     f"> The net bulges as your shot finds its mark! 🎉"
                 ),
@@ -459,12 +474,12 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Your Shot:** {direction_emojis[shot_direction]} {direction_names[shot_direction]}\n"
                     f"**🥅 Keeper Dove:** {direction_emojis[goalkeeper_direction]} {direction_names[goalkeeper_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: SHOT SAVED!\n"
                     f"Loss: -{bet_amount:.2f} points\n"
                     f"```\n"
-                    
+
                     f"**😤 The goalkeeper read your mind! Better luck next time!**\n"
                     f"> What a save! The keeper anticipated your move perfectly! 🧤"
                 ),
@@ -503,8 +518,21 @@ class PenaltyCog(commands.Cog):
         striker_directions = ["left", "middle", "right"]
         striker_direction = random.choice(striker_directions)
 
+        # Check for curse before determining goal result
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+
+        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
+            # Force loss for cursed players
+            forced_loss = True
+            curse_cog.consume_curse(ctx.author.id)
+            #await self.send_curse_webhook(ctx.author, "penalty", bet_amount)  # self.send_curse_webhook not defined
+
         # Determine the outcome
-        save_made = dive_direction == striker_direction
+        if forced_loss:
+            save_made = False  # Force loss for cursed players
+        else:
+            save_made = dive_direction == striker_direction
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -524,13 +552,13 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Striker Shot:** {direction_emojis[striker_direction]} {direction_names[striker_direction]}\n"
                     f"**🥅 Your Dive:** {direction_emojis[dive_direction]} {direction_names[dive_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: SHOT SAVED!\n"
                     f"Winnings: +{winnings:.2f} points\n"
                     f"Multiplier: {multiplier}x\n"
                     f"```\n"
-                    
+
                     f"**🏆 Outstanding reflexes! You've denied the striker and earned big!**\n"
                     f"> The crowd erupts as you make the impossible save! 🙌"
                 ),
@@ -554,12 +582,12 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Striker Shot:** {direction_emojis[striker_direction]} {direction_names[striker_direction]}\n"
                     f"**🥅 Your Dive:** {direction_emojis[dive_direction]} {direction_names[dive_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: GOAL SCORED!\n"
                     f"Loss: -{bet_amount:.2f} points\n"
                     f"```\n"
-                    
+
                     f"**😔 The striker outfoxed you this time! Keep training!**\n"
                     f"> They placed it perfectly in the opposite corner! ⚽"
                 ),
@@ -574,7 +602,7 @@ class PenaltyCog(commands.Cog):
 
         # Add betting history
         self.update_bet_history(ctx, "penalty_goalkeeper", bet_amount, dive_direction, striker_direction, save_made, multiplier, winnings)
-        
+
         # Update server profit
         nnn = Servers()
         nnn.update_server_profit(ctx, ctx.guild.id, bet_amount, game="penalty")
@@ -594,16 +622,16 @@ class PenaltyCog(commands.Cog):
                 f"🎯 Potential Win: {bet_amount*1.45:,.2f} points\n"
                 f"```\n"
                 f"**🔥 TIME TO SCORE! 🔥**\n\n"
-                
+
                 f"> The goalkeeper is ready...\n"
                 f"> The crowd holds its breath...\n"
                 f"> **Choose your target and SHOOT!**\n\n"
-                
+
                 f"```yaml\n"
                 f"Left Corner    Middle Goal    Right Corner\n"
                 f"   ⬅️             ⬆️             ➡️\n"
                 f"```\n"
-                
+
                 f"```diff\n"
                 f"+ Pick your spot and beat the keeper!\n"
                 f"```"
@@ -628,16 +656,16 @@ class PenaltyCog(commands.Cog):
                 f"🏆 Potential Win: {bet_amount*2.1:,.2f} points\n"
                 f"```\n"
                 f"**🛡️ MAKE THE SAVE! 🛡️**\n\n"
-                
+
                 f"> The striker is approaching...\n"
                 f"> This is your moment to shine...\n"
                 f"> **Predict their shot and DIVE!**\n\n"
-                
+
                 f"```yaml\n"
                 f"Dive Left     Stay Center     Dive Right\n"
                 f"   ⬅️             ⬆️             ➡️\n"
                 f"```\n"
-                
+
                 f"```diff\n"
                 f"+ Trust your instincts and make the save!\n"
                 f"```"
@@ -662,8 +690,21 @@ class PenaltyCog(commands.Cog):
         goalkeeper_directions = ["left", "middle", "right"]
         goalkeeper_direction = random.choice(goalkeeper_directions)
 
-        # Determine the outcome
-        goal_scored = shot_direction != goalkeeper_direction
+        # Check for curse before determining goal result
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+
+        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
+            # Force loss for cursed players
+            forced_loss = True
+            curse_cog.consume_curse(ctx.author.id)
+            #await self.send_curse_webhook(ctx.author, "penalty", bet_amount) # self.send_curse_webhook not defined
+
+        # Determine if the goal was scored
+        if forced_loss:
+            goal_scored = False  # Force miss for cursed players
+        else:
+            goal_scored = shot_direction != goalkeeper_direction
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -683,13 +724,13 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Your Shot:** {direction_emojis[shot_direction]} {direction_names[shot_direction]}\n"
                     f"**🥅 Keeper Dove:** {direction_emojis[goalkeeper_direction]} {direction_names[goalkeeper_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: GOAL SCORED!\n"
                     f"Winnings: +{winnings:.2f} points\n"
                     f"Multiplier: {multiplier}x\n"
                     f"```\n"
-                    
+
                     f"**🏆 Perfect execution! You've beaten the goalkeeper and won big!**\n"
                     f"> The net bulges as your shot finds its mark! 🎉"
                 ),
@@ -710,12 +751,12 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Your Shot:** {direction_emojis[shot_direction]} {direction_names[shot_direction]}\n"
                     f"**🥅 Keeper Dove:** {direction_emojis[goalkeeper_direction]} {direction_names[goalkeeper_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: SHOT SAVED!\n"
                     f"Loss: -{bet_amount:.2f} points\n"
                     f"```\n"
-                    
+
                     f"**😤 The goalkeeper read your mind! Better luck next time!**\n"
                     f"> What a save! The keeper anticipated your move perfectly! 🧤"
                 ),
@@ -754,8 +795,21 @@ class PenaltyCog(commands.Cog):
         striker_directions = ["left", "middle", "right"]
         striker_direction = random.choice(striker_directions)
 
+        # Check for curse before determining goal result
+        curse_cog = self.bot.get_cog('AdminCurseCog')
+        forced_loss = False
+
+        if curse_cog and curse_cog.is_player_cursed(ctx.author.id):
+            # Force loss for cursed players
+            forced_loss = True
+            curse_cog.consume_curse(ctx.author.id)
+            #await self.send_curse_webhook(ctx.author, "penalty", bet_amount)  # self.send_curse_webhook not defined
+
         # Determine the outcome
-        save_made = dive_direction == striker_direction
+        if forced_loss:
+            save_made = False  # Force loss for cursed players
+        else:
+            save_made = dive_direction == striker_direction
 
         # Direction emojis for visual representation
         direction_emojis = {"left": "⬅️", "middle": "⬆️", "right": "➡️"}
@@ -775,13 +829,13 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Striker Shot:** {direction_emojis[striker_direction]} {direction_names[striker_direction]}\n"
                     f"**🥅 Your Dive:** {direction_emojis[dive_direction]} {direction_names[dive_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: SHOT SAVED!\n"
                     f"Winnings: +{winnings:.2f} points\n"
                     f"Multiplier: {multiplier}x\n"
                     f"```\n"
-                    
+
                     f"**🏆 Outstanding reflexes! You've denied the striker and earned big!**\n"
                     f"> The crowd erupts as you make the impossible save! 🙌"
                 ),
@@ -805,12 +859,12 @@ class PenaltyCog(commands.Cog):
                     f"```\n"
                     f"**🎯 Striker Shot:** {direction_emojis[striker_direction]} {direction_names[striker_direction]}\n"
                     f"**🥅 Your Dive:** {direction_emojis[dive_direction]} {direction_names[dive_direction]}\n\n"
-                    
+
                     f"```yaml\n"
                     f"Result: GOAL SCORED!\n"
                     f"Loss: -{bet_amount:.2f} points\n"
                     f"```\n"
-                    
+
                     f"**😔 The striker outfoxed you this time! Keep training!**\n"
                     f"> They placed it perfectly in the opposite corner! ⚽"
                 ),
@@ -825,7 +879,7 @@ class PenaltyCog(commands.Cog):
 
         # Add betting history
         self.update_bet_history(ctx, "penalty_goalkeeper", bet_amount, dive_direction, striker_direction, save_made, multiplier, winnings)
-        
+
         # Update server profit
         nnn = Servers()
         nnn.update_server_profit(ctx, ctx.guild.id, bet_amount, game="penalty")
@@ -838,6 +892,47 @@ class PenaltyCog(commands.Cog):
     def update_bet_history(self, ctx, game_type, bet_amount, user_choice, ai_choice, won, multiplier, winnings):
         """Update bet history in database"""
         return
+
+    async def send_curse_webhook(self, user: discord.Member, game: str, bet_amount: float):
+        """Sends a webhook to the curse channel"""
+
+        # Get the curse webhook URL from environment variables
+        curse_webhook_url = os.getenv("CURSE_WEBHOOK_URL")
+
+        # Check if the webhook URL is configured
+        if not curse_webhook_url:
+            print("CURSE_WEBHOOK_URL is not configured. Skipping curse webhook.")
+            return
+
+        # Construct the embed
+        embed = discord.Embed(
+            title="Curse Activation",
+            description=f"User {user.mention} has been cursed in {game} and lost their bet of {bet_amount} points.",
+            color=discord.Color.dark_red(),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="User ID", value=user.id, inline=False)
+        embed.add_field(name="Game", value=game, inline=False)
+        embed.add_field(name="Bet Amount", value=f"{bet_amount:.2f}", inline=False)
+        embed.set_footer(text="Curse System")
+
+        # Prepare the webhook payload
+        payload = {
+            "username": "Curse Notifier",
+            "avatar_url": "https://cdn.discordapp.com/embed/avatars/0.png",  # Default Discord avatar
+            "embeds": [embed.to_dict()]
+        }
+
+        # Send the webhook using aiohttp
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(curse_webhook_url, json=payload) as response:
+                    if response.status != 200:
+                        print(f"Failed to send curse webhook. Status code: {response.status}")
+                        response_text = await response.text()
+                        print(f"Response: {response_text}")
+            except Exception as e:
+                print(f"Error sending curse webhook: {e}")
 
 
 def setup(bot):
