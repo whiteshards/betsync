@@ -128,8 +128,8 @@ class Profile(commands.Cog):
         embed.add_field(
             name="🎮 Gaming Stats",
             value=(
-                f"**Games Played:** {games_played:,}\n"
-                f"**Win Rate:** {win_rate:.1f}% ({games_won:,}W/{games_lost:,}L)\n"
+                f"**Games Won:** {games_won:,}\n"
+                f"**Win Rate:** {win_rate:.1f}%\n"
                 f"**Total Wagered:** {total_spent:,.2f} pts"
             ),
             inline=True
