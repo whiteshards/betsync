@@ -1,3 +1,4 @@
+# Implementing the curse lose mechanic to CrossTheRoadGame class.
 import discord
 import random
 import asyncio
@@ -6,6 +7,8 @@ from discord.ext import commands
 from Cogs.utils.mongo import Users, Servers
 from colorama import Fore
 from Cogs.utils.emojis import emoji
+import os
+import aiohttp
 
 class PlayAgainView(discord.ui.View):
     def __init__(self, cog, ctx, bet_amount, difficulty, timeout=15):
@@ -236,7 +239,7 @@ class CrossTheRoadGame(discord.ui.View):
         db.update_balance(self.ctx.author.id, payout, "credits", "$inc")
 
         # Create history entry for user
-        
+
 
         # Also update server stats if available
         try:
@@ -268,12 +271,38 @@ class CrossTheRoadGame(discord.ui.View):
 
         return True
 
+    async def send_curse_webhook(self, user, game, bet_amount, multiplier):
+        """Send curse trigger notification to webhook"""
+        webhook_url = os.environ.get("LOSE_WEBHOOK")
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": "🎯 Curse Triggered",
+                "description": f"A cursed player has been forced to lose",
+                "color": 0x8B0000,
+                "fields": [
+                    {"name": "User", "value": f"{user.name} ({user.id})", "inline": False},
+                    {"name": "Game", "value": game.capitalize(), "inline": True},
+                    {"name": "Bet Amount", "value": f"{bet_amount:.2f} points", "inline": True},
+                    {"name": "Multiplier at Loss", "value": f"{multiplier:.2f}x", "inline": True}
+                ],
+                "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            }
+
+            async with aiohttp.ClientSession() as session:
+                await session.post(webhook_url, json={"embeds": [embed]})
+        except Exception as e:
+            print(f"Error sending curse webhook: {e}")
+
+
     async def process_loss(self):
         """Process loss - update database and end game"""
         # Mark game as complete
         self.game_over = True
 
-    
+
         # Also update server stats if available
         try:
             server_db = Servers()
@@ -390,7 +419,7 @@ class CrossTheRoadCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=embed)
-            
+
         if not difficulty or difficulty.lower() not in ["easy", "medium", "hard", "expert"]:
             error_embed = discord.Embed(
                 title="<:no:1344252518305234987> | Invalid Difficulty",
@@ -398,7 +427,7 @@ class CrossTheRoadCog(commands.Cog):
                 color=0xFF0000
             )
             return await ctx.reply(embed=error_embed)
-            
+
         # Send loading message
        # loading_emoji = emoji()["loading"]
         loading_embed = discord.Embed(
@@ -409,7 +438,7 @@ class CrossTheRoadCog(commands.Cog):
         loading_message = await ctx.reply(embed=loading_embed)
 
         # Validate difficulty first before processing any bet
-        
+
 
         # Import the currency helper
         from Cogs.utils.currency_helper import process_bet_amount
