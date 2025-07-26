@@ -535,6 +535,30 @@ class Blackjack(commands.Cog):
             # Import the currency helper
             from Cogs.utils.currency_helper import process_bet_amount
 
+            # Handle "all" and "max" bet amounts
+            db = Users()
+            if bet_amount.lower() in ["all", "max"]:
+                user_data = db.fetch_user(ctx.author.id)
+                if user_data == False:
+                    await loading_message.delete()
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | User Not Found",
+                        description="You don't have an account. Please wait for auto-registration or use `!signup`.",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
+                
+                available_balance = user_data.get("points", 0)
+                if available_balance <= 0:
+                    await loading_message.delete()
+                    embed = discord.Embed(
+                        title="<:no:1344252518305234987> | Insufficient Balance",
+                        description="You don't have enough points to bet.",
+                        color=0xFF0000
+                    )
+                    return await ctx.reply(embed=embed)
+                
+                bet_amount = str(available_balance)
 
             # Process the bet amount using the currency helper
             success, bet_info, error_embed = await process_bet_amount(ctx, bet_amount, loading_message)
@@ -546,7 +570,7 @@ class Blackjack(commands.Cog):
                 return await ctx.reply(embed=error_embed)
 
             # Set up the game
-            bet_amount_value = float(bet_amount)
+            bet_amount_value = bet_info.get("total_bet_amount", 0)
 
             # Determine currency used
             tu = bet_info["tokens_used"]
