@@ -67,7 +67,7 @@ class Profile(commands.Cog):
         # Calculate title and XP info
         total_wagered = user_data.get("total_spent", 0)
         title, title_description = self.get_user_title(total_wagered)
-        current_xp = user_data.get('xp', 0)
+        current_xp = int(user_data.get('xp', 0))
         current_level = user_data.get('level', 1)
         xp_limit = round(10 * (1 + (current_level - 1) * 0.1))
 
