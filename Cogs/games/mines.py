@@ -355,8 +355,8 @@ class MinesTileView(discord.ui.View):
             probability = (safe_cells - i) / (total_cells - i)
             multiplier /= probability
 
-        # Apply house edge (~10%)
-        house_edge = 0.90
+        # Apply house edge (~8%)
+        house_edge = 0.92
         multiplier *= house_edge
 
         # Round to 2 decimal places
