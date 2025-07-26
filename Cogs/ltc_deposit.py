@@ -493,14 +493,8 @@ class LtcDeposit(commands.Cog):
             # --- Start of main processing logic ---
             # (The user_data variable is already fetched at the start of the function)
 
-            # Ensure history is a list (moved from later)
-            history = user_data.get('history', [])
-            if not isinstance(history, list):
-                print(f"{Fore.YELLOW}[!] User {user_id} history is not a list. Resetting to empty list.{Style.RESET_ALL}")
-                history = []
-                self.users_db.collection.update_one({"discord_id": user_id}, {"$set": {"history": []}})
-
-            processed_txids = {entry.get('txid') for entry in history if entry and entry.get('type') == 'ltc_deposit'}
+            # Get processed txids from dedicated field to prevent duplicates
+            processed_txids = set(user_data.get('processed_ltc_txids', []))
             new_deposit_processed_in_this_check = False
             first_pending_tx = None
 
@@ -577,24 +571,29 @@ class LtcDeposit(commands.Cog):
                 # Convert LTC to points using the conversion rate
                 points_to_add = amount_crypto / LTC_CONVERSION_RATE
 
-                # --- Database Update ---
+                # --- Database Update with Atomic Duplicate Prevention ---
                 balance_before_ltc = user_data.get("wallet", {}).get("LTC", 0) # Get LTC balance before
                 balance_before_points = user_data.get("points", 0)
 
-                # 1. Increment wallet.LTC balance AND points
+                # Use atomic operation to prevent duplicate processing
+                # This will only update if the txid is NOT already in processed_ltc_txids
                 update_result_wallet = self.users_db.collection.update_one(
-                    {"discord_id": user_id},
+                    {
+                        "discord_id": user_id,
+                        "processed_ltc_txids": {"$ne": txid}  # Only update if txid is NOT already processed
+                    },
                     {
                         "$inc": {
                             "wallet.LTC": amount_crypto,
                             "points": points_to_add
-                        }
+                        },
+                        "$addToSet": {"processed_ltc_txids": txid}  # Add txid to processed list atomically
                     }
                 )
+                
                 if not update_result_wallet or update_result_wallet.matched_count == 0:
-                     print(f"{Fore.RED}[!] Failed to update wallet.LTC and points for user {user_id} for txid {txid}. Aborting processing.{Style.RESET_ALL}")
-                     # Potentially revert or flag for manual review
-                     continue # Skip this transaction
+                     print(f"{Fore.YELLOW}[!] Transaction {txid} already processed for user {user_id} or user not found. Skipping.{Style.RESET_ALL}")
+                     continue # Skip this transaction - already processed
                 print(f"{Fore.GREEN}[+] Updated wallet.LTC for user {user_id} by {amount_crypto:.8f} LTC and added {points_to_add:.2f} points for txid {txid}{Style.RESET_ALL}")
 
                 # 2. Increment total deposit amount (USD value for stats tracking)
@@ -626,12 +625,7 @@ class LtcDeposit(commands.Cog):
                      print(f"{Fore.YELLOW}[!] Failed to update history for user {user_id}, txid {txid}. Balance was updated.{Style.RESET_ALL}")
                      # Balance is already updated, log this inconsistency
 
-                # 4. Add txid to processed list
-                # This prevents potential double-crediting if save/notify fails partially
-                self.users_db.collection.update_one(
-                    {"discord_id": user_id},
-                    {"$addToSet": {"processed_ltc_txids": txid}}
-                )
+                # The txid was already added to processed_ltc_txids atomically above
                 # Skip wallet save to prevent duplicate history entries
                 # The LTC wallet balance was already updated directly via MongoDB
 
