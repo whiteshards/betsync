@@ -396,32 +396,79 @@ class BtcDeposit(commands.Cog):
                 print(f"{Fore.RED}[!] User data not found for user {user_id} at start of deposit check.{Style.RESET_ALL}")
                 return "error", {"error": "User data not found."}
 
-            try:
-                async with aiohttp.ClientSession() as session:
-                    txs_url = f"{MEMPOOL_API_URL}/address/{address}/txs"
-                    async with session.get(txs_url) as response:
-                        if response.status != 200:
-                            print(f"{Fore.RED}[!] Mempool API Error ({response.status}) fetching transactions for {address}. Response: {await response.text()}{Style.RESET_ALL}")
-                            return "error", {"error": f"API Error ({response.status}) fetching transactions."}
+            # Retry logic for API calls
+            max_retries = 2
+            retry_delay = 1.0
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+                        txs_url = f"{MEMPOOL_API_URL}/address/{address}/txs"
+                        async with session.get(txs_url) as response:
+                            if response.status == 429:  # Rate limited
+                                if attempt < max_retries:
+                                    print(f"{Fore.YELLOW}[!] Rate limited, retrying in {retry_delay} seconds...{Style.RESET_ALL}")
+                                    await asyncio.sleep(retry_delay)
+                                    retry_delay *= 2
+                                    continue
+                                else:
+                                    return "error", {"error": "API rate limit exceeded. Please try again later."}
+                            
+                            if response.status != 200:
+                                error_text = await response.text()
+                                print(f"{Fore.RED}[!] Mempool API Error ({response.status}) fetching transactions for {address}. Response: {error_text}{Style.RESET_ALL}")
+                                if attempt < max_retries:
+                                    await asyncio.sleep(retry_delay)
+                                    continue
+                                return "error", {"error": f"API Error ({response.status}) fetching transactions after {max_retries + 1} attempts."}
 
-                        try:
-                            transactions = await response.json()
-                        except Exception as e:
-                            print(f"{Fore.RED}[!] Error parsing transactions for {address}: {e}{Style.RESET_ALL}")
-                            return "error", {"error": "Failed to parse transaction data"}
+                            try:
+                                transactions = await response.json()
+                            except Exception as e:
+                                print(f"{Fore.RED}[!] Error parsing transactions for {address}: {e}{Style.RESET_ALL}")
+                                if attempt < max_retries:
+                                    await asyncio.sleep(retry_delay)
+                                    continue
+                                return "error", {"error": "Failed to parse transaction data"}
 
-                    tip_url = f"{MEMPOOL_API_URL}/blocks/tip/height"
-                    async with session.get(tip_url) as tip_response:
-                        if tip_response.status != 200:
-                            print(f"{Fore.RED}[!] API Error ({tip_response.status}) fetching block height.{Style.RESET_ALL}")
-                            return "error", {"error": f"API Error ({tip_response.status}) fetching block height."}
-                        current_block_height = int(await tip_response.text())
+                        tip_url = f"{MEMPOOL_API_URL}/blocks/tip/height"
+                        async with session.get(tip_url) as tip_response:
+                            if tip_response.status != 200:
+                                error_text = await tip_response.text()
+                                print(f"{Fore.RED}[!] API Error ({tip_response.status}) fetching block height. Response: {error_text}{Style.RESET_ALL}")
+                                if attempt < max_retries:
+                                    await asyncio.sleep(retry_delay)
+                                    continue
+                                return "error", {"error": f"API Error ({tip_response.status}) fetching block height after {max_retries + 1} attempts."}
+                            
+                            try:
+                                current_block_height = int(await tip_response.text())
+                            except ValueError as e:
+                                print(f"{Fore.RED}[!] Error parsing block height: {e}{Style.RESET_ALL}")
+                                if attempt < max_retries:
+                                    await asyncio.sleep(retry_delay)
+                                    continue
+                                return "error", {"error": "Failed to parse block height"}
 
-                if not transactions:
-                    return "no_new", {}
-            except Exception as e:
-                transactions = []
-                current_block_height = -1
+                    break  # Success, exit retry loop
+
+                except asyncio.TimeoutError:
+                    print(f"{Fore.YELLOW}[!] API timeout on attempt {attempt + 1}/{max_retries + 1}{Style.RESET_ALL}")
+                    if attempt < max_retries:
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    return "error", {"error": "API timeout after multiple attempts"}
+                except Exception as e:
+                    print(f"{Fore.RED}[!] Unexpected API error on attempt {attempt + 1}: {e}{Style.RESET_ALL}")
+                    if attempt < max_retries:
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    return "error", {"error": f"API connection failed after {max_retries + 1} attempts"}
+
+            if not transactions:
+                return "no_new", {}
 
             # Get processed txids from dedicated field to prevent duplicates
             processed_txids = set(user_data.get('processed_btc_txids', []))
@@ -492,43 +539,45 @@ class BtcDeposit(commands.Cog):
                 balance_before_btc = user_data.get("wallet", {}).get("BTC", 0)
                 balance_before_points = user_data.get("points", 0)
 
-                # Use atomic operation to prevent duplicate processing
-                # This will only update if the txid is NOT already in processed_btc_txids
-                update_result_wallet = self.users_db.collection.update_one(
-                    {
-                        "discord_id": user_id,
-                        "processed_btc_txids": {"$ne": txid}  # Only update if txid is NOT already processed
-                    },
-                    {
-                        "$inc": {
-                            "wallet.BTC": amount_crypto,
-                            "points": points_to_add
-                        },
-                        "$addToSet": {"processed_btc_txids": txid}  # Add txid to processed list atomically
+                # Use atomic operation to prevent duplicate processing with better error handling
+                try:
+                    # Prepare history entry before wallet update
+                    history_entry = {
+                        "type": "btc_deposit",
+                        "amount_crypto": amount_crypto,
+                        "points_credited": points_to_add,
+                        "currency": "BTC",
+                        "txid": txid,
+                        "address": address,
+                        "confirmations": confirmations,
+                        "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
                     }
-                )
-                
-                if not update_result_wallet or update_result_wallet.matched_count == 0:
-                    print(f"{Fore.YELLOW}[!] Transaction {txid} already processed for user {user_id} or user not found. Skipping.{Style.RESET_ALL}")
-                    continue # Skip this transaction - already processed
-                print(f"{Fore.GREEN}[+] Updated wallet.BTC for user {user_id} by {amount_crypto:.8f} BTC and added {points_to_add:.2f} points for txid {txid}{Style.RESET_ALL}")
 
-                history_entry = {
-                    "type": "btc_deposit",
-                    "amount_crypto": amount_crypto,
-                    "points_credited": points_to_add,
-                    "currency": "BTC",
-                    "txid": txid,
-                    "address": address,
-                    "confirmations": confirmations,
-                    "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
-                }
-                history_update_success = self.users_db.update_history(user_id, history_entry)
-                if not history_update_success:
-                    print(f"{Fore.YELLOW}[!] Failed to update history for user {user_id}, txid {txid}. Balance was updated.{Style.RESET_ALL}")
-
-                # The txid was already added to processed_btc_txids atomically above
-                await asyncio.to_thread(self.users_db.save, user_id)
+                    # Atomic operation that updates wallet, points, processed txids, and history in one go
+                    update_result_wallet = self.users_db.collection.update_one(
+                        {
+                            "discord_id": user_id,
+                            "processed_btc_txids": {"$ne": txid}  # Only update if txid is NOT already processed
+                        },
+                        {
+                            "$inc": {
+                                "wallet.BTC": amount_crypto,
+                                "points": points_to_add
+                            },
+                            "$addToSet": {"processed_btc_txids": txid},  # Add txid to processed list atomically
+                            "$push": {"history": {"$each": [history_entry], "$slice": -100}}  # Add to history atomically
+                        }
+                    )
+                    
+                    if not update_result_wallet or update_result_wallet.matched_count == 0:
+                        print(f"{Fore.YELLOW}[!] Transaction {txid} already processed for user {user_id} or user not found. Skipping.{Style.RESET_ALL}")
+                        continue # Skip this transaction - already processed
+                    
+                    print(f"{Fore.GREEN}[+] Atomically updated wallet.BTC for user {user_id} by {amount_crypto:.8f} BTC, added {points_to_add:.2f} points, and updated history for txid {txid}{Style.RESET_ALL}")
+                    
+                except Exception as db_error:
+                    print(f"{Fore.RED}[!] Database error processing transaction {txid} for user {user_id}: {db_error}{Style.RESET_ALL}")
+                    continue  # Skip this transaction but continue with others
 
                 balance_after_btc = balance_before_btc + amount_crypto
                 user = self.bot.get_user(user_id)
@@ -565,11 +614,20 @@ class BtcDeposit(commands.Cog):
                 if not updated_user_data:
                     return "error", {"error": "Could not fetch updated user data after processing."}
                 
+                # Validate that user data was actually updated
+                if not updated_user_data:
+                    print(f"{Fore.RED}[!] Critical error: Could not fetch updated user data after processing deposits for user {user_id}{Style.RESET_ALL}")
+                    return "error", {"error": "Could not verify deposit processing"}
+                
                 # Get the newly processed txids (those that are now in processed_btc_txids but weren't before)
                 current_processed_txids = set(updated_user_data.get('processed_btc_txids', []))
                 newly_processed_txids = current_processed_txids - processed_txids
                 
-                # Calculate total deposits processed in this check
+                if not newly_processed_txids:
+                    print(f"{Fore.YELLOW}[!] Warning: new_deposit_processed_in_this_check is True but no newly processed txids found for user {user_id}{Style.RESET_ALL}")
+                    return "error", {"error": "Deposit processing state inconsistency detected"}
+                
+                # Calculate total deposits processed in this check with validation
                 processed_deposits = []
                 total_btc_credited = 0
                 total_points_credited = 0
@@ -597,6 +655,10 @@ class BtcDeposit(commands.Cog):
                         })
                         total_btc_credited += amount_crypto
                         total_points_credited += points_credited
+                
+                # Validate amounts match what should have been processed
+                if len(processed_deposits) != len(newly_processed_txids):
+                    print(f"{Fore.YELLOW}[!] Warning: Processed deposits count ({len(processed_deposits)}) doesn't match newly processed txids count ({len(newly_processed_txids)}) for user {user_id}{Style.RESET_ALL}")
                 
                 if processed_deposits:
                     return "success", {
